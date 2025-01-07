@@ -16,7 +16,6 @@ for each function definition using the
 @ decorator to pass the function to the
 register.
 '''
-
 @alt.theme.register('custom_light', enable = False)
 def custom_light() -> alt.theme.ThemeConfig:
     return {
@@ -26,7 +25,7 @@ def custom_light() -> alt.theme.ThemeConfig:
         }
     }
     
-@alt.theme.register('custom_dark', enable = True)
+@alt.theme.register('custom_dark', enable = False)
 def custom_dark() -> alt.theme.ThemeConfig:
     return {
         "config": {
