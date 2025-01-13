@@ -1,17 +1,6 @@
 import altair as alt
 
 """
-Global configuration values.
-"""
-dimX = 300
-dimY = 300
-font = "Helvetica Neue"
-fontSize = dimX / 30
-fontStyle = "UtlraLight"
-transparentBackground = False
-backgroundColor = "white"
-
-"""
 Defining custom themes using global and
 rational configuration values. The theme
 must be added to the register uniquely
@@ -22,40 +11,47 @@ register.
 
 
 # alt.theme.options = {"test": "test"}
-def options(dark_mode: bool, grid: bool):
-    alt.theme.options = {} # must reset options to remove stale keys
+def options(
+    dark_mode=False,
+    dimX=300,
+    dimY=300,
+    font="Helvetica Neue",
+    fontSize=15,
+    fontStyle="UltraLight",
+    grid=False,
+    transparentBackground=False,
+    backgroundColor="white",
+):
+    """
+    Set global configuration options for the custom theme.
+    Call this function when plotting to custom-set the
+    options to override the defaults.
+    """
+    alt.theme.options = {}  # must reset options to remove stale keys
     alt.theme.options["grid"] = grid
+    alt.theme.options["fontStyle"] = fontStyle
     alt.theme.options["dark_mode"] = dark_mode
 
-# @alt.theme.register('custom_light', enable = False)
-# def custom_light() -> alt.theme.ThemeConfig:
-#     return {
-#         "config": {
-#             "view": {"continuousWidth": dimX, "continuousHeight": dimY},
-#             "mark": {"color": "black", "fill": "black"},
-#         }
-#     }
 
-
-@alt.theme.register("custom_dark", enable=False)
-def custom_dark() -> alt.theme.ThemeConfig:
-    alt.theme.enable("custom_dark")
+@alt.theme.register("custom", enable=False)
+def custom() -> alt.theme.ThemeConfig:
+    opts = alt.theme.options
     return {
         "config": {
             "axis": {
-                "grid": False,
-                "labelFontStyle": fontStyle,
+                "grid": opts["grid"],
+                "labelFontStyle": opts["fontStyle"],
                 "labelFlush": True,
             },
             # "background": None if transparentBackground else backgroundColor,
-            "background": "red" if alt.theme.options["dark_mode"] else backgroundColor,
-            "font": {"family": font},
-            "mark": {"color": "black", "fill": "black"},
-            "view": {
-                "fill": backgroundColor,
-                "continuousWidth": dimX,
-                "continuousHeight": dimY,
-            },
+            # "background": "red" if opts["dark_mode"] else backgroundColor,
+            # "font": {"family": font},
+            # "mark": {"color": "black", "fill": "black"},
+            # "view": {
+            #     "fill": backgroundColor,
+            #     "continuousWidth": dimX,
+            #     "continuousHeight": dimY,
+            # },
             "group": {
                 "strokeOpacity": 0,  # remove top and right axis borders
             },
