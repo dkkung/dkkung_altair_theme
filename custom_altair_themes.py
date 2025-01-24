@@ -22,7 +22,7 @@ def options(
     markFillOpacity=0.9,
     markStrokeColor="black",
     markStrokeOpacity=1,
-    markStrokeWidth=0.5,
+    markStrokeWidth=0.25,
     markSize=40,
     ticks = True,
     topAndRightBorder=False,
@@ -80,6 +80,36 @@ def custom() -> alt.theme.ThemeConfig:
                 "titleFontWeight": opts["fontWeight"],
             },
             "background": None if opts["transparentBackground"] else opts["backgroundColor"],
+            "boxplot": {
+                "box": {
+                    "fill": opts["markFillColor"],
+                    "fillOpacity": opts["markFillOpacity"],
+                    "size": opts["markSize"],
+                    "stroke": opts["markStrokeColor"],
+                    "strokeOpacity": opts["markStrokeOpacity"],
+                    "strokeWidth": opts["markStrokeWidth"],
+                },
+                "median": {
+                    "fill": opts["markFillColor"],
+                    "fillOpacity": opts["markFillOpacity"],
+                    "size": opts["markSize"],
+                    "stroke": opts["markStrokeColor"],
+                    "strokeOpacity": opts["markStrokeOpacity"],
+                    "strokeWidth": opts["markStrokeWidth"],
+                },
+                "rule": {
+                    "fill": opts["markFillColor"],
+                    "fillOpacity": opts["markFillOpacity"],
+                    "size": opts["markSize"],
+                    "stroke": opts["markStrokeColor"],
+                    "strokeOpacity": opts["markStrokeOpacity"],
+                    "strokeWidth": opts["markStrokeWidth"],
+                },
+                "outliers": {
+                    "size": 50,
+                    "color": "red"
+                }
+            },
             "font": opts["font"],
             "legend": {
                 "labelColor": "white" if opts["darkmode"] else "black",
@@ -118,6 +148,14 @@ def custom() -> alt.theme.ThemeConfig:
                     "scheme": "plasma" if opts["darkmode"] else "viridis",
                 },
             },
+            "rect": {
+                # "fill": opts["markFillColor"],
+                # "fillOpacity": opts["markFillOpacity"],
+                # "size": opts["markSize"],
+                # "stroke": opts["markStrokeColor"],
+                # "strokeOpacity": opts["markStrokeOpacity"],
+                # "strokeWidth": opts["markStrokeWidth"],
+            },
             "square": {
                 "fill": opts["markFillColor"],
                 "fillOpacity": opts["markFillOpacity"],
@@ -145,6 +183,5 @@ def custom() -> alt.theme.ThemeConfig:
                 "strokeOpacity": 1 if opts["topAndRightBorder"] else 0,  # remove top and right axis borders
                 "strokeWidth": opts["axisWidth"],
             },
-            "group": {},
         }
     }
