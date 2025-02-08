@@ -90,8 +90,8 @@ def custom() -> alt.theme.ThemeConfig:
                     "strokeWidth": opts["markStrokeWidth"],
                 },
                 "median": {
-                    "fill": opts["markFillColor"],
-                    "fillOpacity": opts["markFillOpacity"],
+                    "fill": "white" if opts["darkmode"] else "black",
+                    "fillOpacity": 0,
                     "size": opts["markSize"],
                     "stroke": opts["markStrokeColor"],
                     "strokeOpacity": opts["markStrokeOpacity"],
