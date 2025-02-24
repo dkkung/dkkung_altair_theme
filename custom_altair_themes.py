@@ -80,7 +80,6 @@ def custom() -> alt.theme.ThemeConfig:
                 "labelFont": opts["font"],
                 "labelFontStyle": opts["fontStyle"],
                 "labelFontWeight": opts["fontWeight"],
-                "labelPadding": 8,
                 "ticks": opts["ticks"],
                 "tickColor": "white" if opts["darkmode"] else "black",
                 "tickWidth": opts["axisWidth"],
@@ -176,6 +175,13 @@ def custom() -> alt.theme.ThemeConfig:
                 "ramp": {
                     "scheme": "plasma" if opts["darkmode"] else "viridis",
                 },
+            },
+            "rule": {
+                "color": "white" if opts["darkmode"] else "black",
+                "stroke": "white" if opts["darkmode"] else "black",
+                "strokeDash": [4, 4],
+                "strokeOpacity": 1,
+                "strokeWidth": opts["axisWidth"],
             },
             "rect": {
                 'fill': opts['markFillColor'],
