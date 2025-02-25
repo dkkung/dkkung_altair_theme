@@ -11,7 +11,7 @@ register.
 
 
 def options(
-    axisWidth=0.5,
+    axisWidth=0.50,
     backgroundColor="white",
     darkmode=False,
     font="Helvetica Neue",
@@ -80,6 +80,7 @@ def custom() -> alt.theme.ThemeConfig:
                 "labelFont": opts["font"],
                 "labelFontStyle": opts["fontStyle"],
                 "labelFontWeight": opts["fontWeight"],
+                "labelPadding": 3,
                 "ticks": opts["ticks"],
                 "tickColor": "white" if opts["darkmode"] else "black",
                 "tickWidth": opts["axisWidth"],
@@ -107,11 +108,12 @@ def custom() -> alt.theme.ThemeConfig:
                     "strokeOpacity": opts["markStrokeOpacity"],
                     "strokeWidth": opts["markStrokeWidth"],
                 },
-                "rule": {
+                "rule": { # may inherit undeclared fields from top-level rule config
                     "fill": "white" if opts["darkmode"] else "black",
                     "fillOpacity": opts["markFillOpacity"],
                     "size": opts["markSize"],
                     "stroke": "white" if opts["darkmode"] else opts["markStrokeColor"],
+                    "strokeDash": [0,0],
                     "strokeOpacity": opts["markStrokeOpacity"],
                     "strokeWidth": opts["markStrokeWidth"],
                 },
