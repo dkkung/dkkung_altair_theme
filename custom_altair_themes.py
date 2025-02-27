@@ -11,6 +11,7 @@ register.
 
 
 def options(
+    angledX = False,
     axisWidth=0.50,
     backgroundColor="white",
     darkmode=False,
@@ -36,6 +37,7 @@ def options(
     options to override the defaults.
     """
     alt.theme.options = {}  # must reset options to remove stale keys
+    alt.theme.options["angledX"] = angledX
     alt.theme.options["axisWidth"] = axisWidth
     alt.theme.options["backgroundColor"] = (backgroundColor,)
     alt.theme.options["darkmode"] = darkmode
@@ -60,7 +62,6 @@ def options(
 @alt.theme.register("custom", enable=False)
 def custom() -> alt.theme.ThemeConfig:
     opts = alt.theme.options
-    print(opts["transparentBackground"]),
     return {
         "background": None if opts["transparentBackground"] else opts["backgroundColor"], # background of the entire view
         "config": {
@@ -72,13 +73,10 @@ def custom() -> alt.theme.ThemeConfig:
                 "gridColor": "lightGray" if opts["darkmode"] else "lightGray",
                 "gridOpacity": 0.5,
                 "gridWidth": opts["axisWidth"],
-                "labelAlign": "center",
-                "labelAngle": 0,
                 "labelColor": "white" if opts["darkmode"] else "black",
                 "labelFont": opts["font"],
                 "labelFontStyle": opts["fontStyle"],
                 "labelFontWeight": opts["fontWeight"],
-                "labelPadding": 8,
                 "ticks": opts["ticks"],
                 "tickColor": "white" if opts["darkmode"] else "black",
                 "tickWidth": opts["axisWidth"],
@@ -86,6 +84,14 @@ def custom() -> alt.theme.ThemeConfig:
                 "titleFont": opts["font"],
                 "titleFontStyle": opts["fontStyle"],
                 "titleFontWeight": opts["fontWeight"],
+            },
+            "axisX": {
+                "labelAlign": "right" if opts["angledX"] else "center", # keep label alignment distinct between X & Y
+                "labelAngle": 315 if opts["angledX"] else 0,
+            },
+            "axisY": {
+                "labelAlign": "right", # keep label alignment distinct between X & Y
+                "labelAngle": 0
             },
             "boxplot": {
                 "box": {
@@ -116,7 +122,7 @@ def custom() -> alt.theme.ThemeConfig:
                     "color": "white" if opts["darkmode"] else "black",
                     "fill": "white" if opts["darkmode"] else "black",
                     "fillOpacity": opts["markFillOpacity"],
-                    "size": opts["markSize"],
+                    "size": 0,
                     "stroke": "white" if opts["darkmode"] else opts["markStrokeColor"],
                     "strokeOpacity": opts["markStrokeOpacity"],
                     "strokeWidth": opts["markStrokeWidth"],
@@ -153,7 +159,6 @@ def custom() -> alt.theme.ThemeConfig:
                 "strokeColor": "white" if opts["darkmode"] else "black",
                 "strokeWidth": opts["axisWidth"] if opts["legendStroke"] else 0,
                 "symbolStrokeColor": "white" if opts["darkmode"] else "black",
-                "padding": 8,
                 "titleColor": "white" if opts["darkmode"] else "black",
                 "titleFont": opts["font"],
                 "titleFontStyle": opts["fontStyle"],
