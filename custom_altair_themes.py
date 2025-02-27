@@ -51,20 +51,18 @@ def options(
     alt.theme.options["markStrokeColor"] = markStrokeColor
     alt.theme.options["markStrokeOpacity"] = markStrokeOpacity
     alt.theme.options["markStrokeWidth"] = markStrokeWidth
-    # alt.theme.options['plotScale'] = plotScale
     alt.theme.options["ticks"] = ticks
     alt.theme.options["tickWidth"] = axisWidth
     alt.theme.options["topAndRightBorder"] = topAndRightBorder
-    alt.theme.options["transparentBackground"] = (transparentBackground,)
+    alt.theme.options["transparentBackground"] = transparentBackground
 
 
 @alt.theme.register("custom", enable=False)
 def custom() -> alt.theme.ThemeConfig:
     opts = alt.theme.options
+    print(opts["transparentBackground"]),
     return {
-        "background": None
-        if opts["darkmode"]
-        else "white",  # background of the entire view
+        "background": None if opts["transparentBackground"] else opts["backgroundColor"], # background of the entire view
         "config": {
             "axis": {
                 "domain": True,
@@ -80,7 +78,7 @@ def custom() -> alt.theme.ThemeConfig:
                 "labelFont": opts["font"],
                 "labelFontStyle": opts["fontStyle"],
                 "labelFontWeight": opts["fontWeight"],
-                "labelPadding": 3,
+                "labelPadding": 8,
                 "ticks": opts["ticks"],
                 "tickColor": "white" if opts["darkmode"] else "black",
                 "tickWidth": opts["axisWidth"],
@@ -89,9 +87,6 @@ def custom() -> alt.theme.ThemeConfig:
                 "titleFontStyle": opts["fontStyle"],
                 "titleFontWeight": opts["fontWeight"],
             },
-            "background": None
-            if opts["transparentBackground"]
-            else opts["backgroundColor"],
             "boxplot": {
                 "box": {
                     # 'fill': opts['markFillColor'],
@@ -129,7 +124,7 @@ def custom() -> alt.theme.ThemeConfig:
             },
             "circle": {
                 "fill": opts["markFillColor"],
-                "fillOpacity": opts["markFillOpacity"],
+                "fillOpacity": opts["markFillOpacity"] / 2,
                 "size": opts["markSize"],
                 "stroke": opts["markStrokeColor"],
                 "strokeOpacity": opts["markStrokeOpacity"],
@@ -155,7 +150,7 @@ def custom() -> alt.theme.ThemeConfig:
             },
             "point": {
                 "fill": opts["markFillColor"],
-                "fillOpacity": opts["markFillOpacity"],
+                "fillOpacity": opts["markFillOpacity"] / 2,
                 "size": opts["markSize"],
                 "stroke": opts["markStrokeColor"],
                 "strokeOpacity": opts["markStrokeOpacity"],
@@ -218,9 +213,7 @@ def custom() -> alt.theme.ThemeConfig:
                 # 'continuousHeight': 300,
                 # 'discreteWidth': 20,
                 "stroke": "white" if opts["darkmode"] else "black",
-                "strokeOpacity": 1
-                if opts["topAndRightBorder"]
-                else 0,  # remove top and right axis borders
+                "strokeOpacity": 1 if opts["topAndRightBorder"] else 0,  # remove top and right axis borders
                 "strokeWidth": opts["axisWidth"],
             },
         },
@@ -234,4 +227,5 @@ TO-DO LIST:
 - Add a stroke to legend icons.
 - Add dark mode support for boxplots, but DO NOT change the stroke color of individual POINTS (at least with greys) to white (changing rect strokes to white is good).
 - Make 'greys' the default ordinal and sequential color scheme; it's usable for both light- and dark-mode.
+- Try to add default paddingOutter and paddingInner values for all types of charts/marks.
 """
