@@ -131,6 +131,17 @@ def custom() -> alt.theme.ThemeConfig:
                 "strokeWidth": opts["markStrokeWidth"],
             },
             "font": opts["font"],
+            "header": {
+                "labelColor": "white" if opts["darkmode"] else "black",
+                "labelFont": opts["font"],
+                "labelFontStyle": opts["fontStyle"],
+                "labelFontWeight": opts["fontWeight"],
+                "titleColor": "white" if opts["darkmode"] else "black",
+                "titleFont": opts["font"],
+                "titleFontStyle": opts["fontStyle"],
+                "titleFontWeight": opts["fontWeight"],
+                "titlePadding": 0
+            },
             "legend": {
                 "disable": not opts["legend"],
                 "labelColor": "white" if opts["darkmode"] else "black",
