@@ -18,6 +18,7 @@ def options(
     fontStyle="Regular",
     fontWeight=200,  # only multiples of 100
     grid=False,
+    gridColor="darkGray",
     legend=True,
     legendStroke=False,
     markFillColor="black",
@@ -44,6 +45,7 @@ def options(
     alt.theme.options["darkmode"] = darkmode
     alt.theme.options["font"] = font
     alt.theme.options["grid"] = grid
+    alt.theme.options["gridColor"] = gridColor
     alt.theme.options["legend"] = legend
     alt.theme.options["legendStroke"] = legendStroke
     alt.theme.options["fontStyle"] = fontStyle
@@ -72,7 +74,7 @@ def custom() -> alt.theme.ThemeConfig:
                 "domainColor": "white" if opts["darkmode"] else "black",
                 "domainWidth": opts["axisWidth"],
                 "grid": opts["grid"],
-                "gridColor": "darkGray" if opts["darkmode"] else "darkGray",
+                "gridColor": opts["gridColor"] if opts["darkmode"] else opts["gridColor"],
                 "gridOpacity": 0.5,
                 "gridWidth": opts["axisWidth"],
                 "labelColor": "white" if opts["darkmode"] else "black",
