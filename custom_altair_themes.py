@@ -182,7 +182,7 @@ def custom() -> alt.theme.ThemeConfig:
                     "scheme": "greys",
                 },
                 "diverging": {
-                    "scheme": "pinkyellowgreen",
+                    "scheme": "purplegreen",
                 },
                 "heatmap": {
                     "scheme": "plasma" if opts["darkmode"] else "viridis",
@@ -243,10 +243,7 @@ def custom() -> alt.theme.ThemeConfig:
 
 """
 TO-DO LIST:
-- Change font, fontSize, fontWeight, and fontStyle for faceted labels and title. HEADER CONFIG IS BROKEN.
-    - Add a padding to X-axis labels - maybe around 10 px. The padding will push the title away as well (which is good, I think).
 - Add a stroke to legend icons.
-- Add dark mode support for boxplots, but DO NOT change the stroke color of individual POINTS (at least with greys) to white (changing rect strokes to white is good).
-- Make 'greys' the default ordinal and sequential color scheme; it's usable for both light- and dark-mode.
 - Try to add default paddingOutter and paddingInner values for all types of charts/marks.
+- Fix the legend scale opacity so that it matches the opacity of the mark fill e.g., in a heatmap.
 """
