@@ -107,7 +107,7 @@ def custom() -> alt.theme.ThemeConfig:
                     "strokeWidth": opts["markStrokeWidth"],
                 },
                 "median": {
-                    "fill": "black" if opts["darkmode"] else opts["chartBackgroundColor"],
+                    "fill": "black" if opts["darkmode"] else opts["viewBackgroundColor"],
                     "fillOpacity": opts["markFillOpacity"],
                     "size": opts["markSize"],
                     "stroke": "white" if opts["darkmode"] else opts["markStrokeColor"],
