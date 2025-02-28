@@ -13,7 +13,6 @@ register.
 def options(
     angledX = False,
     axisWidth=0.50,
-    backgroundColor="white",
     darkmode=False,
     font="Helvetica Neue",
     fontStyle="Regular",
@@ -27,9 +26,11 @@ def options(
     markStrokeColor="black",
     markStrokeOpacity=1,
     markStrokeWidth=0.50,
+    chartBackgroundColor="white",
     ticks=True,
     topAndRightBorder=False,
     transparentBackground=False,
+    viewBackgroundColor="white"
 ):
     """
     Set global configuration options for the custom theme.
@@ -39,7 +40,7 @@ def options(
     alt.theme.options = {}  # must reset options to remove stale keys
     alt.theme.options["angledX"] = angledX
     alt.theme.options["axisWidth"] = axisWidth
-    alt.theme.options["backgroundColor"] = (backgroundColor,)
+    alt.theme.options["chartBackgroundColor"] = (chartBackgroundColor,)
     alt.theme.options["darkmode"] = darkmode
     alt.theme.options["font"] = font
     alt.theme.options["grid"] = grid
@@ -57,20 +58,21 @@ def options(
     alt.theme.options["tickWidth"] = axisWidth
     alt.theme.options["topAndRightBorder"] = topAndRightBorder
     alt.theme.options["transparentBackground"] = transparentBackground
+    alt.theme.options["viewBackgroundColor"] = viewBackgroundColor
 
 
 @alt.theme.register("custom", enable=False)
 def custom() -> alt.theme.ThemeConfig:
     opts = alt.theme.options
     return {
-        "background": None if opts["transparentBackground"] else opts["backgroundColor"], # background of the entire view
+        "background": None if opts["transparentBackground"] or opts["darkmode"] else opts["chartBackgroundColor"], # background of the entire view
         "config": {
             "axis": {
                 "domain": True,
                 "domainColor": "white" if opts["darkmode"] else "black",
                 "domainWidth": opts["axisWidth"],
                 "grid": opts["grid"],
-                "gridColor": "lightGray" if opts["darkmode"] else "lightGray",
+                "gridColor": "darkGray" if opts["darkmode"] else "darkGray",
                 "gridOpacity": 0.5,
                 "gridWidth": opts["axisWidth"],
                 "labelColor": "white" if opts["darkmode"] else "black",
@@ -84,6 +86,7 @@ def custom() -> alt.theme.ThemeConfig:
                 "titleFont": opts["font"],
                 "titleFontStyle": opts["fontStyle"],
                 "titleFontWeight": opts["fontWeight"],
+                "translate": 0, # default is 0.5, which causes x and y axes to be misaligned / shifted. Required for top and right border alignment.
             },
             "axisX": {
                 "labelAlign": "right" if opts["angledX"] else "center", # keep label alignment distinct between X & Y
@@ -102,7 +105,7 @@ def custom() -> alt.theme.ThemeConfig:
                     "strokeWidth": opts["markStrokeWidth"],
                 },
                 "median": {
-                    "fill": "black" if opts["darkmode"] else opts["backgroundColor"],
+                    "fill": "black" if opts["darkmode"] else opts["chartBackgroundColor"],
                     "fillOpacity": opts["markFillOpacity"],
                     "size": opts["markSize"],
                     "stroke": "white" if opts["darkmode"] else opts["markStrokeColor"],
@@ -133,7 +136,7 @@ def custom() -> alt.theme.ThemeConfig:
                 "fillOpacity": opts["markFillOpacity"] / 2,
                 "size": opts["markSize"],
                 "stroke": opts["markStrokeColor"],
-                "strokeOpacity": opts["markStrokeOpacity"],
+                "strokeOpacity": opts["markStrokeOpacity"] / 2,
                 "strokeWidth": opts["markStrokeWidth"],
             },
             "font": opts["font"],
@@ -169,7 +172,7 @@ def custom() -> alt.theme.ThemeConfig:
                 "fillOpacity": opts["markFillOpacity"] / 2,
                 "size": opts["markSize"],
                 "stroke": opts["markStrokeColor"],
-                "strokeOpacity": opts["markStrokeOpacity"],
+                "strokeOpacity": opts["markStrokeOpacity"] / 2,
                 "strokeWidth": opts["markStrokeWidth"],
             },
             "range": {
@@ -224,7 +227,7 @@ def custom() -> alt.theme.ThemeConfig:
             },
             "view": {
                 # 'fill': None,
-                # 'fill': backgroundColor,
+                'fill': None if opts["transparentBackground"] or opts["darkmode"] else opts["viewBackgroundColor"],
                 # 'continuousWidth': 300,
                 # 'continuousHeight': 300,
                 # 'discreteWidth': 20,
