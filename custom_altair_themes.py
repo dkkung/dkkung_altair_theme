@@ -31,7 +31,10 @@ def options(
     ticks=True,
     topAndRightBorder=False,
     transparentBackground=False,
-    viewBackgroundColor="white"
+    verticalY = False,
+    viewBackgroundColor="white",
+    xTicks = True,
+    yTicks = True,
 ):
     """
     Set global configuration options for the custom theme.
@@ -41,7 +44,7 @@ def options(
     alt.theme.options = {}  # must reset options to remove stale keys
     alt.theme.options["angledX"] = angledX
     alt.theme.options["axisWidth"] = axisWidth
-    alt.theme.options["chartBackgroundColor"] = (chartBackgroundColor,)
+    alt.theme.options["chartBackgroundColor"] = chartBackgroundColor
     alt.theme.options["darkmode"] = darkmode
     alt.theme.options["font"] = font
     alt.theme.options["grid"] = grid
@@ -60,7 +63,10 @@ def options(
     alt.theme.options["tickWidth"] = axisWidth
     alt.theme.options["topAndRightBorder"] = topAndRightBorder
     alt.theme.options["transparentBackground"] = transparentBackground
+    alt.theme.options["verticalY"] = verticalY
     alt.theme.options["viewBackgroundColor"] = viewBackgroundColor
+    alt.theme.options["xTicks"] = xTicks
+    alt.theme.options["yTicks"] = yTicks
 
 
 @alt.theme.register("custom", enable=False)
@@ -93,10 +99,20 @@ def custom() -> alt.theme.ThemeConfig:
             "axisX": {
                 "labelAlign": "right" if opts["angledX"] else "center", # keep label alignment distinct between X & Y
                 "labelAngle": 315 if opts["angledX"] else 0,
+                "ticks": True if opts["xTicks"] and opts["ticks"] else False,
             },
             "axisY": {
-                "labelAlign": "right", # keep label alignment distinct between X & Y
-                "labelAngle": 0
+                "labelAlign": "center" if opts["verticalY"] else "right", # keep label alignment distinct between X & Y
+                "labelAngle": 270 if opts["verticalY"] else 0,
+                "ticks": True if opts["yTicks"] and opts["ticks"] else False,
+            },
+            "bar": {
+                'fill': opts['markFillColor'],
+                'fillOpacity': opts['markFillOpacity'],
+                # 'size': opts['markSize'],
+                'stroke': opts['markStrokeColor'],
+                'strokeOpacity': opts['markStrokeOpacity'],
+                'strokeWidth': opts['markStrokeWidth'],
             },
             "boxplot": {
                 "box": {
@@ -206,7 +222,7 @@ def custom() -> alt.theme.ThemeConfig:
             "rect": {
                 'fill': opts['markFillColor'],
                 'fillOpacity': opts['markFillOpacity'],
-                'size': opts['markSize'],
+                # 'size': opts['markSize'],
                 'stroke': opts['markStrokeColor'],
                 'strokeOpacity': opts['markStrokeOpacity'],
                 'strokeWidth': opts['markStrokeWidth'],
