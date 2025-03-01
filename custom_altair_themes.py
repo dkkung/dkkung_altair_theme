@@ -155,6 +155,8 @@ def custom() -> alt.theme.ThemeConfig:
             },
             "legend": {
                 "disable": not opts["legend"],
+                "gradientOpacity": opts["markFillOpacity"],
+                "gradientStrokeWidth": opts["markStrokeWidth"],
                 "labelColor": "white" if opts["darkmode"] else "black",
                 "labelFont": opts["font"],
                 "labelFontStyle": opts["fontStyle"],
@@ -243,7 +245,5 @@ def custom() -> alt.theme.ThemeConfig:
 
 """
 TO-DO LIST:
-- Add a stroke to legend icons.
 - Try to add default paddingOutter and paddingInner values for all types of charts/marks.
-- Fix the legend scale opacity so that it matches the opacity of the mark fill e.g., in a heatmap.
 """
