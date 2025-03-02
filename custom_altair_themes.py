@@ -14,6 +14,8 @@ def options(
     angledX = False,
     axisWidth=0.50,
     darkmode=False,
+    dashedLine = False,
+    dashedRule = True,
     font="Helvetica Neue",
     fontStyle="Regular",
     fontWeight=200,  # only multiples of 100
@@ -46,6 +48,8 @@ def options(
     alt.theme.options["axisWidth"] = axisWidth
     alt.theme.options["chartBackgroundColor"] = chartBackgroundColor
     alt.theme.options["darkmode"] = darkmode
+    alt.theme.options["dashedLine"] = dashedLine
+    alt.theme.options["dashedRule"] = dashedRule
     alt.theme.options["font"] = font
     alt.theme.options["grid"] = grid
     alt.theme.options["gridColor"] = gridColor
@@ -75,6 +79,13 @@ def custom() -> alt.theme.ThemeConfig:
     return {
         "background": None if opts["transparentBackground"] or opts["darkmode"] else opts["chartBackgroundColor"], # background of the entire view
         "config": {
+            "area": {
+                'fill': opts['markFillColor'],
+                'fillOpacity': opts['markFillOpacity'],
+                "stroke": "white" if opts["darkmode"] else opts["markStrokeColor"],
+                'strokeOpacity': opts['markStrokeOpacity'],
+                'strokeWidth': opts['markStrokeWidth'],
+            },
             "axis": {
                 "domain": True,
                 "domainColor": "white" if opts["darkmode"] else "black",
@@ -109,7 +120,6 @@ def custom() -> alt.theme.ThemeConfig:
             "bar": {
                 'fill': opts['markFillColor'],
                 'fillOpacity': opts['markFillOpacity'],
-                # 'size': opts['markSize'],
                 "stroke": "white" if opts["darkmode"] else opts["markStrokeColor"],
                 'strokeOpacity': opts['markStrokeOpacity'],
                 'strokeWidth': opts['markStrokeWidth'],
@@ -187,6 +197,13 @@ def custom() -> alt.theme.ThemeConfig:
                 "titleFontStyle": opts["fontStyle"],
                 "titleFontWeight": opts["fontWeight"],
             },
+            "line": {
+                "color": "white" if opts["darkmode"] else "black",
+                "stroke": "white" if opts["darkmode"] else "black",
+                "strokeDash": [4, 4] if opts["dashedLine"] else [0, 0],
+                "strokeOpacity": 1,
+                "strokeWidth": opts["axisWidth"],
+            },
             "point": {
                 "fill": opts["markFillColor"],
                 "fillOpacity": opts["markFillOpacity"] / 2,
@@ -215,14 +232,13 @@ def custom() -> alt.theme.ThemeConfig:
             "rule": {
                 "color": "white" if opts["darkmode"] else "black",
                 "stroke": "white" if opts["darkmode"] else "black",
-                "strokeDash": [4, 4],
+                "strokeDash": [4, 4] if opts["dashedRule"] else [0, 0],
                 "strokeOpacity": 1,
                 "strokeWidth": opts["axisWidth"],
             },
             "rect": {
                 'fill': opts['markFillColor'],
                 'fillOpacity': opts['markFillOpacity'],
-                # 'size': opts['markSize'],
                 "stroke": "white" if opts["darkmode"] else opts["markStrokeColor"],
                 'strokeOpacity': opts['markStrokeOpacity'],
                 'strokeWidth': opts['markStrokeWidth'],
@@ -262,4 +278,6 @@ def custom() -> alt.theme.ThemeConfig:
 """
 TO-DO LIST:
 - Try to add default paddingOutter and paddingInner values for all types of charts/marks.
+- Add support for area marks.
+    - Add support for gradients - linear and maybe radial.
 """
