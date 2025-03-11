@@ -80,9 +80,14 @@ def options(
 @alt.theme.register("custom", enable=False)
 def custom() -> alt.theme.ThemeConfig:
     colors = {
-        "DKolors": ["#4BA69F", "#C6A639", "#75954A", "#4A8A95", "#FCF6D1"],
-        "ordinal": ["#585D5E", "#4BA69F"],
-        "diverging": ["#D6E2E9", "#4BA69F"]
+        "DKolors": ["#00AAA0", "#D1A31C", "#75954A", "#4A8A95", "#FCF6D1"],
+        # "ordinal": ["#fffcff", "#26A3DD"], # greyish blue
+        # "ordinal": ["#fcfcff", "#00AAA0"], # lightish blue
+        "ordinal": ["#fffffe", "#00AAA0"], # verdant
+        "diverging": ["#D1A31C", "#fffffe", "#00AAA0"],
+        "DKreys": ["#D1D2D4", "#A8A9AC", "#949598"],
+        "DKaccents1": ["#7990C7", "#BBD3CD"],
+        "DKaccents2": ["#DCD0E4", "#B07AAF"],
     }
     opts = alt.theme.options
     return {
@@ -237,13 +242,15 @@ def custom() -> alt.theme.ThemeConfig:
                     "scheme": colors["diverging"],
                 },
                 "heatmap": {
-                    "scheme": "plasma" if opts["darkmode"] else "viridis",
+                    # "scheme": "viridis",
+                    "scheme": colors["ordinal"]
                 },
                 "ordinal": {
                     "scheme": colors["ordinal"],
                 },
                 "ramp": {
-                    "scheme": "plasma" if opts["darkmode"] else "viridis",
+                    # "scheme": "viridis",
+                    "scheme": colors["ordinal"],
                 },
             },
             "rule": {
