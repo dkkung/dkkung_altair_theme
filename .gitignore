@@ -28,7 +28,7 @@ __pycache__
 ehthumbs.db
 Thumbs.db
 
-# Notes / Scratchpads #
+# Notes / scratchpads #
 #########
 *rule*.md
 *thoughts.md
@@ -49,3 +49,5 @@ pipenv
 *.tif
 *.tiff
 *.nd2
+
+# Project-specific #
