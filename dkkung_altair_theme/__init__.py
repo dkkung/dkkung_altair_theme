@@ -1,2 +1,3 @@
-from .dkkung_altair_theme import options
-__all__ = ["options"]
+from .dkkung_altair_theme import *
+
+__all__ = [name for name in dir() if not name.startswith("_")]
