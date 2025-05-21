@@ -77,14 +77,14 @@ def options(
     # }
 
 
-@alt.theme.register("custom", enable=False)
+@alt.theme.register("custom", enable=True)
 def custom() -> alt.theme.ThemeConfig:
     colors = {
         "DKolors": ["#00AAA0", "#D1A31C", "#5348D9", "#9D5672", "#FCF6D1"],
         # "ordinal": ["#fffcff", "#26A3DD"], # greyish blue
         # "ordinal": ["#fcfcff", "#00AAA0"], # lightish blue
         # "ordinal": ["#ffffef", "#26A3DD"], # lightish blue
-        "ordinal": ["#fffffe", "#00AAA0"], # verdant
+        "ordinal": ["#fffffe", "#00AAA0"],  # verdant
         # "ordinal": ["#fffffe", "#00AAA0"], # pink?
         "diverging": ["#9D5672", "#fffffe", "#00AAA0"],
         "DKreys": ["#D1D2D4", "#A8A9AC", "#949598"],
