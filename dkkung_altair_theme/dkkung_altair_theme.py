@@ -90,16 +90,6 @@ def custom() -> alt.theme.ThemeConfig:
         "DKreys": ["#D1D2D4", "#A8A9AC", "#949598"],
         "DKaccents1": ["#7990C7", "#BBD3CD"],
         "DKaccents2": ["#DCD0E4", "#B07AAF"],
-        "haline": [
-            "#081d58",
-            "#253494",
-            "#225ea8",
-            "#1d91c0",
-            "#41b6c4",
-            "#7fcdbb",
-            "#c7e9b4",
-            "#edf8b1",
-        ],
     }
     opts = alt.theme.options
     return {
