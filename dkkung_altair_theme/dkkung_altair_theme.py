@@ -248,7 +248,7 @@ def custom() -> alt.theme.ThemeConfig:
                     "scheme": colors["ordinal"]
                 },
                 "ordinal": {
-                    "scheme": colors["haline"],
+                    "scheme": colors["ordinal"],
                 },
                 "ramp": {
                     # "scheme": "viridis",
