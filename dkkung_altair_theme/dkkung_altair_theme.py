@@ -93,9 +93,11 @@ def custom() -> alt.theme.ThemeConfig:
     }
     opts = alt.theme.options
     return {
-        "background": None
-        if opts["transparentBackground"] or opts["darkmode"]
-        else opts["chartBackgroundColor"],  # background of the entire view
+        "background": (
+            None
+            if opts["transparentBackground"] or opts["darkmode"]
+            else opts["chartBackgroundColor"]
+        ),  # background of the entire view
         "config": {
             "area": {
                 "fill": opts["markFillColor"],
@@ -109,9 +111,9 @@ def custom() -> alt.theme.ThemeConfig:
                 "domainColor": "white" if opts["darkmode"] else "black",
                 "domainWidth": opts["axisWidth"],
                 "grid": opts["grid"],
-                "gridColor": opts["gridColor"]
-                if opts["darkmode"]
-                else opts["gridColor"],
+                "gridColor": (
+                    opts["gridColor"] if opts["darkmode"] else opts["gridColor"]
+                ),
                 "gridOpacity": 0.5,
                 "gridWidth": opts["axisWidth"],
                 "labelColor": "white" if opts["darkmode"] else "black",
@@ -128,16 +130,16 @@ def custom() -> alt.theme.ThemeConfig:
                 "translate": 0,  # default is 0.5, which causes x and y axes to be misaligned / shifted. Required for top and right border alignment.
             },
             "axisX": {
-                "labelAlign": "right"
-                if opts["angledX"]
-                else "center",  # keep label alignment distinct between X & Y
+                "labelAlign": (
+                    "right" if opts["angledX"] else "center"
+                ),  # keep label alignment distinct between X & Y
                 "labelAngle": 315 if opts["angledX"] else 0,
                 "ticks": True if opts["xTicks"] and opts["ticks"] else False,
             },
             "axisY": {
-                "labelAlign": "center"
-                if opts["verticalY"]
-                else "right",  # keep label alignment distinct between X & Y
+                "labelAlign": (
+                    "center" if opts["verticalY"] else "right"
+                ),  # keep label alignment distinct between X & Y
                 "labelAngle": 270 if opts["verticalY"] else 0,
                 "ticks": True if opts["yTicks"] and opts["ticks"] else False,
             },
@@ -157,9 +159,9 @@ def custom() -> alt.theme.ThemeConfig:
                     "strokeWidth": opts["markStrokeWidth"],
                 },
                 "median": {
-                    "fill": "black"
-                    if opts["darkmode"]
-                    else opts["viewBackgroundColor"],
+                    "fill": (
+                        "black" if opts["darkmode"] else opts["viewBackgroundColor"]
+                    ),
                     "fillOpacity": opts["markFillOpacity"],
                     "size": opts["markSize"],
                     "stroke": "white" if opts["darkmode"] else opts["markStrokeColor"],
@@ -241,7 +243,7 @@ def custom() -> alt.theme.ThemeConfig:
                 # pass in a list outside of a dict to AVOID interpolations; define as {scheme: _} to USE interpolation, which will NOT use the maximum range of colors
                 "category": colors["DKolors"],
                 "diverging": {
-                    "scheme": colors["diverging"],
+                    "scheme": "redyellowblue",
                 },
                 "heatmap": {
                     # "scheme": "viridis",
@@ -288,13 +290,15 @@ def custom() -> alt.theme.ThemeConfig:
                 "subtitleFontWeight": opts["fontWeight"],
             },
             "view": {
-                "fill": None
-                if opts["transparentBackground"] or opts["darkmode"]
-                else opts["viewBackgroundColor"],
+                "fill": (
+                    None
+                    if opts["transparentBackground"] or opts["darkmode"]
+                    else opts["viewBackgroundColor"]
+                ),
                 "stroke": "white" if opts["darkmode"] else "black",
-                "strokeOpacity": 1
-                if opts["topAndRightBorder"]
-                else 0,  # remove top and right axis borders
+                "strokeOpacity": (
+                    1 if opts["topAndRightBorder"] else 0
+                ),  # remove top and right axis borders
                 "strokeWidth": opts["axisWidth"],
             },
         },
