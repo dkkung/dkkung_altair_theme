@@ -51,12 +51,12 @@ def options(
     alt.theme.options["dashedLine"] = dashedLine
     alt.theme.options["dashedRule"] = dashedRule
     alt.theme.options["font"] = font
+    alt.theme.options["fontStyle"] = fontStyle
+    alt.theme.options["fontWeight"] = fontWeight
     alt.theme.options["grid"] = grid
     alt.theme.options["gridColor"] = gridColor
     alt.theme.options["legend"] = legend
     alt.theme.options["legendStroke"] = legendStroke
-    alt.theme.options["fontStyle"] = fontStyle
-    alt.theme.options["fontWeight"] = fontWeight
     alt.theme.options["markFillColor"] = markFillColor
     alt.theme.options["markFillOpacity"] = markFillOpacity
     alt.theme.options["markSize"] = markSize
@@ -278,6 +278,12 @@ def custom() -> alt.theme.ThemeConfig:
                 "stroke": opts["markStrokeColor"],
                 "strokeOpacity": opts["markStrokeOpacity"],
                 "strokeWidth": opts["markStrokeWidth"],
+            },
+            "text": {
+                "color": "white" if opts["darkmode"] else "black",
+                "font": opts["font"],
+                "fontStyle": opts["fontStyle"],
+                "fontWeight": opts["fontWeight"],
             },
             "title": {
                 "color": "white" if opts["darkmode"] else "black",
