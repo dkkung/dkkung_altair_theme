@@ -16,7 +16,8 @@ def options(
     darkmode=False,
     dashedLine=False,
     dashedRule=True,
-    font="Helvetica Neue",
+    font="Arial",
+    fontSize=7,
     fontStyle="Regular",
     fontWeight=300,  # only multiples of 100
     grid=False,
@@ -32,7 +33,7 @@ def options(
     chartBackgroundColor="white",
     ticks=True,
     topAndRightBorder=False,
-    transparentBackground=False,
+    transparentBackground=True,
     verticalY=False,
     viewBackgroundColor="white",
     xTicks=True,
@@ -51,6 +52,7 @@ def options(
     alt.theme.options["dashedLine"] = dashedLine
     alt.theme.options["dashedRule"] = dashedRule
     alt.theme.options["font"] = font
+    alt.theme.options["fontSize"] = fontSize
     alt.theme.options["fontStyle"] = fontStyle
     alt.theme.options["fontWeight"] = fontWeight
     alt.theme.options["grid"] = grid
@@ -114,10 +116,11 @@ def custom() -> alt.theme.ThemeConfig:
                 "gridColor": (
                     opts["gridColor"] if opts["darkmode"] else opts["gridColor"]
                 ),
-                "gridOpacity": 0.5,
+                "gridOpacity": 0.25,
                 "gridWidth": opts["axisWidth"],
                 "labelColor": "white" if opts["darkmode"] else "black",
                 "labelFont": opts["font"],
+                "labelFontSize": opts["fontSize"],
                 "labelFontStyle": opts["fontStyle"],
                 "labelFontWeight": opts["fontWeight"],
                 "ticks": opts["ticks"],
@@ -125,6 +128,7 @@ def custom() -> alt.theme.ThemeConfig:
                 "tickWidth": opts["axisWidth"],
                 "titleColor": "white" if opts["darkmode"] else "black",
                 "titleFont": opts["font"],
+                "titleFontSize": opts["fontSize"],
                 "titleFontStyle": opts["fontStyle"],
                 "titleFontWeight": opts["fontWeight"],
                 "translate": 0,  # default is 0.5, which causes x and y axes to be misaligned / shifted. Required for top and right border alignment.
@@ -199,10 +203,12 @@ def custom() -> alt.theme.ThemeConfig:
             "header": {
                 "labelColor": "white" if opts["darkmode"] else "black",
                 "labelFont": opts["font"],
+                "labelFontSize": opts["fontSize"],
                 "labelFontStyle": opts["fontStyle"],
                 "labelFontWeight": opts["fontWeight"],
                 "titleColor": "white" if opts["darkmode"] else "black",
                 "titleFont": opts["font"],
+                "titleFontSize": opts["fontSize"],
                 "titleFontStyle": opts["fontStyle"],
                 "titleFontWeight": opts["fontWeight"],
                 "titlePadding": 0,
@@ -214,6 +220,7 @@ def custom() -> alt.theme.ThemeConfig:
                 "gradientStrokeWidth": opts["markStrokeWidth"],
                 "labelColor": "white" if opts["darkmode"] else "black",
                 "labelFont": opts["font"],
+                "labelFontSize": opts["fontSize"],
                 "labelFontStyle": opts["fontStyle"],
                 "labelFontWeight": opts["fontWeight"],
                 "strokeColor": "white" if opts["darkmode"] else "black",
@@ -221,6 +228,7 @@ def custom() -> alt.theme.ThemeConfig:
                 "symbolStrokeColor": "white" if opts["darkmode"] else "black",
                 "titleColor": "white" if opts["darkmode"] else "black",
                 "titleFont": opts["font"],
+                "titleFontSize": opts["fontSize"],
                 "titleFontStyle": opts["fontStyle"],
                 "titleFontWeight": opts["fontWeight"],
             },
@@ -292,6 +300,7 @@ def custom() -> alt.theme.ThemeConfig:
                 "fontWeight": opts["fontWeight"],
                 "subtitleColor": "white" if opts["darkmode"] else "black",
                 "subtitleFont": opts["font"],
+                "subtitleFontSize": opts["font"],
                 "subtitleFontStyle": opts["fontStyle"],
                 "subtitleFontWeight": opts["fontWeight"],
             },
