@@ -12,7 +12,7 @@ register.
 
 def options(
     angledX=False,
-    axisWidth=0.50,
+    axisWidth=0.25,
     darkmode=False,
     dashedLine=False,
     dashedRule=True,
@@ -243,7 +243,7 @@ def custom() -> alt.theme.ThemeConfig:
                 "strokeCap": "round",
                 "strokeDash": opts["dashedWidth"] if opts["dashedLine"] else [0, 0],
                 "strokeOpacity": 1,
-                "strokeWidth": opts["axisWidth"],
+                "strokeWidth": opts["axisWidth"] * 1.5,
             },
             "point": {
                 "fill": opts["markFillColor"],
