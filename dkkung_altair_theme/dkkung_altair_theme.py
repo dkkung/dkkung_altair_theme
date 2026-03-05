@@ -16,9 +16,10 @@ def options(
     darkmode=False,
     dashedLine=False,
     dashedRule=True,
-    font="Arial",
+    dashedWidth=[2, 2],
+    font="Helvetica",
     fontSize=7,
-    fontStyle="Regular",
+    fontStyle="Light",
     fontWeight=300,  # only multiples of 100
     grid=False,
     gridColor="darkGray",
@@ -51,6 +52,7 @@ def options(
     alt.theme.options["darkmode"] = darkmode
     alt.theme.options["dashedLine"] = dashedLine
     alt.theme.options["dashedRule"] = dashedRule
+    alt.theme.options["dashedWidth"] = dashedWidth
     alt.theme.options["font"] = font
     alt.theme.options["fontSize"] = fontSize
     alt.theme.options["fontStyle"] = fontStyle
@@ -110,9 +112,11 @@ def custom() -> alt.theme.ThemeConfig:
             },
             "axis": {
                 "domain": True,
+                "domainCap": "round",
                 "domainColor": "white" if opts["darkmode"] else "black",
                 "domainWidth": opts["axisWidth"],
                 "grid": opts["grid"],
+                "gridCap": "round",
                 "gridColor": (
                     opts["gridColor"] if opts["darkmode"] else opts["gridColor"]
                 ),
@@ -124,6 +128,7 @@ def custom() -> alt.theme.ThemeConfig:
                 "labelFontStyle": opts["fontStyle"],
                 "labelFontWeight": opts["fontWeight"],
                 "ticks": opts["ticks"],
+                "tickCap": "round",
                 "tickColor": "white" if opts["darkmode"] else "black",
                 "tickWidth": opts["axisWidth"],
                 "titleColor": "white" if opts["darkmode"] else "black",
@@ -235,7 +240,8 @@ def custom() -> alt.theme.ThemeConfig:
             "line": {
                 "color": "white" if opts["darkmode"] else "black",
                 "stroke": "white" if opts["darkmode"] else "black",
-                "strokeDash": [4, 4] if opts["dashedLine"] else [0, 0],
+                "strokeCap": "round",
+                "strokeDash": opts["dashedWidth"] if opts["dashedLine"] else [0, 0],
                 "strokeOpacity": 1,
                 "strokeWidth": opts["axisWidth"],
             },
@@ -268,7 +274,7 @@ def custom() -> alt.theme.ThemeConfig:
             "rule": {
                 "color": "white" if opts["darkmode"] else "black",
                 "stroke": "white" if opts["darkmode"] else "black",
-                "strokeDash": [4, 4] if opts["dashedRule"] else [0, 0],
+                "strokeDash": opts["dashedWidth"] if opts["dashedRule"] else [0, 0],
                 "strokeOpacity": 1,
                 "strokeWidth": opts["axisWidth"],
             },
