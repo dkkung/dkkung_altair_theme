@@ -11,6 +11,12 @@
 
 ### Fixes
 
+- `ds.show()` now works when a session-wide `vegafusion` (or other) Altair data transformer is
+  active - previously it raised `ValueError: ... to_dict() ... must be called with format="vega"`.
+  `show()` now pins the `"default"` transformer for its render and restores the prior one after,
+  matching `save()`, and gains `maxRows` (default 5000) / `overrideMaxRows` to control the inlined-
+  row cap. (`save()` already handled this, so its export path was unaffected.)
+
 - `add_multilabel` no longer re-enables a layer's explicitly hidden x axis (`axis=None`, e.g.
   `mark_violin`'s internal pixel-positioned layers) when stripping x labels - the replacement
   axis drew a phantom domain line and ticks above the chart.
