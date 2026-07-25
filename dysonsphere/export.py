@@ -362,7 +362,7 @@ def save(
         alt.theme.options["transparent"] = original_transparent
 
 
-def show(chart: _AltairChart | Callable[[], _AltairChart]):
+def show(chart: _AltairChart | Callable[[], _AltairChart], maxRows: int = 5000, overrideMaxRows: bool = False):
     """Render *chart* through the full ``ds.save()`` pipeline and return it for accurate
     inline display in a notebook.
 
@@ -373,6 +373,13 @@ def show(chart: _AltairChart | Callable[[], _AltairChart]):
     :func:`save` writes and returns it as an ``IPython.display.SVG`` for inline display, so
     the preview matches the saved figure. It renders at the theme's current ``darkmode`` and
     writes no file.
+
+    Like :func:`save`, the render is wrapped in the ``"default"`` data transformer capped at
+    ``maxRows`` (``overrideMaxRows=True`` lifts the cap), so ``ds.show()`` works regardless of
+    whichever transformer is active in the session — in particular ``vegafusion``, which
+    otherwise makes Altair's ``to_dict()`` raise (dysonsphere's SVG pipeline needs the
+    vega-lite spec, and a scatter's points must all inline anyway, so vegafusion cannot help
+    here). Over the cap Altair raises, re-raised as a clear :class:`ValueError`.
 
     Accepts the same chart types as :func:`save`, including a zero-argument callable (called
     once). Requires IPython (present in any notebook); otherwise raises ``ImportError`` - use
@@ -388,10 +395,21 @@ def show(chart: _AltairChart | Callable[[], _AltairChart]):
     base_obj = cast(_AltairChart, chart() if callable(chart) else chart)  # ty: ignore[call-top-callable]
     _prev_transp = alt.theme.options.get("transparent")
     alt.theme.options["transparent"] = True
+    # Cap the inlined rows and pin the "default" transformer for the render
+    _cap_stack = ExitStack()
+    _row_cap = alt.data_transformers.enable("default", max_rows=None if overrideMaxRows else maxRows)
+    _cap_stack.enter_context(_row_cap)  # ty: ignore[invalid-argument-type]  (Altair PluginEnabler lacks CM stub)
     try:
         with tempfile.TemporaryDirectory() as d:
             svg = _render_fixed_svg(base_obj, str(Path(d) / "preview.svg"))
+    except alt.MaxRowsError as e:
+        raise ValueError(
+            f"the chart's data has more than maxRows={maxRows} rows. ds.show() inlines the data to "
+            f"render it, so large data is blocked to avoid a huge SVG. Raise maxRows= to allow it, or "
+            f"pass overrideMaxRows=True to remove the cap."
+        ) from e
     finally:
+        _cap_stack.close()
         alt.theme.options["transparent"] = _prev_transp
     return SVG(svg)
 

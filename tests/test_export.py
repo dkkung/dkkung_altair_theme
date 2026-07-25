@@ -334,6 +334,48 @@ class TestShow:
         with pytest.raises(ImportError, match="ds.show"):
             show(simple_chart)
 
+    def test_works_under_vegafusion_transformer(self, simple_chart):
+        # A session-wide vegafusion transformer makes Altair's to_dict() raise unless
+        # format="vega"; show() must pin the "default" transformer for its render (like save())
+        # so the preview still works, and restore vegafusion afterward.
+        from dysonsphere.export import show
+
+        prev = alt.data_transformers.active
+        alt.data_transformers.enable("vegafusion")
+        try:
+            svg = show(simple_chart).data
+            assert "<svg" in svg
+            assert alt.data_transformers.active == "vegafusion"  # restored
+        finally:
+            alt.data_transformers.enable(prev)
+
+    def test_max_rows_blocks_large_data(self):
+        from dysonsphere.export import show
+
+        df = pl.DataFrame({"x": [float(i) for i in range(20)], "y": [float(i) for i in range(20)]})
+        chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
+        with pytest.raises(ValueError, match="maxRows=5"):
+            show(chart, maxRows=5)
+
+    def test_override_max_rows_allows_large_data(self):
+        from dysonsphere.export import show
+
+        df = pl.DataFrame({"x": [float(i) for i in range(20)], "y": [float(i) for i in range(20)]})
+        chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
+        assert "<svg" in show(chart, maxRows=5, overrideMaxRows=True).data
+
+    def test_restores_transformer_on_error(self):
+        # Even when the render raises (over-cap), the "default" transformer state must be
+        # restored to whatever was active before.
+        from dysonsphere.export import show
+
+        df = pl.DataFrame({"x": [float(i) for i in range(20)], "y": [float(i) for i in range(20)]})
+        chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
+        prev = alt.data_transformers.active
+        with pytest.raises(ValueError):
+            show(chart, maxRows=5)
+        assert alt.data_transformers.active == prev
+
 
 # ── gradient legend titles ───────────────────────────────────────────────────
 
