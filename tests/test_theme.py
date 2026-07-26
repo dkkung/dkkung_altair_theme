@@ -540,6 +540,23 @@ class TestTrailConfig:
         assert _dysonsphere_theme()["config"]["trail"]["color"] == "white"
 
 
+class TestLineCap:
+    # config.line pins strokeCap="butt" so a line's ink stops at its final data point.
+    # theme(strokeCap=...) still caps axes/ticks/grid/rules.
+
+    def test_line_is_butt_capped_regardless_of_theme_stroke_cap(self):
+        theme()
+        cfg = _dysonsphere_theme()["config"]
+        assert cfg["line"]["strokeCap"] == "butt"
+        assert cfg["rule"]["strokeCap"] == "round"
+        assert cfg["axis"]["domainCap"] == "round"
+
+        theme(strokeCap="square")
+        cfg = _dysonsphere_theme()["config"]
+        assert cfg["line"]["strokeCap"] == "butt"
+        assert cfg["rule"]["strokeCap"] == "square"
+
+
 class TestViewPadding:
     # theme(viewPadding=...) -> config.scale.continuousPadding on CLOSED plots only.
     # float | bool like cornerRadius/boxplotOutliers: True (default) -> a 1px request =
