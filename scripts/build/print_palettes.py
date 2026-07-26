@@ -343,6 +343,21 @@ def build_multihue(keyframes, *, space="oklab", frac=SEQ_FRAC, n=N_OUT_SEQ, max_
 # ── Recipe 3: diverging (V-shape with white pivot) ───────────────────────
 
 
+def tint_greys(hue_deg, chroma, *, base="greys"):
+    """A tinted sibling of `greys`: every stop keeps its Oklab lightness exactly and gains a
+    constant chroma at `hue_deg`. Deriving from the neutral ramp rather than rebuilding keeps the
+    lightness identical stop-for-stop, so the result is a drop-in replacement wherever `greys` is
+    used and inherits its uniformity and CVD behaviour unchanged."""
+    from dysonsphere.palettes import colors as _colors
+
+    hr = math.radians(hue_deg)
+    out = []
+    for hx in _colors[base]:
+        L, _, _ = hex_to_oklab(hx)
+        out.append(oklab_to_hex(L, chroma * math.cos(hr), chroma * math.sin(hr)))
+    return out
+
+
 def build_diverging(
     arm2_dark_hex,
     arm1_dark_hex,
@@ -929,6 +944,22 @@ def main():
     print("\n# ─── ds_1 family diverging (gold ↔ teal, from cat_golds/cat_teals) ──────────")
     # arm2 = gold (low, stop 0), arm1 = teal (high, stop 12), warm light pivot; default FRAC.
     _print_palette("ds_div_1", build_diverging("#6D572F", "#2C555D", center_hex="#F4F1E9"))
+
+    print("\n# ─── ds_3 family diverging (purple ↔ green, from cat3_purples/cat3_greens) ───")
+    # arm2 = purple (low, stop 0), arm1 = green (high, stop 12), neutral pivot. Both arms taken at
+    # ramp stop 8, not the flat palette's tier-1 stops: purple leads DARK there (its hero is
+    # cat3_purples[9]) while green leads mid, so the tier-1 pair would give one arm reaching
+    # near-black while the other stopped at a mid green. Stop 8 balances the arms and matches
+    # ds_cat_3's chromatic register (C 0.116 vs the family's 0.117).
+    _print_palette("ds_div_3", build_diverging("#47347C", "#285753", center_hex="#F6F6F6"))
+
+    print("\n# ─── Tinted greys (same lightness as greys, a fixed small chroma) ───────────")
+    # Warm and cool siblings of `greys`: identical Oklab L at every stop, so they are drop-in
+    # replacements, with a constant chroma of 0.010 at a warm (85°) or cool (258°) hue. 0.006 is
+    # indistinguishable from neutral; 0.014 tips over - warm reads cream at the light end and cool
+    # reads plainly blue - the same limit `eclipse` found at its 0.012 cap.
+    for _n, _hue in (("warmgreys", 85.0), ("coolgreys", 258.0)):
+        _print_palette(_n, tint_greys(_hue, 0.010))
 
     print("\n# ─── Desaturation ladder example (bluestgrotto → bluergrotto → bluegrotto)")
     base = build_multihue(SEQ_MULTI_OKLAB["bluestgrotto"])
