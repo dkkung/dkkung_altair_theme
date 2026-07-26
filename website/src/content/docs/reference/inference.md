@@ -86,7 +86,8 @@ the y range. Brackets that overlap sit on an evenly spaced **ladder** - one step
 label's height between rungs - placed as low as every bracket's own data allows, so a short
 comparison joins the rhythm instead of being stranded below the rest. Brackets sharing no
 category form separate ladders, so a comparison at one end of the chart is never dragged up
-by a taller one elsewhere.
+by a taller one elsewhere, and a ``reverse`` bracket hangs below its groups on a ladder of
+its own - the two directions never push each other around.
 The lift is a Vega expression over the rendered y scale, so an explicit ``domain``,
 ``zero=False`` and nice-rounding all work without being predicted in advance - and because
 the offsets are not data values, the y axis ends at your data and the annotations sit in

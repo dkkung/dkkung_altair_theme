@@ -260,6 +260,39 @@ class TestAddComparisons:
         gaps = [round(rungs[i + 1] - rungs[i], 6) for i in range(len(rungs) - 1)]
         assert len(set(gaps)) == 1, f"rungs should be evenly spaced, got {gaps}"
 
+    def test_reverse_brackets_anchor_below_their_data(self):
+        # A `reverse` bracket hangs BELOW its groups, so it anchors on their MINIMUM and its ladder
+        # descends. Anchoring on the maximum (the upward rule) and then hanging downward from it
+        # drops the bracket and its label straight onto the data.
+        df = pl.DataFrame({"group": ["A"] * 4 + ["B"] * 4, "value": [5.0, 5.4, 4.6, 5.2] + [8.0, 8.4, 7.6, 8.2]})
+        spec = add_comparisons(df, "group", "value", [("A", "B")], pvalues=[0.01], reverse=[("A", "B")]).to_dict()
+        pair = spec["layer"][0]
+        assert pair["layer"][0]["data"]["values"][0]["y"] == pytest.approx(4.6)
+        # positive offset = further down the screen
+        assert pair["layer"][0]["mark"]["yOffset"] > 0
+
+    def test_mixed_directions_do_not_share_a_ladder(self):
+        # Brackets above and below sit on opposite sides of the data, so neither pushes the other.
+        df = pl.DataFrame(
+            {
+                "group": ["A"] * 4 + ["B"] * 4 + ["C"] * 4,
+                "value": [5.0, 5.4, 4.6, 5.2] + [7.0, 7.4, 6.6, 7.2] + [9.0, 9.4, 8.6, 9.2],
+            }
+        )
+        spec = add_comparisons(
+            df,
+            "group",
+            "value",
+            [("A", "B"), ("A", "C")],
+            pvalues=[0.01, 0.02],
+            categories=["A", "B", "C"],
+            reverse=[("A", "B")],
+        ).to_dict()
+        offs = [pair["layer"][0]["mark"]["yOffset"] for pair in spec["layer"]]
+        assert offs[0] > 0 and offs[1] < 0, f"one each way, got {offs}"
+        # each sits the plain gap off its own data - neither was bumped by the other
+        assert abs(offs[0]) == pytest.approx(6.0) and abs(offs[1]) == pytest.approx(6.0)
+
     def test_disjoint_brackets_are_not_tied_to_one_ladder(self):
         # Brackets sharing no category are independent: each hugs its own groups rather than the
         # shorter one floating up to meet a taller comparison elsewhere in the chart.
