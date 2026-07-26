@@ -5,7 +5,7 @@ from typing import Any
 
 import altair as alt
 
-from .palettes import colors
+from .palettes import _DEFAULT_QUALITATIVE_PALETTE, colors
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
@@ -298,7 +298,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
     # (category i -> color i), which the tier-major `categorical` palette relies on. The
     # {"scheme": [...]} form is invalid for nominal and silently drops the range. A Vega
     # scheme *name* (a str, e.g. "tableau10") still needs the {"scheme": ...} wrapper.
-    _cat = _scheme("categoryPalette", colors["ds_cat_1"])
+    _cat = _scheme("categoryPalette", colors[_DEFAULT_QUALITATIVE_PALETTE])
     category_range = _cat if isinstance(_cat, list) else {"scheme": _cat}
 
     return {

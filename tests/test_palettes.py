@@ -180,6 +180,62 @@ class TestCategorical:
             categorical(palette="nope")
 
 
+class TestDsCat3:
+    """ds_cat_3 uses hand-tuned stops rather than the canonical (1, 4, 7), and gives each
+    hue its own usable window in grouped mode - so it needs its own assertions."""
+
+    HUES = ("greys", "cat3_blues", "cat3_greens", "cat3_purples", "cat3_teals")
+    # The designed palette: grey pair, then tier-major over blue/green/purple/teal.
+    EXPECTED = [
+        "#B2B2B2",  # greys[3]        light grey
+        "#636363",  # greys[7]        dark grey
+        "#4A7CD3",  # cat3_blues[5]   blue (the hero)
+        "#008542",  # cat3_greens[6]  green
+        "#382864",  # cat3_purples[9] indigo
+        "#509F98",  # cat3_teals[4]   teal
+        "#284F93",  # cat3_blues[8]   cobalt
+        "#005226",  # cat3_greens[9]  dark green
+        "#A398D6",  # cat3_purples[2] lavender
+        "#173633",  # cat3_teals[10]  dark teal
+    ]
+
+    def test_flat_palette_is_the_designed_order(self):
+        assert colors["ds_cat_3"] == self.EXPECTED
+
+    def test_named_palette_matches_function(self):
+        assert colors["ds_cat_3"] == categorical(1, palette="ds_cat_3")
+
+    def test_every_color_derived_from_base_hues(self):
+        # Nothing de novo - every entry is a stop on one of the base ramps.
+        pool = {hx for h in self.HUES for hx in colors[h]}
+        assert set(colors["ds_cat_3"]) <= pool
+
+    @pytest.mark.parametrize("members", [2, 3, 4, 5, 6])
+    def test_grouped_lengths_and_distinctness(self, members):
+        got = categorical(members, palette="ds_cat_3")
+        assert len(got) == len(self.HUES) * members
+        assert len(set(got)) == len(got)
+
+    def test_grouped_is_hue_major(self):
+        # Each family contributes a consecutive block spanning its own window.
+        got = categorical(2, palette="ds_cat_3")
+        assert got[:2] == [colors["greys"][3], colors["greys"][10]]
+        assert got[2:4] == [colors["cat3_blues"][1], colors["cat3_blues"][11]]
+
+    def test_members_above_ceiling_raises_naming_the_family(self):
+        # cat3_greens has the narrowest window (stops 6-11), so it binds at 6.
+        with pytest.raises(ValueError, match="cat3_greens"):
+            categorical(7, palette="ds_cat_3")
+
+    def test_other_palettes_unaffected(self):
+        # The per-family window path must not touch the canonical-stop palettes.
+        cat1 = ("cat_teals", "cat_blues", "cat_purples", "cat_greens", "cat_golds")
+        assert categorical(1, palette="ds_cat_1") == [colors[h][s] for s in (1, 4, 7) for h in cat1]
+        assert categorical(2, palette="ds_cat_2") == [
+            colors[h][s] for h in ("blues", "pinks", "yellows", "greens") for s in (1, 4)
+        ]
+
+
 class TestExportSwatches:
     def test_creates_jsx_file(self, tmp_path):
         from dysonsphere.palettes import export_swatches
@@ -349,7 +405,7 @@ def _native(name: str) -> bool:
 
 # ds_cat_2 carries 12 stops but is a QUALITATIVE hue-cycling palette, not a ramp (ds_cat_1 has 15,
 # so it is excluded by the stop count). The cat_* base ramps ARE genuine 12-stop sequential ramps.
-_QUALITATIVE = {"ds_cat_1", "ds_cat_2"}
+_QUALITATIVE = {"ds_cat_1", "ds_cat_2", "ds_cat_3"}
 NATIVE_SEQUENTIAL = sorted(n for n, c in colors.items() if _native(n) and len(c) == 12 and n not in _QUALITATIVE)
 NATIVE_DIVERGING = sorted(n for n, c in colors.items() if _native(n) and len(c) == 13)
 

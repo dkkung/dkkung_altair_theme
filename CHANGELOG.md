@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### New features
+
+- **`ds_cat_3`: a saturated cool qualitative palette.** Ten colors - a light/dark grey pair
+  followed by blue, green, purple and teal at two lightness tiers each - built from four new
+  base ramps (`cat3_blues`, `cat3_greens`, `cat3_purples`, `cat3_teals`). Opt in with
+  `ds.theme(categoryPalette="ds_cat_3")`; the default stays `ds_cat_1`. Every color is a stop
+  on a base ramp, so the palette is regenerable rather than a hardcoded list, and the ramps are
+  usable on their own for sequential work. Grouped mode (`ds.categorical(members=…,
+  palette="ds_cat_3")`) is supported up to `members=6`, where `cat3_greens` runs out of stops
+  that fit the palette's design rule - a light color must be muted, a saturated one must be
+  dark. Colour separation holds under simulated deuteranopia and protanopia.
+
 ### Changes
 
 - **Data marks now render above axis lines and closed borders in `save()`/`show()` output.**
