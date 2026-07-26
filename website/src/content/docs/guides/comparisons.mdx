@@ -36,16 +36,18 @@ category.
 
 <Example name="comparisons_reference" alt="Dose-response bars compared to a control with asterisks over each bar" />
 
+Left alone, each label lands a fixed distance above the bar it belongs to, so the marks follow the
+data. Here three dose-response groups, each with the vehicle control a few shades darker,
+quasirandom points, error bars, and an asterisk over every dose compared against its control - the
+groups span roughly a tenfold range, and the gap is the same in all three:
+
+<Example name="comparisons_grouped_reference" alt="Three dose-response groups with an asterisk above each dose bar compared to a darker vehicle control" />
+
 For full control you can supply the statistics and positions yourself: `pvalues=` (a dict keyed by
 group) draws precomputed p-values instead of running the test, and `yPositions=` places labels - a
-single number for a flat row, or a dict keyed by group to nudge individual labels.
-
-In grouped mode a `yPositions=` dict keyed by **category** places one flat row per group - useful
-when the groups span very different magnitudes and a single row can't clear them all. Here three
-dose-response groups, each with the vehicle control a few shades darker, quasirandom points, error
-bars, and a flat asterisk row per group compared against the control:
-
-<Example name="comparisons_grouped_reference" alt="Three dose-response groups with per-group flat asterisk rows compared to a darker vehicle control" />
+single number for a flat row, a dict keyed by group for individual labels, or in grouped mode a
+dict keyed by **category** for one flat row per group. A flat row reads as "this whole group was
+compared against its control", where the automatic layout ties each mark to its own bar.
 
 ## Label styles
 

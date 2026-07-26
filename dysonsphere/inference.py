@@ -999,6 +999,16 @@ def add_comparisons(
     A descriptive + effect-size report is generated on every call and queued for
     the export metadata written by ``ds.save()`` (see ``report``/``save``).
 
+    **Placement.** By default each annotation anchors at the data maximum of the pair it
+    compares and is lifted a fixed number of pixels, so it stays with its own groups rather
+    than riding the tallest annotated one, and the gap looks the same on every chart whatever
+    the y range. Brackets whose spans overlap are pushed apart by at least a label's height.
+    The lift is a Vega expression over the rendered y scale, so an explicit ``domain``,
+    ``zero=False`` and nice-rounding all work without being predicted in advance - and because
+    the offsets are not data values, the y axis ends at your data and the annotations sit in
+    the margin above it. Pass any of ``yStart``/``yStep``/``yPad``/``yPositions`` to place them
+    in data units on your own scale instead.
+
     Combine with your chart using ``+``:  ``chart + add_comparisons(...)``.
 
     Parameters
@@ -1104,17 +1114,7 @@ def add_comparisons(
         units. Setting it opts out of automatic pixel placement.
     yPad:
         Padding (data units) above the data maximum, when placement is in data units. Setting
-        it opts out of automatic pixel placement.
-
-        **Automatic placement (all three unset).** Each bracket anchors at the data maximum of
-        the pair *it compares* and is lifted a fixed number of pixels - so it stays with its own
-        groups rather than riding the tallest annotated one, and the gap is identical on every
-        chart. Brackets whose spans overlap are pushed apart by at least a label's height. The
-        lift is emitted as a Vega expression over ``scale('y', …)`` and resolved when Vega knows
-        its final domain, so nice-rounding, ``zero=False`` and an explicit ``domain`` all work
-        without being predicted here. Because the offsets contribute nothing to the scale, the
-        y axis ends at your data and the brackets sit in the margin above it. Pass any of
-        ``yStart``/``yStep``/``yPad``/``yPositions`` to place them in data units instead.
+        it opts out of the automatic pixel placement described above.
     categories:
         Ordered list of all x-axis categories. Inferred from ``df`` (sorted
         alphabetically) when not provided.
