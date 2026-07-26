@@ -12,8 +12,9 @@ sizes - that `save()` embeds in the export metadata, so a figure carries its own
 
 It classifies `test=` into **pairwise** (`mannwhitneyu`, `ttest_ind`, `ttest_rel`, `wilcoxon`,
 `tukey_hsd`) or **omnibus** (`anova`, `kruskal`, `friedman`, `alexandergovern`). Here an ANOVA with
-a corner label plus two post-hoc brackets. The corner label sits at the top of the plot, so pad the
-y domain and lift the brackets with `yStart=` to keep everything clear:
+a corner label plus two post-hoc brackets - nothing is positioned by hand. The corner label sits at
+the top of the plot, so the annotation raises the top of the y axis enough for the brackets to fit
+beneath it:
 
 <Example name="comparisons" alt="Fuel economy by origin with an ANOVA label and post-hoc brackets" />
 
