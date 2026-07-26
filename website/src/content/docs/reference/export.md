@@ -82,7 +82,11 @@ Callable — rebuilt per variant so dark-mode colours are correct::
 ## `show`
 
 ```python
-def show(chart: _AltairChart | Callable[[], _AltairChart]): ...
+def show(
+    chart: _AltairChart | Callable[[], _AltairChart],
+    maxRows: int = 5000,
+    overrideMaxRows: bool = False,
+): ...
 ```
 
 Render *chart* through the full ``ds.save()`` pipeline and return it for accurate
@@ -95,6 +99,13 @@ ticks still point outward. ``ds.show(chart)`` renders the *same* corrected SVG t
 :func:`save` writes and returns it as an ``IPython.display.SVG`` for inline display, so
 the preview matches the saved figure. It renders at the theme's current ``darkmode`` and
 writes no file.
+
+Like :func:`save`, the render is wrapped in the ``"default"`` data transformer capped at
+``maxRows`` (``overrideMaxRows=True`` lifts the cap), so ``ds.show()`` works regardless of
+whichever transformer is active in the session — in particular ``vegafusion``, which
+otherwise makes Altair's ``to_dict()`` raise (dysonsphere's SVG pipeline needs the
+vega-lite spec, and a scatter's points must all inline anyway, so vegafusion cannot help
+here). Over the cap Altair raises, re-raised as a clear :class:`ValueError`.
 
 Accepts the same chart types as :func:`save`, including a zero-argument callable (called
 once). Requires IPython (present in any notebook); otherwise raises ``ImportError`` - use

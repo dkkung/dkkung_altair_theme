@@ -71,7 +71,7 @@
  },
  {
   "key": "font",
-  "default": "\"Helvetica Neue\"",
+  "default": "\"Helvetica Neue, HelveticaNeue, Helvetica, Arial, sans-serif\"",
   "hint": null
  },
  {
