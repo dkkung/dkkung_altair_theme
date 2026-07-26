@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 
 import altair as alt
 import numpy as np
@@ -15,6 +15,7 @@ from dysonsphere.inference import (
     add_correlation,
 )
 from dysonsphere.theme import theme
+from dysonsphere.utils import _nice_domain
 
 CATEGORIES = ["A", "B"]
 
@@ -227,6 +228,57 @@ class TestAddComparisons:
         y_offset = spec["layer"][0]["layer"][0]["mark"]["yOffset"]
         assert isinstance(y_offset, (int, float)), f"expected a constant offset, got {y_offset!r}"
         assert y_offset == pytest.approx(-6.0)
+
+    def test_overlapping_brackets_form_an_even_ladder(self):
+        # Brackets that overlap sit on evenly spaced rungs, as low as every bracket's own data
+        # allows - so a short comparison rises to join the rhythm instead of being stranded
+        # well below the others (the Europe-Japan case on the pairwise guide page).
+        df = pl.DataFrame(
+            {
+                "group": ["A"] * 6 + ["B"] * 6 + ["C"] * 6,
+                "value": [80.0, 90, 100, 110, 120, 130] * 2 + [150.0, 170, 190, 210, 220, 230],
+            }
+        )
+        theme(chartHeight=100, fontSize=7)
+        spec = add_comparisons(
+            df,
+            "group",
+            "value",
+            [("A", "B"), ("A", "C"), ("B", "C")],
+            pvalues=[0.5, 0.001, 0.001],
+            categories=["A", "B", "C"],
+        ).to_dict()
+        # each bracket's screen position = its anchor in px, lifted by its offset. The px map is
+        # the same nice-rounded estimate the library uses, so this measures placement, not the
+        # difference between two domain guesses.
+        lo, hi = _nice_domain(0.0, cast(float, df["value"].cast(pl.Float64).max()))
+        rungs = sorted(
+            100.0 * (1 - (pair["layer"][0]["data"]["values"][0]["y"] - lo) / (hi - lo))
+            - abs(pair["layer"][0]["mark"]["yOffset"])
+            for pair in spec["layer"]
+        )
+        gaps = [round(rungs[i + 1] - rungs[i], 6) for i in range(len(rungs) - 1)]
+        assert len(set(gaps)) == 1, f"rungs should be evenly spaced, got {gaps}"
+
+    def test_disjoint_brackets_are_not_tied_to_one_ladder(self):
+        # Brackets sharing no category are independent: each hugs its own groups rather than the
+        # shorter one floating up to meet a taller comparison elsewhere in the chart.
+        df = pl.DataFrame(
+            {
+                "group": ["A"] * 4 + ["B"] * 4 + ["C"] * 4 + ["D"] * 4,
+                "value": [1.0, 1.1, 0.9, 1.05] * 2 + [50.0, 51, 49, 50.5] * 2,
+            }
+        )
+        spec = add_comparisons(
+            df,
+            "group",
+            "value",
+            [("A", "B"), ("C", "D")],
+            pvalues=[0.01, 0.02],
+            categories=["A", "B", "C", "D"],
+        ).to_dict()
+        offsets = [abs(pair["layer"][0]["mark"]["yOffset"]) for pair in spec["layer"]]
+        assert offsets == [pytest.approx(6.0), pytest.approx(6.0)]
 
     def test_auto_bracket_stack_clears_its_labels(self):
         # Overlapping spans are pushed apart by at least a label's worth of pixels. Too small a
