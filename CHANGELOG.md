@@ -4,207 +4,53 @@
 
 ### New features
 
-- **`mark_violin`: Prism-style violins.** `inner` picks the statistic display inside the
-  violin - `"quartiles"` (default: a solid median line at twice the outline weight, clipped to
-  the violin border, plus dashed quartile lines, each spanning the violin's width at that
-  value), `"median"` (the median line only), `"box"` (an embedded boxplot), or `None`
-  (silhouette only). The violin is outlined by default (`stroke=True` draws the theme's
-  `markStroke`, black in dark mode too, like `mark_strip`'s points; `stroke=False` disables
-  it); `innerColor` colors the median/quartile lines (plain black in both modes - they sit
-  inside the mark fill, so deliberately not darkmode-sensitive); `trim=True` ends the violin
-  sharply at the observed data extremes; `bandwidth` tunes the KDE smoothness
-  (`scipy.stats.gaussian_kde` `bw_method`, as in `add_quasirandom`); untrimmed tails extend
-  2 KDE bandwidths past the extremes (previously a fixed ±1 data units). Upgraders: violins
-  render as outlined quartile-line violins instead of the embedded boxplot - pass
-  `inner="box"` for the previous look.
+- **`mark_violin`: Prism-style violins.** `inner` picks the statistic display inside the violin - `"quartiles"` (default: a solid median line at twice the outline weight, clipped to the violin border, plus dashed quartile lines, each spanning the violin's width at that value), `"median"` (the median line only), `"box"` (an embedded boxplot), or `None` (silhouette only). The violin is outlined by default (`stroke=True` draws the theme's `markStroke`, black in dark mode too, like `mark_strip`'s points; `stroke=False` disables it); `innerColor` colors the median/quartile lines (plain black in both modes - they sit inside the mark fill, so deliberately not darkmode-sensitive); `trim=True` ends the violin sharply at the observed data extremes; `bandwidth` tunes the KDE smoothness (`scipy.stats.gaussian_kde` `bw_method`, as in `add_quasirandom`); untrimmed tails extend 2 KDE bandwidths past the extremes (previously a fixed ±1 data units). Upgraders: violins render as outlined quartile-line violins instead of the embedded boxplot - pass `inner="box"` for the previous look.
 
-- **`ds_cat_3`: a saturated cool qualitative palette.** Ten colors - a light/dark grey pair
-  followed by blue, green, purple and teal at two lightness tiers each - built from four new
-  base ramps (`cat3_blues`, `cat3_greens`, `cat3_purples`, `cat3_teals`). Opt in with
-  `ds.theme(categoryPalette="ds_cat_3")`; the default stays `ds_cat_1`. Every color is a stop
-  on a base ramp, so the palette is regenerable rather than a hardcoded list, and the ramps are
-  usable on their own for sequential work. Grouped mode (`ds.categorical(members=…,
-  palette="ds_cat_3")`) is supported up to `members=6`, where `cat3_greens` runs out of stops
-  that fit the palette's design rule - a light color must be muted, a saturated one must be
-  dark. Colour separation holds under simulated deuteranopia and protanopia.
+- **`ds_cat_3`: a saturated cool qualitative palette.** Ten colors - a light/dark grey pair followed by blue, green, purple and teal at two lightness tiers each - built from four new base ramps (`cat3_blues`, `cat3_greens`, `cat3_purples`, `cat3_teals`). Opt in with `ds.theme(categoryPalette="ds_cat_3")`; the default stays `ds_cat_1`. Every color is a stop on a base ramp, so the palette is regenerable rather than a hardcoded list, and the ramps are usable on their own for sequential work. Grouped mode (`ds.categorical(members=…, palette="ds_cat_3")`) is supported up to `members=6`, where `cat3_greens` runs out of stops that fit the palette's design rule - a light color must be muted, a saturated one must be dark. Colour separation holds under simulated deuteranopia and protanopia.
 
 ### Changes
 
-- **p-value brackets are now placed in pixels, above the pair they compare.** `add_comparisons`
-  used to convert its gap and stack step from pixels into data units using the data's extent,
-  but the axis Vega actually renders is nice-rounded and starts at zero, so the gap you got was
-  never the gap requested and changed with the data - values offset from zero (any assay with a
-  baseline) could compress a stack of brackets until the labels overlapped. Each bracket now
-  anchors at the maximum of the two groups it compares and is lifted a fixed number of pixels,
-  with overlapping brackets pushed apart by at least a label's height. The lift is a Vega
-  expression evaluated against the real scale, so an explicit `domain`, `zero=False`, and
-  nice-rounding are all handled correctly. Brackets also no longer stretch the y axis, so it
-  ends at your data. Applies to single-factor, grouped (`xOffsetCol`) and reference modes.
-  Passing any of `yStart`, `yStep`, `yPad` or `yPositions` keeps the previous data-unit
-  placement. When an omnibus or test label is placed at a `top` preset, the annotation now raises
-  the top of the y scale enough for the brackets to fit beneath it, so the label stays flush with
-  the plot edge without you padding the domain by hand - only the upper bound moves.
+- **p-value brackets are now placed in pixels, above the pair they compare.** `add_comparisons` used to convert its gap and stack step from pixels into data units using the data's extent, but the axis Vega actually renders is nice-rounded and starts at zero, so the gap you got was never the gap requested and changed with the data - values offset from zero (any assay with a baseline) could compress a stack of brackets until the labels overlapped. Each bracket now anchors at the maximum of the two groups it compares and is lifted a fixed number of pixels, with overlapping brackets pushed apart by at least a label's height. The lift is a Vega expression evaluated against the real scale, so an explicit `domain`, `zero=False`, and nice-rounding are all handled correctly. Brackets also no longer stretch the y axis, so it ends at your data. Applies to single-factor, grouped (`xOffsetCol`) and reference modes. Passing any of `yStart`, `yStep`, `yPad` or `yPositions` keeps the previous data-unit placement. When an omnibus or test label is placed at a `top` preset, the annotation now raises the top of the y scale enough for the brackets to fit beneath it, so the label stays flush with the plot edge without you padding the domain by hand - only the upper bound moves.
 
 - `mark_line` stroke cap is now `butt` instead of `round`.
 
-- **Data marks now render above axis lines and closed borders in `save()`/`show()` output.**
-  A datum plotted exactly on an axis draws over the axis line instead of being cut by it. The
-  stacking order in exported SVG/PNG is view fill, then grid, then axes and the closed border,
-  then marks; the grid still never paints over the border.
+- **Data marks now render above axis lines and closed borders in `save()`/`show()` output.** A datum plotted exactly on an axis draws over the axis line instead of being cut by it. The stacking order in exported SVG/PNG is view fill, then grid, then axes and the closed border, then marks; the grid still never paints over the border.
 
 ### Fixes
 
-- `ds.show()` now works when a session-wide `vegafusion` (or other) Altair data transformer is
-  active - previously it raised `ValueError: ... to_dict() ... must be called with format="vega"`.
-  `show()` now pins the `"default"` transformer for its render and restores the prior one after,
-  matching `save()`, and gains `maxRows` (default 5000) / `overrideMaxRows` to control the inlined-
-  row cap. (`save()` already handled this, so its export path was unaffected.)
+- `ds.show()` now works when a session-wide `vegafusion` (or other) Altair data transformer is active - previously it raised `ValueError: ... to_dict() ... must be called with format="vega"`. `show()` now pins the `"default"` transformer for its render and restores the prior one after, matching `save()`, and gains `maxRows` (default 5000) / `overrideMaxRows` to control the inlined- row cap. (`save()` already handled this, so its export path was unaffected.)
 
-- `add_multilabel` no longer re-enables a layer's explicitly hidden x axis (`axis=None`, e.g.
-  `mark_violin`'s internal pixel-positioned layers) when stripping x labels - the replacement
-  axis drew a phantom domain line and ticks above the chart.
+- `add_multilabel` no longer re-enables a layer's explicitly hidden x axis (`axis=None`, e.g. `mark_violin`'s internal pixel-positioned layers) when stripping x labels - the replacement axis drew a phantom domain line and ticks above the chart.
 
 ## [3.9.0] - 2026-07-20
 
 ### New features
 
-- **Subscripts in labels, and a `^` superscript author token - typeset in exports.** Any label (axis
-  title, `add_text`, legend) can now carry a subscript with a **double-underscore** token: `q__x`
-  renders as q with a subscript x, `x__1` as x-sub-1. Superscripts gain a matching author token,
-  `^`: `q^2`, `10^3`. Both are typeset in `ds.save()` PNG/SVG output the same way superscripts
-  already were - the run becomes a shrunk, shifted ASCII `<tspan>`, so nothing depends on a Unicode
-  glyph the font may lack. Literal Unicode subscripts you type yourself (`t₀`, `H₂O`) are handled
-  too. The subscript token is a **double** underscore on purpose, and boundary-guarded: a single `_`
-  is the snake_case column-name separator, so a default axis title equal to a column name - single-
-  underscore (`x_1`, `flipper_length_mm`) or double-underscore (`model__alpha`) - is never mistaken
-  for a subscript; only a deliberate `q__x` is. One label can mix several tokens and both directions
-  (`q__x = 10^3`).
-- **`add_rule(span=...)`: slice a reference line to a portion of its axis.** Pass a `(start, end)`
-  tuple to stop the line short of the plot edges - it spans only that range along its *running* axis
-  (the one it runs along, opposite of `axis`: x for a horizontal `axis="y"` rule, y for a vertical
-  `axis="x"` rule), mirroring `add_shade`. Bounds are **numeric** (data coordinates, sharing the base
-  scale) or **category names** (resolved to pixels via the band scale, needing the new `categories=`;
-  `flush=` extends an outermost category to the axis edge, like `add_shade`). A single `span` applies
-  to every value when `value` is a list, and a `label` anchors to the slice's ends instead of the
-  plot edge. No new dependency.
-- **`add_comparisons(labelStyle="value")`: bare p-value labels, no `P`.** A third label style
-  alongside `"p"` and `"asterisks"`, rendering just the number to save room - the same as `"p"` but
-  without the `P` symbol and the redundant `= ` (`P = 0.041` → `0.041`), while keeping a meaningful
-  operator (`< 0.001` when the value floors, `≈ 10⁻⁵` under `notation="power"`). `notation=` still
-  applies. Useful where `P = …` labels crowd each other, e.g. a row of many-vs-control comparisons.
-- **`add_comparisons(reference=...)`: compare every group against one control, no brackets.** Passing
-  `reference` (a group name) compares each other group to it and draws the p-value **above each
-  non-reference mark** - the clean many-vs-one / control layout that a fan of brackets makes noisy.
-  It derives its own comparisons (so leave `pairs` unset), supports the pairwise tests, and corrects
-  over the whole family of `len(categories) - 1` comparisons. Labels sit at each group's own data
-  max, so overlay your points (strip/beeswarm) and they clear the data; distinguishing the reference
-  visually (e.g. a darker fill) stays in your hands - nothing is injected into the chart. Works in
-  grouped mode too: with `xOffsetCol` set, `reference` is an xOffset **level** compared within each
-  x-category (one label per non-reference sub-bar). No new dependency.
-- **`add_comparisons` gains explicit `pvalues` / `yStart` / `yPositions` in reference and grouped
-  modes.** These were silently ignored on the grouped path (and unavailable in reference mode); now
-  they work. In **reference mode** they're keyed by the compared thing - `pvalues={group: p}`
-  (single-factor) or `{(category, level): p}` (grouped) supplies precomputed p-values (skipping the
-  test and correction). **`yPositions`** takes **a single number** (one global flat row), a dict keyed
-  by **group** (single-factor) or **`(category, level)`** (grouped) for per-label heights, or - in
-  grouped mode - a dict keyed by **category** for a flat row per category, each at its own height
-  (handy when categories span very different magnitudes); grouped brackets key by `(category, (l1,
-  l2))`. Dicts are partial (unlisted fall back to auto). **`yStart`** (brackets only) is the exact
-  stack base like single-factor - a scalar or
-  a dict keyed by category for a per-category base; it does not apply in reference mode (no stack)
-  and now **raises** if set there in either single-factor or grouped mode, rather than silently doing
-  nothing. Dict/flat forms are additive type widening; the pairwise list forms are unchanged, and
-  mismatched forms raise a clear error.
+- **Subscripts in labels, and a `^` superscript author token - typeset in exports.** Any label (axis title, `add_text`, legend) can now carry a subscript with a **double-underscore** token: `q__x` renders as q with a subscript x, `x__1` as x-sub-1. Superscripts gain a matching author token, `^`: `q^2`, `10^3`. Both are typeset in `ds.save()` PNG/SVG output the same way superscripts already were - the run becomes a shrunk, shifted ASCII `<tspan>`, so nothing depends on a Unicode glyph the font may lack. Literal Unicode subscripts you type yourself (`t₀`, `H₂O`) are handled too. The subscript token is a **double** underscore on purpose, and boundary-guarded: a single `_` is the snake_case column-name separator, so a default axis title equal to a column name - single- underscore (`x_1`, `flipper_length_mm`) or double-underscore (`model__alpha`) - is never mistaken for a subscript; only a deliberate `q__x` is. One label can mix several tokens and both directions (`q__x = 10^3`).
+- **`add_rule(span=...)`: slice a reference line to a portion of its axis.** Pass a `(start, end)` tuple to stop the line short of the plot edges - it spans only that range along its *running* axis (the one it runs along, opposite of `axis`: x for a horizontal `axis="y"` rule, y for a vertical `axis="x"` rule), mirroring `add_shade`. Bounds are **numeric** (data coordinates, sharing the base scale) or **category names** (resolved to pixels via the band scale, needing the new `categories=`; `flush=` extends an outermost category to the axis edge, like `add_shade`). A single `span` applies to every value when `value` is a list, and a `label` anchors to the slice's ends instead of the plot edge. No new dependency.
+- **`add_comparisons(labelStyle="value")`: bare p-value labels, no `P`.** A third label style alongside `"p"` and `"asterisks"`, rendering just the number to save room - the same as `"p"` but without the `P` symbol and the redundant `= ` (`P = 0.041` → `0.041`), while keeping a meaningful operator (`< 0.001` when the value floors, `≈ 10⁻⁵` under `notation="power"`). `notation=` still applies. Useful where `P = …` labels crowd each other, e.g. a row of many-vs-control comparisons.
+- **`add_comparisons(reference=...)`: compare every group against one control, no brackets.** Passing `reference` (a group name) compares each other group to it and draws the p-value **above each non-reference mark** - the clean many-vs-one / control layout that a fan of brackets makes noisy. It derives its own comparisons (so leave `pairs` unset), supports the pairwise tests, and corrects over the whole family of `len(categories) - 1` comparisons. Labels sit at each group's own data max, so overlay your points (strip/beeswarm) and they clear the data; distinguishing the reference visually (e.g. a darker fill) stays in your hands - nothing is injected into the chart. Works in grouped mode too: with `xOffsetCol` set, `reference` is an xOffset **level** compared within each x-category (one label per non-reference sub-bar). No new dependency.
+- **`add_comparisons` gains explicit `pvalues` / `yStart` / `yPositions` in reference and grouped modes.** These were silently ignored on the grouped path (and unavailable in reference mode); now they work. In **reference mode** they're keyed by the compared thing - `pvalues={group: p}` (single-factor) or `{(category, level): p}` (grouped) supplies precomputed p-values (skipping the test and correction). **`yPositions`** takes **a single number** (one global flat row), a dict keyed by **group** (single-factor) or **`(category, level)`** (grouped) for per-label heights, or - in grouped mode - a dict keyed by **category** for a flat row per category, each at its own height (handy when categories span very different magnitudes); grouped brackets key by `(category, (l1, l2))`. Dicts are partial (unlisted fall back to auto). **`yStart`** (brackets only) is the exact stack base like single-factor - a scalar or a dict keyed by category for a per-category base; it does not apply in reference mode (no stack) and now **raises** if set there in either single-factor or grouped mode, rather than silently doing nothing. Dict/flat forms are additive type widening; the pairwise list forms are unchanged, and mismatched forms raise a clear error.
 
 ### Changes
 
-- **New default diverging palette `ds_div_1` (was `pinksblues`).** A gold-low/teal-high diverging
-  built from the `ds_cat_1` hues (`cat_golds`/`cat_teals`), arc-length resampled so it's perceptually
-  uniform (ΔE ratio 1.14), CVD-safe, and V-shaped - the diverging companion to `ds_cat_1`. Override
-  with `theme(divergingPalette=...)`.
-- **Default data-line stroke raised to `axisWidth * 2` (was `axisWidth * 1.5`).** `config.line` and
-  the matching `config.trail` default: `0.375` → `0.5` at the default `axisWidth`.
-- **New default categorical palette (`ds_cat_1`); the old set is now `ds_cat_2`.** The default
-  qualitative palette - what `config.range.category` and `categorical()` produce, and what any
-  `color=` nominal encoding without an explicit range picks up - is now a **five-hue set harmonious
-  with `australis`** (the default sequential ramp) and **tuned for colorblindness**: teal, blue,
-  purple, green, gold, in that cycle order. It is built by slicing five new perceptually-uniform base
-  ramps added to `colors` (`cat_teals` / `cat_blues` / `cat_purples` / `cat_greens` / `cat_golds`),
-  each also usable as a standalone sequential palette. The CVD tuning matters: under deuteranopia/
-  protanopia hue collapses toward the blue-yellow axis, so the three cool hues are pulled apart in
-  hue *and* lightness (a viewer separates them by lightness when hue fails), and gold is a pure-yellow
-  warm anchor maximally distinct from the cools. The **previous** four-hue pastel set is unchanged and
-  still available: pass `categorical(palette="ds_cat_2")`, `theme(categoryPalette="ds_cat_2")`, or
-  `alt.Scale(range=colors["ds_cat_2"])`. This changes the colors of every default-coloured chart.
-  **Breaking-ish note:** the bare `colors["categorical"]` key was removed (use `colors["ds_cat_1"]`);
-  `categorical()` itself is unchanged and gains an optional `palette=` argument.
-- **Default `mark_circle` size increased to `markSize / 8`** (was `markSize / 20`). The overlay dot
-  at the old size rendered as a sub-1px pinprick that read faint over bars/boxplots/violins; the new
-  default is a legible dot while staying smaller than `config.point` / `config.square`. Override per
-  chart with `mark_circle(size=...)`.
+- **New default diverging palette `ds_div_1` (was `pinksblues`).** A gold-low/teal-high diverging built from the `ds_cat_1` hues (`cat_golds`/`cat_teals`), arc-length resampled so it's perceptually uniform (ΔE ratio 1.14), CVD-safe, and V-shaped - the diverging companion to `ds_cat_1`. Override with `theme(divergingPalette=...)`.
+- **Default data-line stroke raised to `axisWidth * 2` (was `axisWidth * 1.5`).** `config.line` and the matching `config.trail` default: `0.375` → `0.5` at the default `axisWidth`.
+- **New default categorical palette (`ds_cat_1`); the old set is now `ds_cat_2`.** The default qualitative palette - what `config.range.category` and `categorical()` produce, and what any `color=` nominal encoding without an explicit range picks up - is now a **five-hue set harmonious with `australis`** (the default sequential ramp) and **tuned for colorblindness**: teal, blue, purple, green, gold, in that cycle order. It is built by slicing five new perceptually-uniform base ramps added to `colors` (`cat_teals` / `cat_blues` / `cat_purples` / `cat_greens` / `cat_golds`), each also usable as a standalone sequential palette. The CVD tuning matters: under deuteranopia/ protanopia hue collapses toward the blue-yellow axis, so the three cool hues are pulled apart in hue *and* lightness (a viewer separates them by lightness when hue fails), and gold is a pure-yellow warm anchor maximally distinct from the cools. The **previous** four-hue pastel set is unchanged and still available: pass `categorical(palette="ds_cat_2")`, `theme(categoryPalette="ds_cat_2")`, or `alt.Scale(range=colors["ds_cat_2"])`. This changes the colors of every default-coloured chart. **Breaking-ish note:** the bare `colors["categorical"]` key was removed (use `colors["ds_cat_1"]`); `categorical()` itself is unchanged and gains an optional `palette=` argument.
+- **Default `mark_circle` size increased to `markSize / 8`** (was `markSize / 20`). The overlay dot at the old size rendered as a sub-1px pinprick that read faint over bars/boxplots/violins; the new default is a legible dot while staying smaller than `config.point` / `config.square`. Override per chart with `mark_circle(size=...)`.
 
 ### Fixes
 
-- **Require `vl-convert-python>=1.9.0`** (was `>=1.7.0`), matching Altair 6's minimum. The old floor
-  could resolve a vl-convert too old to render Altair 6's Vega-Lite output, since dysonsphere depends
-  on plain `altair` (not `altair[save]`) and declares vl-convert separately.
-- **`add_log_ticks` / `add_pow_ticks` no longer leave a column of transparent circles in the
-  exported SVG.** They host their minor-tick axis on a `mark_point(opacity=0)` layer, which was
-  drawn once per data row and stacked at the plot centre - invisible in a PNG or browser, but real
-  `<path>` objects that showed up as a stray column when the SVG was opened in Illustrator or
-  Inkscape. The axis-host layer now shares the dataframe but is filtered to zero rows, so it hosts
-  the axis (driven by the forced scale domain) while rendering no marks. Fixed at the source rather
-  than by stripping transparent elements from the SVG - a blanket strip would have deleted a user's
-  own opacity-encoded (transparent) data marks and broken the export's data-completeness. `read()`
-  and PNG output are unchanged.
-- **Log-axis power labels (`10⁰`, `10⁴`, …) no longer render in a slanted substitute font in
-  exports.** `log_label_expr(notation="power")` emits Unicode superscript exponents, but Helvetica
-  Neue (the theme font) ships the Latin-1 superscripts `¹²³` while lacking the Superscripts-block
-  `⁰⁴⁵⁶⁷⁸⁹` - so `10¹/10²/10³` rendered correctly and only `10⁰` (and 4-9) had its exponent glyph
-  substituted from a fallback font and drawn slanted in `ds.save()` PNG/SVG output (browsers and the
-  live website resolve the glyph from their own fallback, which is why it wasn't visible there). The
-  SVG superscript fixer, which already re-typesets p-value exponents (`…×10ⁿ`) as raised ASCII
-  digits, now also covers these bare power-notation labels, so every exponent is a plain ASCII glyph
-  in the base font - no substitution, no slant. As part of this, the injected exponent's size and
-  rise now scale to the label's own font-size (previously a fixed 4px/2.5px tuned to the 6px p-value
-  label), so the 7px axis and p-value exponents are typeset proportionally; scientific p-value
-  exponents are marginally larger to match.
-- **Exported SVGs now open with the correct font in Adobe Illustrator.** The theme font is a CSS
-  fallback stack (`Helvetica Neue, HelveticaNeue, Helvetica, Arial, sans-serif`) that browsers and
-  vl-convert resolve to Helvetica Neue, but Illustrator's SVG importer doesn't resolve CSS stacks -
-  it landed on plain Helvetica, and even aliases the spaced name `Helvetica Neue` to Helvetica as a
-  single value. A new SVG-only post-processor rewrites `font-family` to an Illustrator-resolvable
-  form: the space-free PostScript name (`HelveticaNeue`) as the primary, the trapping same-family
-  aliases (spaced `Helvetica Neue`, bare `Helvetica`) dropped, and the genuinely-different fallbacks
-  (`Arial, sans-serif`) kept - i.e. `HelveticaNeue, Arial, sans-serif`. So Illustrator now shows
-  Helvetica Neue on macOS (regular and the italic stat symbols alike), and every non-macOS consumer
-  that lacks Helvetica Neue (Windows Illustrator, Linux Inkscape, a raw SVG in a browser) still falls
-  back gracefully to Arial/sans-serif. The theme option, the JSON spec, and the browser-targeted HTML
-  export keep the original stack unchanged; only the SVG is rewritten. Single custom fonts (e.g.
-  `Courier New`) are untouched, since Illustrator resolves those fine on their own.
-- **Category colors and x-axis order now stay consistent in `mark_strip` / `mark_violin` /
-  `mark_boxplot` and `add_multilabel`.** The marks pinned only the `sort=` on their x and color
-  encodings, but Vega-Lite re-sorts a scale's domain **alphabetically** when it merges views (the
-  marks are internally layered, and `add_multilabel` shares the x scale) - so passing a
-  non-alphabetical `categories` list (e.g. `["USA", "Europe", "Japan"]`) rendered the bars in one
-  order and the colors in another, and the palette no longer started at teal. The scaffold now pins
-  the **domain** (a literal list), not just the sort, on both x and color, so the category order
-  survives every layer/concat merge. (Custom marks you layer yourself need the same
-  `scale=alt.Scale(domain=categories)` to line up with a dysonsphere mark.)
+- **Require `vl-convert-python>=1.9.0`** (was `>=1.7.0`), matching Altair 6's minimum. The old floor could resolve a vl-convert too old to render Altair 6's Vega-Lite output, since dysonsphere depends on plain `altair` (not `altair[save]`) and declares vl-convert separately.
+- **`add_log_ticks` / `add_pow_ticks` no longer leave a column of transparent circles in the exported SVG.** They host their minor-tick axis on a `mark_point(opacity=0)` layer, which was drawn once per data row and stacked at the plot centre - invisible in a PNG or browser, but real `<path>` objects that showed up as a stray column when the SVG was opened in Illustrator or Inkscape. The axis-host layer now shares the dataframe but is filtered to zero rows, so it hosts the axis (driven by the forced scale domain) while rendering no marks. Fixed at the source rather than by stripping transparent elements from the SVG - a blanket strip would have deleted a user's own opacity-encoded (transparent) data marks and broken the export's data-completeness. `read()` and PNG output are unchanged.
+- **Log-axis power labels (`10⁰`, `10⁴`, …) no longer render in a slanted substitute font in exports.** `log_label_expr(notation="power")` emits Unicode superscript exponents, but Helvetica Neue (the theme font) ships the Latin-1 superscripts `¹²³` while lacking the Superscripts-block `⁰⁴⁵⁶⁷⁸⁹` - so `10¹/10²/10³` rendered correctly and only `10⁰` (and 4-9) had its exponent glyph substituted from a fallback font and drawn slanted in `ds.save()` PNG/SVG output (browsers and the live website resolve the glyph from their own fallback, which is why it wasn't visible there). The SVG superscript fixer, which already re-typesets p-value exponents (`…×10ⁿ`) as raised ASCII digits, now also covers these bare power-notation labels, so every exponent is a plain ASCII glyph in the base font - no substitution, no slant. As part of this, the injected exponent's size and rise now scale to the label's own font-size (previously a fixed 4px/2.5px tuned to the 6px p-value label), so the 7px axis and p-value exponents are typeset proportionally; scientific p-value exponents are marginally larger to match.
+- **Exported SVGs now open with the correct font in Adobe Illustrator.** The theme font is a CSS fallback stack (`Helvetica Neue, HelveticaNeue, Helvetica, Arial, sans-serif`) that browsers and vl-convert resolve to Helvetica Neue, but Illustrator's SVG importer doesn't resolve CSS stacks - it landed on plain Helvetica, and even aliases the spaced name `Helvetica Neue` to Helvetica as a single value. A new SVG-only post-processor rewrites `font-family` to an Illustrator-resolvable form: the space-free PostScript name (`HelveticaNeue`) as the primary, the trapping same-family aliases (spaced `Helvetica Neue`, bare `Helvetica`) dropped, and the genuinely-different fallbacks (`Arial, sans-serif`) kept - i.e. `HelveticaNeue, Arial, sans-serif`. So Illustrator now shows Helvetica Neue on macOS (regular and the italic stat symbols alike), and every non-macOS consumer that lacks Helvetica Neue (Windows Illustrator, Linux Inkscape, a raw SVG in a browser) still falls back gracefully to Arial/sans-serif. The theme option, the JSON spec, and the browser-targeted HTML export keep the original stack unchanged; only the SVG is rewritten. Single custom fonts (e.g. `Courier New`) are untouched, since Illustrator resolves those fine on their own.
+- **Category colors and x-axis order now stay consistent in `mark_strip` / `mark_violin` / `mark_boxplot` and `add_multilabel`.** The marks pinned only the `sort=` on their x and color encodings, but Vega-Lite re-sorts a scale's domain **alphabetically** when it merges views (the marks are internally layered, and `add_multilabel` shares the x scale) - so passing a non-alphabetical `categories` list (e.g. `["USA", "Europe", "Japan"]`) rendered the bars in one order and the colors in another, and the palette no longer started at teal. The scaffold now pins the **domain** (a literal list), not just the sort, on both x and color, so the category order survives every layer/concat merge. (Custom marks you layer yourself need the same `scale=alt.Scale(domain=categories)` to line up with a dysonsphere mark.)
 
 ### Internal
 
-- Consolidated the Unicode superscript-digit constant (`_SUP`) into a single source in `utils.py`.
-  It was defined twice (`nonlinear.py`, `inference.py`) and hardcoded a third time as the reverse
-  map in `export.py`; now every notation label (log-axis, p-value, table columns) and the SVG
-  superscript fixer reference the one constant, so the copies can't drift. Added a guard test that
-  the fixer typesets every superscript form each generator emits, so a future generator can't
-  silently reopen the log-label rendering gap.
-- Deduplicated the `add_comparisons` / `add_correlation` internals in `inference.py` into shared
-  private helpers (`_resolve_method`, `_resolve_notation`, `_resolve_bracket_styles`,
-  `_check_coverage`, `_stack_levels`, `_resolve_y_spacing`, `_emit_report`), so the single-factor
-  and grouped paths share one implementation each. No public API or rendering change; also fixed a
-  latent `chartHeight == 0` guard drift between the two paths.
+- Consolidated the Unicode superscript-digit constant (`_SUP`) into a single source in `utils.py`. It was defined twice (`nonlinear.py`, `inference.py`) and hardcoded a third time as the reverse map in `export.py`; now every notation label (log-axis, p-value, table columns) and the SVG superscript fixer reference the one constant, so the copies can't drift. Added a guard test that the fixer typesets every superscript form each generator emits, so a future generator can't silently reopen the log-label rendering gap.
+- Deduplicated the `add_comparisons` / `add_correlation` internals in `inference.py` into shared private helpers (`_resolve_method`, `_resolve_notation`, `_resolve_bracket_styles`, `_check_coverage`, `_stack_levels`, `_resolve_y_spacing`, `_emit_report`), so the single-factor and grouped paths share one implementation each. No public API or rendering change; also fixed a latent `chartHeight == 0` guard drift between the two paths.
 
 ## [3.8.0] - 2026-07-15
 
@@ -513,11 +359,9 @@ v1.0.0 marks the first stable release of dysonsphere.
 
 ### New features
 
-**Asterisk significance labels in `add_pvalue()`**
-`add_pvalue()` now accepts `label_style="asterisks"` to render significance as `*` / `**` / `***` / `ns` instead of an exact p-value. Thresholds: `*` p < 0.05, `**` p < 0.01, `***` p < 0.001. The bracket shape parameter has been renamed from `style` to `bracket_style` for clarity.
+**Asterisk significance labels in `add_pvalue()`** `add_pvalue()` now accepts `label_style="asterisks"` to render significance as `*` / `**` / `***` / `ns` instead of an exact p-value. Thresholds: `*` p < 0.05, `**` p < 0.01, `***` p < 0.001. The bracket shape parameter has been renamed from `style` to `bracket_style` for clarity.
 
-**`background` parameter in `save()`**
-`save()` now accepts `background=["light"]` or `background=["dark"]` to render only one variant instead of both. Defaults to `["light", "dark"]` (no change in behaviour).
+**`background` parameter in `save()`** `save()` now accepts `background=["light"]` or `background=["dark"]` to render only one variant instead of both. Defaults to `["light", "dark"]` (no change in behaviour).
 
 ### Bug fixes
 
@@ -570,25 +414,19 @@ v1.0.0 marks the first stable release of dysonsphere.
 
 ### New features
 
-**Analytic beeswarm offsets**
-`add_beeswarm()` now uses an analytic placement algorithm matching the approach used by `geom_beeswarm()` from the R package `ggbeeswarm`. For each point, the exact forbidden x intervals imposed by already-placed neighbours are computed as `px ± √((2·spread)² − dy²)`, and the position closest to 0 outside all intervals is chosen. This produces tighter, more symmetric swarms than the previous grid-search approach.
+**Analytic beeswarm offsets** `add_beeswarm()` now uses an analytic placement algorithm matching the approach used by `geom_beeswarm()` from the R package `ggbeeswarm`. For each point, the exact forbidden x intervals imposed by already-placed neighbours are computed as `px ± √((2·spread)² − dy²)`, and the position closest to 0 outside all intervals is chosen. This produces tighter, more symmetric swarms than the previous grid-search approach.
 
-**Unified `spread` parameter**
-`add_jitter()`, `add_beeswarm()`, and `mark_strip()` now share a single `spread` parameter for controlling point spread in pixels. For jitter, `spread` is the Gaussian standard deviation (~68% of points within ±spread). For beeswarm, it is the collision radius (no two point centres closer than 2·spread). When `spread=None`, beeswarm defaults to `√(markSize/π)` from the active theme so point size and collision radius stay in sync automatically.
+**Unified `spread` parameter** `add_jitter()`, `add_beeswarm()`, and `mark_strip()` now share a single `spread` parameter for controlling point spread in pixels. For jitter, `spread` is the Gaussian standard deviation (~68% of points within ±spread). For beeswarm, it is the collision radius (no two point centres closer than 2·spread). When `spread=None`, beeswarm defaults to `√(markSize/π)` from the active theme so point size and collision radius stay in sync automatically.
 
-**Renamed transforms**
-`add_jitter_offsets()` and `add_beeswarm_offsets()` have been renamed to `add_jitter()` and `add_beeswarm()`.
+**Renamed transforms** `add_jitter_offsets()` and `add_beeswarm_offsets()` have been renamed to `add_jitter()` and `add_beeswarm()`.
 
-**Legend symbol size**
-Legend symbols now scale with `fontSize` (`fontSize × 6`) rather than `markSize`, so they remain proportional to the label text regardless of mark size.
+**Legend symbol size** Legend symbols now scale with `fontSize` (`fontSize × 6`) rather than `markSize`, so they remain proportional to the label text regardless of mark size.
 
-**`save()` moved to `export.py`**
-`save()` and its SVG helpers (`_fix_tick_alignment`, `_simplify_svg`) have been moved to a new `dysonsphere/export.py` module. The public API is unchanged.
+**`save()` moved to `export.py`** `save()` and its SVG helpers (`_fix_tick_alignment`, `_simplify_svg`) have been moved to a new `dysonsphere/export.py` module. The public API is unchanged.
 
 ### Bug fixes
 
-**Tick alignment fix for quantitative axes**
-The SVG tick alignment pass previously misidentified quantitative x-axis ticks (e.g. on line or area charts) as nominal band-scale ticks, remapping them to wrong positions. A validation step now checks that collected tick positions match expected band-scale floor positions before applying the fix — quantitative and time axes are left untouched.
+**Tick alignment fix for quantitative axes** The SVG tick alignment pass previously misidentified quantitative x-axis ticks (e.g. on line or area charts) as nominal band-scale ticks, remapping them to wrong positions. A validation step now checks that collected tick positions match expected band-scale floor positions before applying the fix — quantitative and time axes are left untouched.
 
 ---
 
@@ -596,11 +434,9 @@ The SVG tick alignment pass previously misidentified quantitative x-axis ticks (
 
 ### New features
 
-**`pvalue_layers()` — batch p-value annotations**
-A new companion to `pvalue_layer()` that accepts a list of comparisons and returns a combined Altair layer in one call, removing the need to manually loop and stack individual brackets.
+**`pvalue_layers()` — batch p-value annotations** A new companion to `pvalue_layer()` that accepts a list of comparisons and returns a combined Altair layer in one call, removing the need to manually loop and stack individual brackets.
 
-**x-axis tick alignment fix for violin and strip charts**
-`save()` now includes SVG post-processing that corrects a Vega rendering quirk: Vega floors axis-tick group transforms to integers for screen sharpness, but keeps mark coordinates as floats. At high DPI this causes visible misalignment between ticks and marks.
+**x-axis tick alignment fix for violin and strip charts** `save()` now includes SVG post-processing that corrects a Vega rendering quirk: Vega floors axis-tick group transforms to integers for screen sharpness, but keeps mark coordinates as floats. At high DPI this causes visible misalignment between ticks and marks.
 
 For bar charts the fix reads bar centers directly from the SVG path data. For all other charts (violin, strip, etc.) band centers are computed analytically from the number of categories and `bandPadding`, then validated against the expected floor positions before being applied — so quantitative and time axes are left untouched.
 
