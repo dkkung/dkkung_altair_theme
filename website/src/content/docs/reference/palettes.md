@@ -12,7 +12,7 @@ sidebar:
 ```python
 def categorical(
     members: int = 1,
-    palette: str = _DEFAULT_QUALITATIVE,
+    palette: str = _DEFAULT_QUALITATIVE_PALETTE,
 ) -> list[str]: ...
 ```
 
@@ -24,7 +24,7 @@ generated de novo, so retuning a base hue regenerates this palette automatically
 **Parameters**
 
 - **`members`** (`int`) - Colors per associated group. - ``1`` (default): a flat palette for *unrelated* groups, ordered **tier-major** (cycle the hues at the light tier, then mid, then dark) so adjacent categories differ in hue. Returns ``3 * len(hues)`` colors. The default palette's flat form is what ``config.range.category`` uses. - ``2`` or more: a **grouped** palette for paired data (``A1``/``A2`` …), ordered **hue-major** - each consecutive block of ``members`` categories is one hue climbing through ``members`` lightness levels. Returns ``len(hues) * members`` colors. Sort your categories so a group's members are adjacent, then pass this as the color scale range. Up to ``4`` members the lightness stops are the classic tier stops (``1, 4, 7, 10`` - three ramp steps apart, matching the flat palette's tiers); beyond ``4`` the stops spread evenly across the usable ramp (``1``-``10``), which **shrinks the within-hue contrast** with every extra member - fine at normal mark sizes for ``5``-``6``, increasingly ambiguous past that, and capped at ``10`` where distinct stops run out. If your "members" are actually ordinal (a dose series, timepoints), a sequential slice per group - ``palette("cat_azures", n=5)`` - usually communicates that better than a categorical palette pretending they're unordered.
-- **`palette`** (`str`) - Which qualitative palette to build. ``"ds_cat_1"`` (default) is the muted, australis-harmonious five-hue set (also stored as ``colors["ds_cat_1"]`` and wired to ``config.range.category``); ``"ds_cat_2"`` is the legacy four-hue pastel set (``colors["ds_cat_2"]``).
+- **`palette`** (`str`) - Which qualitative palette to build. ``"ds_cat_1"`` (default) is the muted, australis-harmonious five-hue set (also stored as ``colors["ds_cat_1"]`` and wired to ``config.range.category``); ``"ds_cat_2"`` is the legacy four-hue pastel set (``colors["ds_cat_2"]``); ``"ds_cat_3"`` is the saturated cool set - two greys plus blue, green, purple and teal (``colors["ds_cat_3"]``). ``ds_cat_3`` differs from the other two in how its stops are chosen: its flat palette uses explicit stops (not the canonical ``(1, 4, 7)``), and in grouped mode each family spreads across its own usable window rather than a shared ``1``-``10``. That caps it at ``members=6``, set by ``cat3_greens``.
 
 **Examples**
 
