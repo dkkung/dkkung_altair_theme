@@ -221,9 +221,11 @@ def _bracket_offsets(
     offsets = [0.0] * n
     for root in set(comp):
         members = [i for i in range(n) if comp[i] == root]
-        # Bottom rung to the bracket needing the least height (largest pixel y), narrower first on
-        # a tie. Putting the highest requirement on the top rung is what lets the ladder sit low.
-        members.sort(key=lambda i: (-required[i], spans[i][1] - spans[i][0]))
+        # Bottom rung to the bracket needing the least height (largest pixel y). Putting the
+        # highest requirement on the top rung is what lets the ladder sit low. Ties go to the
+        # order the caller listed the pairs - the most predictable rule, and it keeps comparisons
+        # sharing an endpoint adjacent (1-2, 1-3, 1-4, 2-4 rather than reshuffled by span width).
+        members.sort(key=lambda i: (-required[i], i))
         level: dict[int, int] = {}
         for i in members:
             taken = {level[j] for j in level if _overlap(i, j)}
@@ -1647,8 +1649,23 @@ def add_comparisons(
                     min(0.0, cast(float, df[yCol].cast(pl.Float64).min() or 0.0)),
                     cast(float, df[yCol].cast(pl.Float64).max() or 0.0),
                 )
-                _yspan = (_yhi - _ylo) or 1.0
                 _ch = float(_opt("chartHeight"))
+
+                # Decide the domain lift BEFORE placing the ladder. Raising the top compresses the
+                # whole plot, which moves the anchors closer together - so a ladder computed against
+                # the unlifted domain renders with its rungs too close (measured: 6 px where 13 was
+                # asked for). The lift is bounded by every bracket colliding into one chain, which
+                # needs no offsets, so there is no circularity here.
+                _label_on_top = isinstance(resolved_pos, str) and resolved_pos.startswith("top")
+                if _label_on_top or _opt("closed"):
+                    stack_px = gap_px + len(pairs) * min_step_px
+                    _lifted = _yhi + stack_px * ((_yhi - _ylo) or 1.0) / _ch
+                    # Round it the way Vega will, and pin that rounded value - otherwise Vega
+                    # nice-rounds past it and compresses the plot further than we allowed for.
+                    _ylo, _yhi = _nice_domain(_ylo, _lifted)
+                    bracket_domain_max = _yhi
+
+                _yspan = (_yhi - _ylo) or 1.0
 
                 def _to_px(v: float, _lo=_ylo, _sp=_yspan, _h=_ch) -> float:
                     return _h * (1.0 - (v - _lo) / _sp)
@@ -1656,17 +1673,6 @@ def add_comparisons(
                 final_y = pair_anchor
                 offsets_px = _bracket_offsets(pair_anchor, idx_span, gap_px, min_step_px, _to_px)
 
-                # Raise the TOP of the y scale so the stack fits inside the plot, in the two cases
-                # where the margin is not usable: a test label at a `top` preset would otherwise
-                # sit flush with the plot edge on top of the brackets, and a closed plot draws a
-                # border around the plot area, so anything in the margin is outside the box.
-                # The height is bounded by every bracket colliding into one chain; converting it
-                # to data units needs the rendered top, estimated here and biased HIGH on purpose
-                # - too much only adds air, too little collides.
-                _label_on_top = isinstance(resolved_pos, str) and resolved_pos.startswith("top")
-                if _label_on_top or _opt("closed"):
-                    stack_px = gap_px + (len(pairs) - 1) * min_step_px + min_step_px
-                    bracket_domain_max = _yhi + stack_px * _yspan / _ch
             else:
                 # Data-unit path: the stack base is the caller's yStart, else the annotated
                 # groups' maximum plus yPad (the pre-pixel-mode behaviour, unchanged).
