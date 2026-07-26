@@ -185,8 +185,9 @@ def _bracket_offsets(
     gap_px: float,
     step_px: float,
     to_px,
+    downward: bool = False,
 ) -> list[float]:
-    """Each bracket's upward pixel offset from its own data anchor.
+    """Each bracket's pixel offset (a magnitude) from its own data anchor.
 
     Brackets are placed on a **ladder**: within a set of brackets that overlap, consecutive rungs
     are exactly ``step_px`` apart and the whole ladder sits as low as every bracket's own data
@@ -205,7 +206,9 @@ def _bracket_offsets(
     n = len(anchors)
     if not n:
         return []
-    required = [to_px(anchors[i]) - gap_px for i in range(n)]  # smaller px = higher on screen
+    # smaller px = higher on screen, so an upward ladder subtracts the gap and a downward one adds
+    _dir = 1.0 if downward else -1.0
+    required = [to_px(anchors[i]) + _dir * gap_px for i in range(n)]
 
     def _overlap(i: int, j: int) -> bool:
         return not (spans[i][1] < spans[j][0] or spans[i][0] > spans[j][1])
@@ -221,11 +224,11 @@ def _bracket_offsets(
     offsets = [0.0] * n
     for root in set(comp):
         members = [i for i in range(n) if comp[i] == root]
-        # Bottom rung to the bracket needing the least height (largest pixel y). Putting the
-        # highest requirement on the top rung is what lets the ladder sit low. Ties go to the
-        # order the caller listed the pairs - the most predictable rule, and it keeps comparisons
-        # sharing an endpoint adjacent (1-2, 1-3, 1-4, 2-4 rather than reshuffled by span width).
-        members.sort(key=lambda i: (-required[i], i))
+        # First rung to the bracket nearest the data (largest pixel y going up, smallest going
+        # down). Putting the most demanding one on the last rung is what lets the ladder sit
+        # tight. Ties go to the order the caller listed the pairs - the most predictable rule,
+        # and it keeps comparisons sharing an endpoint adjacent (1-2, 1-3, 1-4, 2-4).
+        members.sort(key=lambda i: (_dir * required[i], i))
         level: dict[int, int] = {}
         for i in members:
             taken = {level[j] for j in level if _overlap(i, j)}
@@ -233,10 +236,11 @@ def _bracket_offsets(
             while lvl in taken:
                 lvl += 1
             level[i] = lvl
-        # Lowest base that still clears every bracket: base - level*step <= required.
-        base = min(required[i] + level[i] * step_px for i in members)
+        # The tightest base that still clears every bracket in the component.
+        pick = max if downward else min
+        base = pick(required[i] - _dir * level[i] * step_px for i in members)
         for i in members:
-            offsets[i] = to_px(anchors[i]) - (base - level[i] * step_px)
+            offsets[i] = _dir * ((base + _dir * level[i] * step_px) - to_px(anchors[i]))
     return offsets
 
 
@@ -1056,7 +1060,8 @@ def add_comparisons(
     label's height between rungs - placed as low as every bracket's own data allows, so a short
     comparison joins the rhythm instead of being stranded below the rest. Brackets sharing no
     category form separate ladders, so a comparison at one end of the chart is never dragged up
-    by a taller one elsewhere.
+    by a taller one elsewhere, and a ``reverse`` bracket hangs below its groups on a ladder of
+    its own - the two directions never push each other around.
     The lift is a Vega expression over the rendered y scale, so an explicit ``domain``,
     ``zero=False`` and nice-rounding all work without being predicted in advance - and because
     the offsets are not data values, the y axis ends at your data and the annotations sit in
@@ -1638,12 +1643,22 @@ def add_comparisons(
                 # bracket from a to c passes over b, so a taller b would sit above the bar - on a
                 # bar chart the bracket would cross straight through it. (statannotations does the
                 # same; ggsignif sidesteps it by anchoring everything at the global maximum.)
+                # A `reverse` bracket hangs BELOW its groups, so it anchors on their MINIMUM and
+                # its ladder descends. The two directions never collide with each other (opposite
+                # sides of the data), so each gets its own placement pass.
+                _rev_pairs: list[tuple[str, str]] = reverse or []
+                rev_flags = [(g1, g2) in _rev_pairs for g1, g2 in pairs]
                 pair_anchor = [
                     cast(
                         float,
-                        df.filter(pl.col(xCol).is_in(categories[lo : hi + 1]))[yCol].cast(pl.Float64).max() or 0.0,
+                        (
+                            df.filter(pl.col(xCol).is_in(categories[lo : hi + 1]))[yCol].cast(pl.Float64).min()
+                            if rev
+                            else df.filter(pl.col(xCol).is_in(categories[lo : hi + 1]))[yCol].cast(pl.Float64).max()
+                        )
+                        or 0.0,
                     )
-                    for lo, hi in idx_span
+                    for (lo, hi), rev in zip(idx_span, rev_flags)
                 ]
                 _ylo, _yhi = _nice_domain(
                     min(0.0, cast(float, df[yCol].cast(pl.Float64).min() or 0.0)),
@@ -1671,7 +1686,23 @@ def add_comparisons(
                     return _h * (1.0 - (v - _lo) / _sp)
 
                 final_y = pair_anchor
-                offsets_px = _bracket_offsets(pair_anchor, idx_span, gap_px, min_step_px, _to_px)
+                offsets_px = [0.0] * len(pairs)
+                for _down in (False, True):
+                    _idx = [i for i, rev in enumerate(rev_flags) if rev is _down]
+                    if not _idx:
+                        continue
+                    for slot, off in zip(
+                        _idx,
+                        _bracket_offsets(
+                            [pair_anchor[i] for i in _idx],
+                            [idx_span[i] for i in _idx],
+                            gap_px,
+                            min_step_px,
+                            _to_px,
+                            downward=_down,
+                        ),
+                    ):
+                        offsets_px[slot] = off
 
             else:
                 # Data-unit path: the stack base is the caller's yStart, else the annotated

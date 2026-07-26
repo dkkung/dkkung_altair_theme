@@ -18,6 +18,8 @@
 
 - **Overlapping p-value brackets now sit on an evenly spaced ladder.** Previously each bracket was placed just above its own groups and only nudged when it would collide, which left a short comparison stranded well below the rest of the stack. Brackets that overlap now take evenly spaced rungs, one label-height apart, positioned as low as every bracket's own data allows. Brackets that share no category form separate ladders, so a comparison at one end of a chart is never dragged upward by a taller one elsewhere. Rungs keep the order you list the pairs in when brackets want the same height. The domain lift that makes room for the stack is now applied before the ladder is placed, and pinned to the value Vega will round to - otherwise raising the axis compressed the plot and closed the rungs to roughly half their intended spacing.
 
+- **`reverse=` brackets hang below their data again.** They anchored on their groups' maximum and then hung downward from it, dropping the bracket and its label onto the points. A reversed bracket now anchors on the spanned minimum and takes a descending ladder of its own, so brackets above and below one chart never push each other around.
+
 - `mark_line` stroke cap is now `butt` instead of `round`.
 
 - **Data marks now render above axis lines and closed borders in `save()`/`show()` output.** A datum plotted exactly on an axis draws over the axis line instead of being cut by it. The stacking order in exported SVG/PNG is view fill, then grid, then axes and the closed border, then marks; the grid still never paints over the border.
