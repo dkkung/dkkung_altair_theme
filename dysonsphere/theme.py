@@ -551,7 +551,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
             "line": {
                 "color": "white" if opts["darkmode"] else "black",
                 "stroke": "white" if opts["darkmode"] else "black",
-                "strokeCap": opts["strokeCap"],
+                "strokeCap": "butt",
                 "strokeDash": opts["dashedWidth"] if opts["dashedLine"] else [0, 0],
                 "strokeOpacity": 1,
                 "strokeWidth": opts["axisWidth"] * 2,

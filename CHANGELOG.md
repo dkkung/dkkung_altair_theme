@@ -16,6 +16,8 @@
 
 ### Changes
 
+- `mark_line` stroke cap is now `butt` instead of `round`.
+
 - **Data marks now render above axis lines and closed borders in `save()`/`show()` output.**
   A datum plotted exactly on an axis draws over the axis line instead of being cut by it. The
   stacking order in exported SVG/PNG is view fill, then grid, then axes and the closed border,
