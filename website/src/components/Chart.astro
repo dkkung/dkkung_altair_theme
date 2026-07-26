@@ -29,6 +29,7 @@ const { name, alt = 'dysonsphere chart', inwardTicks = false, fitWidth = false }
 <script>
 	import vegaEmbed from 'vega-embed';
 	import { alignGridToContent, fixSubscripts, fixSuperscripts, flipTicksInward, italicizeStatSymbols } from '../lib/fixSuperscripts';
+	import { fitChartToWidth, scaleChart } from '../lib/scaleChart';
 
 	const BASE = import.meta.env.BASE_URL;
 	const views = new WeakMap<HTMLElement, { finalize: () => void }>();
@@ -72,16 +73,11 @@ const { name, alt = 'dysonsphere chart', inwardTicks = false, fitWidth = false }
 			italicizeStatSymbols(el);
 			if (el.dataset.inward) flipTicksInward(el);
 			if (el.dataset.fit) {
-				// Chart.astro embeds with actions:true, so the .chart-wrapper exists and the
-				// site-wide zoom rule reads the variable - override it with the computed fit.
-				// Measure the block-level <figure>, NOT the embed container: vega-embed sizes
-				// the container to its (already-zoomed) content, which would feed back.
-				const svg = el.querySelector('svg');
-				const natural = svg ? parseFloat(svg.getAttribute('width') ?? '0') : 0;
-				const avail = el.closest('figure')?.clientWidth ?? 0;
-				if (natural > 0 && avail > 0) {
-					el.style.setProperty('--ds-chart-zoom', (avail / natural).toFixed(3));
-				}
+				// Measure the block-level <figure>, NOT the embed container: vega-embed sizes the
+				// container to its (already-scaled) content, which would feed back.
+				fitChartToWidth(el, el.closest('figure')?.clientWidth ?? 0);
+			} else {
+				scaleChart(el);
 			}
 		} catch (e) {
 			el.textContent = 'Failed to load chart.';

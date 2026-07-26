@@ -66,6 +66,15 @@ dissolved 2026-07-06).
   Python), but the deploy does not trust them: `pages.yml` reruns all four generators against
   the checked-out library before the Astro build (since 2026-07-11), so the LIVE site can't
   drift from main. Still regenerate + commit when working on the site locally.
+- **`gen_examples.py` ignores your user config.** It points `XDG_CONFIG_HOME` at an empty temp dir
+  before any `theme()` call, so the specs carry the LIBRARY's defaults. Without that, a personal
+  `~/.config/dysonsphere/dysonsphere.toml` `[default]` (a `categoryPalette`, say) merges over the
+  built-ins and bakes into every committed spec - which then silently disagrees with the deploy,
+  since the runner has no such file. That happened: 110 committed specs shipped with a personal
+  `ds_cat_3`/`ds_div_3` override in 3.10.0, visible only in local dev. The repo's own
+  `dysonsphere.toml` still applies, exactly as it does in CI. The other three generators never
+  call `theme()` (`gen_palettes` reads `colors` directly, `gen_config` reads `_BUILTIN_DEFAULTS`,
+  `gen_api` is static griffe), so they are already immune.
 
 ## Conventions and gotchas
 
@@ -183,11 +192,20 @@ dissolved 2026-07-06).
   `axisOffset` and renders dragged toward the axis; the fixer translates each line back so the
   grid spans the plot content. The offset is read from the spec's baked `config.axis.offset`
   (closed plots bake 0 -> skipped). Chart.astro and the Studio call it after every vegaEmbed.
-- **Chart size.** Charts are authored at dysonsphere's publication defaults (100x100 px, small
-  fonts/marks); scale them for the web with CSS `zoom` on `.vega-embed .chart-wrapper` (tune
-  `--ds-chart-zoom` in theme.css). Do NOT zoom `.vega-embed` (that scales the export menu too) or
-  the `<svg>` (zoom does not apply to `<svg>`). The chart SVG lives in `.chart-wrapper`; the menu is
-  a sibling `<details>`.
+- **Chart size - scale the `<svg>`, NEVER with CSS `zoom`.** Charts are authored at dysonsphere's
+  publication defaults (100x100 px, small fonts/marks), so the site scales the whole render up.
+  `src/lib/scaleChart.ts` does it by writing `width`/`height` on the `<svg>` (which carries a
+  viewBox, so it scales natively and the layout box follows); `--ds-chart-zoom` in theme.css is
+  still the tuning knob, read as a custom property so the per-context overrides (landing hero 2.6,
+  palette preview's shared fit) keep working. The natural size always comes from the **viewBox**,
+  never the current width attribute, so re-fitting is idempotent - Studio re-fits from a
+  ResizeObserver and would otherwise compound. Call `scaleChart(el)` after every vegaEmbed, or
+  `fitChartToWidth(el, px)` for size-matched comparisons. **Do NOT go back to `zoom`:** Firefox
+  mis-maps SVG gradients inside a zoomed subtree, so every continuous legend rendered a sliver of
+  its ramp (an australis colour bar came out green->cyan with no purple or blue) while the marks
+  beside it stayed correct - it looks like a spec bug and reproduces in no other engine.
+  `transform: scale()` renders correctly but does not reserve layout space. All three embed sites
+  (Chart, Studio, PalettePreview) use the helper.
 - **Export menu** is hover/focus-only (opacity in theme.css, `!important` since vega-embed injects
   its own styles at runtime). The menu still exports the true, unscaled 100x100 spec.
 - **Dark mode.** Each chart ships light + dark specs (`darkmode=False/True`, `transparent=True`);

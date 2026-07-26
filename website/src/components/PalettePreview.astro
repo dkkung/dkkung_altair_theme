@@ -72,6 +72,7 @@ const firstPalette = palettes[0].name;
 
 <script>
 	import vegaEmbed from 'vega-embed';
+	import { chartNaturalSize, scaleChart } from '../lib/scaleChart';
 
 	const BASE = import.meta.env.BASE_URL;
 	const specCache = new Map<string, Promise<any>>();
@@ -123,19 +124,15 @@ const firstPalette = palettes[0].name;
 		el.innerHTML = '';
 		views.set(el, await vegaEmbed(el, spec, { actions: false, renderer: 'svg', background: 'transparent' }));
 		// Record the natural width and re-derive the shared zoom (see applyZoom).
-		const svg = el.querySelector('svg');
-		const natural = svg ? parseFloat(svg.getAttribute('width') ?? '0') : 0;
-		if (natural > 0) {
-			naturals.set(el, natural);
+		const natural = chartNaturalSize(el);
+		if (natural) {
+			naturals.set(el, natural.width);
 			applyZoom();
 		}
 	}
 
-	// Auto-fit: zoom the charts to fill the column. With actions:false vega-embed makes the
-	// container itself the .vega-embed with the <svg> directly inside - there is NO
-	// .chart-wrapper child - so the site-wide wrapper zoom rule (theme.css) never applies here
-	// and the chart paints at its natural ~180px unless the container is zoomed directly. The
-	// zoom is SHARED (the minimum fit across the charts) so every chart renders at the same
+	// Auto-fit: scale the charts to fill the column. The scale is SHARED (the minimum fit
+	// across the charts) so every chart renders at the same
 	// scale - a per-chart fit made the narrower ones look blown up; the chart sources are
 	// authored to near-equal natural widths so the shared fit still fills the column. The row
 	// is measured, not the container (its own zoom would skew it), and a ResizeObserver
@@ -148,9 +145,9 @@ const firstPalette = palettes[0].name;
 		const rowWidth = row.getBoundingClientRect().width;
 		if (rowWidth <= 0) return;
 		const fits = [...naturals.values()].map((n) => rowWidth / n);
-		const shared = Math.min(Math.max(Math.min(...fits), 1.2), 3.4).toFixed(3);
+		const shared = Math.min(Math.max(Math.min(...fits), 1.2), 3.4);
 		for (const el of naturals.keys()) {
-			(el.style as CSSStyleDeclaration & { zoom: string }).zoom = shared;
+			scaleChart(el, shared);
 		}
 	}
 
@@ -308,9 +305,8 @@ const firstPalette = palettes[0].name;
 		align-items: center;
 		justify-items: start;
 	}
-	/* Each chart's zoom is set inline per render (auto-fit to the row width, see the script) -
-	   the container IS the .vega-embed here (actions:false), so it is zoomed directly; the
-	   site-wide .chart-wrapper rule never matches. */
+	/* Each chart is scaled per render by resizing its <svg> (auto-fit to the row width, see the
+	   script); nothing here scales it in CSS. */
 	.palprev__chart {
 		width: 100%;
 		min-height: 6rem;
