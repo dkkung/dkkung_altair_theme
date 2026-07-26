@@ -204,6 +204,20 @@ class TestAddComparisons:
         # A-B anchors on B's max (0.28); A-C on C's max (0.48). Neither is Z's 100.
         assert bar_ys == pytest.approx([0.28, 0.48])
 
+    def test_auto_bracket_clears_a_taller_group_it_spans(self):
+        # A bracket from A to C passes over B, so its anchor is the maximum over every category
+        # it SPANS - not just its two endpoints. Anchoring on the endpoints alone puts the bracket
+        # below a taller middle group, and on a bar chart it would cross straight through that bar.
+        df = pl.DataFrame(
+            {
+                "group": ["A"] * 4 + ["B"] * 4 + ["C"] * 4,
+                "value": [4.0, 4.1, 3.9, 4.05] + [14.0, 14.2, 13.8, 14.1] + [5.0, 5.1, 4.9, 5.05],
+            }
+        )
+        spec = add_comparisons(df, "group", "value", [("A", "C")], pvalues=[0.01], categories=["A", "B", "C"]).to_dict()
+        anchor = spec["layer"][0]["layer"][0]["data"]["values"][0]["y"]
+        assert anchor == pytest.approx(14.2), "anchor should be B's maximum, the tallest spanned group"
+
     def test_auto_brackets_lift_by_a_constant_pixel_offset(self):
         # The lift is a plain number, not a `scale('y', …)` expression. An expression would be
         # exact under a custom domain but resolves against nothing inside a facet/concat (Vega

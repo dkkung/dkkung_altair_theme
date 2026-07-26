@@ -841,16 +841,19 @@ def _add_grouped_comparisons(
         cat_pair_anchor: list[float] = []
         cat_offsets: list[float] = []
         if grp_pixel_mode:
-            cat_pair_anchor = [
-                cast(
-                    float,
-                    cdf.filter(pl.col(xoffset_col).is_in([a, b]))[y_col].cast(pl.Float64).max() or 0.0,
-                )
-                for a, b in pairs
-            ]
             cat_spans = [
                 (min(level_order.index(a), level_order.index(b)), max(level_order.index(a), level_order.index(b)))
                 for a, b in pairs
+            ]
+            # Over every sub-bar the bracket SPANS, not just its endpoints - see the single-factor
+            # path: a taller level in the middle would otherwise sit above the bracket.
+            cat_pair_anchor = [
+                cast(
+                    float,
+                    cdf.filter(pl.col(xoffset_col).is_in(level_order[lo : hi + 1]))[y_col].cast(pl.Float64).max()
+                    or 0.0,
+                )
+                for lo, hi in cat_spans
             ]
             _clo, _chi = _nice_domain(
                 min(0.0, cast(float, cdf[y_col].cast(pl.Float64).min() or 0.0)),
@@ -1590,13 +1593,20 @@ def add_comparisons(
                 # 4 px label dy, plus a margin. Less than this lets a label meet the bar above.
                 min_step_px = float(fontSize or _opt("fontSize")) + 6.0
                 tick_px = float(_opt("tickSize"))
-                pair_anchor = [
-                    cast(float, df.filter(pl.col(xCol).is_in([g1, g2]))[yCol].cast(pl.Float64).max() or 0.0)
-                    for g1, g2 in pairs
-                ]
                 idx_span = [
                     (min(categories.index(g1), categories.index(g2)), max(categories.index(g1), categories.index(g2)))
                     for g1, g2 in pairs
+                ]
+                # Anchor over every category the bracket SPANS, not just its two endpoints: a
+                # bracket from a to c passes over b, so a taller b would sit above the bar - on a
+                # bar chart the bracket would cross straight through it. (statannotations does the
+                # same; ggsignif sidesteps it by anchoring everything at the global maximum.)
+                pair_anchor = [
+                    cast(
+                        float,
+                        df.filter(pl.col(xCol).is_in(categories[lo : hi + 1]))[yCol].cast(pl.Float64).max() or 0.0,
+                    )
+                    for lo, hi in idx_span
                 ]
                 _ylo, _yhi = _nice_domain(
                     min(0.0, cast(float, df[yCol].cast(pl.Float64).min() or 0.0)),
