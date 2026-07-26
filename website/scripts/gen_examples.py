@@ -25,12 +25,23 @@ from __future__ import annotations
 
 import functools
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 import altair as alt
 
 import dysonsphere as ds
+
+# The specs must reflect the LIBRARY's defaults, not whoever runs this. ds.theme() merges a
+# user-wide ~/.config/dysonsphere/dysonsphere.toml over the built-ins, so a personal [default]
+# (a categoryPalette, say) bakes into every committed spec and silently disagrees with the
+# deploy, which regenerates on a runner that has no such file. Point the user config dir at an
+# empty directory before any theme() call; the repo's own dysonsphere.toml still applies,
+# exactly as it does in CI. Kept alive for the process, removed on exit.
+_NO_USER_CONFIG = tempfile.TemporaryDirectory(prefix="ds-gen-examples-")
+os.environ["XDG_CONFIG_HOME"] = _NO_USER_CONFIG.name
 
 EXAMPLES = Path("website/examples")
 OUT = Path("website/public/charts")

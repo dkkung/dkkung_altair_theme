@@ -66,6 +66,16 @@ dissolved 2026-07-06).
   Python), but the deploy does not trust them: `pages.yml` reruns all four generators against
   the checked-out library before the Astro build (since 2026-07-11), so the LIVE site can't
   drift from main. Still regenerate + commit when working on the site locally.
+- **`gen_examples.py` ignores your user config.** It points `XDG_CONFIG_HOME` at an empty temp dir
+  before any `theme()` call, so the specs carry the LIBRARY's defaults. Without that, a personal
+  `~/.config/dysonsphere/dysonsphere.toml` `[default]` (a `categoryPalette`, say) merges over the
+  built-ins and bakes into every committed spec - which then silently disagrees with the deploy,
+  since the runner has no such file. That happened: 110 committed specs shipped with a personal
+  `ds_cat_3`/`ds_div_3` override in 3.10.0, visible only in local dev. The repo's own
+  `dysonsphere.toml` still applies, exactly as it does in CI. The other three generators never
+  call `theme()` (`gen_palettes` reads `colors` directly, `gen_config` reads `_BUILTIN_DEFAULTS`,
+  `gen_api` is static griffe), so they are already immune.
+
 ## Conventions and gotchas
 
 - **Example registry.** Every guide chart is a file in `examples/`; `Example.astro` shows that file
