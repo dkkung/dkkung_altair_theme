@@ -89,6 +89,11 @@ the offsets are not data values, the y axis ends at your data and the annotation
 the margin above it. Pass any of ``yStart``/``yStep``/``yPad``/``yPositions`` to place them
 in data units on your own scale instead.
 
+A test label at one of the ``top`` presets would sit flush with the plot edge, which is where
+the brackets now are, so the annotation raises the **top** of the y scale (``domainMax``) far
+enough for the stack to fit beneath it. Only the upper bound moves - the lower bound, ``zero``
+and nice-rounding are untouched - and only when there are brackets to clear.
+
 Combine with your chart using ``+``:  ``chart + add_comparisons(...)``.
 
 **Parameters**

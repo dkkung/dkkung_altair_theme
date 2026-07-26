@@ -15,7 +15,7 @@ import polars as pl
 
 from .annotations import add_text
 from .theme import _opt
-from .utils import _SUP, _empty_layer, _internal_data, _resolve_dash, band_geometry
+from .utils import _SUP, _empty_layer, _internal_data, _nice_domain, _resolve_dash, band_geometry
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
@@ -248,6 +248,7 @@ def _pvalue_layer(
     offset_px: float = 0.0,
     tick_px: float | None = None,
     offset_expr: str | None = None,
+    domain_max: float | None = None,
 ) -> alt.LayerChart:
     from scipy import stats as _stats
 
@@ -346,13 +347,18 @@ def _pvalue_layer(
     elif tick_px is not None:
         _tick_kwargs["y2Offset"] = _sign * offset_px - _sign * tick_px
 
+    # `domain_max` raises ONLY the top of the shared y scale, leaving the lower bound, `zero`,
+    # nice-rounding and any user setting on the other end intact. It is set on one bracket layer
+    # (an explicit bound wins the scale merge) to make room for a top-preset test label above the
+    # stack; without it the label would sit flush at the plot edge, on top of the brackets.
+    _y_enc = alt.Y("y:Q") if domain_max is None else alt.Y("y:Q", scale=alt.Scale(domainMax=domain_max))
     bar = (
         alt.Chart(_internal_data([{"x": group1, "x2": group2, "y": y}]))
         .mark_rule(**_rule_kwargs)
         .encode(
             x=alt.X("x:N"),
             x2="x2:N",
-            y=alt.Y("y:Q"),
+            y=_y_enc,
         )
     )
 
@@ -1009,6 +1015,11 @@ def add_comparisons(
     the margin above it. Pass any of ``yStart``/``yStep``/``yPad``/``yPositions`` to place them
     in data units on your own scale instead.
 
+    A test label at one of the ``top`` presets would sit flush with the plot edge, which is where
+    the brackets now are, so the annotation raises the **top** of the y scale (``domainMax``) far
+    enough for the stack to fit beneath it. Only the upper bound moves - the lower bound, ``zero``
+    and nice-rounding are untouched - and only when there are brackets to clear.
+
     Combine with your chart using ``+``:  ``chart + add_comparisons(...)``.
 
     Parameters
@@ -1547,6 +1558,7 @@ def add_comparisons(
         offsets_px = [0.0] * len(pairs)
         offset_exprs: list[str] | None = None
         tick_px = None
+        bracket_domain_max: float | None = None
 
         if isinstance(yPositions, (int, float)) and not isinstance(yPositions, bool):
             final_y = [float(yPositions)] * len(pairs)  # a single number → every bracket at that y
@@ -1581,6 +1593,18 @@ def add_comparisons(
                 ]
                 final_y = pair_anchor
                 offset_exprs = _bracket_offset_exprs(pair_anchor, idx_span, gap_px, min_step_px)
+
+                # A test label at a TOP preset sits flush with the plot edge, which is now where
+                # the brackets are. Raise only the top of the y scale so the stack fits beneath
+                # it. The needed height is bounded by every bracket colliding into one chain, and
+                # converting that to data units needs the rendered top - estimated here, biased
+                # HIGH on purpose: too much only adds air under the label, too little collides.
+                if isinstance(resolved_pos, str) and resolved_pos.startswith("top"):
+                    stack_px = gap_px + (len(pairs) - 1) * min_step_px + min_step_px
+                    _yv2 = df[yCol].cast(pl.Float64)
+                    _ymin = cast(float, _yv2.min() or 0.0)
+                    _lo, _hi = _nice_domain(min(0.0, _ymin), cast(float, _yv2.max() or 0.0))
+                    bracket_domain_max = _hi + stack_px * ((_hi - _lo) or 1.0) / float(_opt("chartHeight"))
             else:
                 # Data-unit path: the stack base is the caller's yStart, else the annotated
                 # groups' maximum plus yPad (the pre-pixel-mode behaviour, unchanged).
@@ -1607,6 +1631,7 @@ def add_comparisons(
                     offset_px=offsets_px[i],
                     tick_px=tick_px,
                     offset_expr=offset_exprs[i] if offset_exprs else None,
+                    domain_max=bracket_domain_max if i == 0 else None,
                 )
             )
 

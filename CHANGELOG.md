@@ -41,7 +41,9 @@
   nice-rounding are all handled correctly. Brackets also no longer stretch the y axis, so it
   ends at your data. Applies to single-factor, grouped (`xOffsetCol`) and reference modes.
   Passing any of `yStart`, `yStep`, `yPad` or `yPositions` keeps the previous data-unit
-  placement.
+  placement. When an omnibus or test label is placed at a `top` preset, the annotation now raises
+  the top of the y scale enough for the brackets to fit beneath it, so the label stays flush with
+  the plot edge without you padding the domain by hand - only the upper bound moves.
 
 - `mark_line` stroke cap is now `butt` instead of `round`.
 

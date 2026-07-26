@@ -229,6 +229,41 @@ class TestAddComparisons:
         # the later bracket's expression clamps against the earlier one by the minimum step
         assert any(f"- {7 + 6}.0" in e or f"- {float(7 + 6)}" in e for e in exprs)
 
+    def test_top_preset_test_label_raises_only_the_domain_top(self):
+        # A top-preset test label sits flush with the plot edge, which is where the brackets now
+        # are. The bracket layer raises only the TOP of the shared y scale so the stack fits
+        # under it - the lower bound, `zero` and nice-rounding must be left alone.
+        df = pl.DataFrame(
+            {
+                "group": ["A"] * 5 + ["B"] * 5 + ["C"] * 5,
+                "value": [1.0, 1.2, 0.9, 1.1, 1.05] + [3.0, 3.2, 2.9, 3.1, 3.05] + [6.0, 6.2, 5.9, 6.1, 6.05],
+            }
+        )
+        spec = add_comparisons(
+            df, "group", "value", [("A", "B"), ("A", "C")], test="anova", categories=["A", "B", "C"]
+        ).to_dict()
+        scales = [
+            sub["encoding"]["y"]["scale"]
+            for pair in spec["layer"]
+            for sub in pair.get("layer", [])
+            if isinstance(sub.get("encoding", {}).get("y"), dict) and "scale" in sub["encoding"]["y"]
+        ]
+        assert len(scales) == 1, "exactly one layer should carry the bound"
+        assert "domainMax" in scales[0] and set(scales[0]) == {"domainMax"}
+        assert scales[0]["domainMax"] > df["value"].cast(pl.Float64).max()
+
+    def test_no_domain_bound_without_a_top_label(self):
+        # Nothing to clear: a pairwise call draws no test label by default, so the axis is
+        # left exactly as the user's data defines it.
+        df = pl.DataFrame({"group": ["A"] * 4 + ["B"] * 4, "value": [1.0, 2, 3, 4] + [5.0, 6, 7, 8]})
+        spec = add_comparisons(df, "group", "value", [("A", "B")], pvalues=[0.01]).to_dict()
+        assert not [
+            sub
+            for pair in spec["layer"]
+            for sub in pair.get("layer", [])
+            if "scale" in sub.get("encoding", {}).get("y", {})
+        ]
+
     def test_explicit_spacing_args_opt_out_of_pixel_mode(self):
         # yStep / yPad / yStart / yPositions are the user's own numbers on their own scale, so
         # passing any of them keeps data-unit placement rather than being silently ignored.
