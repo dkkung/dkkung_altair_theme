@@ -96,9 +96,14 @@ Altair's own inline renderer (used when you just display a chart) does NOT run
 dysonsphere's SVG post-processors, so its preview is approximate - superscript labels
 aren't typeset, the axisOffset grid gap remains, and with ``inwardTicks=True`` the
 ticks still point outward. ``ds.show(chart)`` renders the *same* corrected SVG that
-:func:`save` writes and returns it as an ``IPython.display.SVG`` for inline display, so
+:func:`save` writes and returns it as an ``IPython.display.HTML`` for inline display, so
 the preview matches the saved figure. It renders at the theme's current ``darkmode`` and
-writes no file.
+``transparent`` and writes no file.
+
+The SVG is returned as **HTML** rather than ``IPython.display.SVG`` so the preview lands on
+the notebook's own background, exactly like a bare Altair chart. An ``image/svg+xml`` output
+goes to the frontend's *image* renderer instead, which in VS Code composites onto a white
+canvas - so a transparent dark-mode figure came back as white ink on white.
 
 Like :func:`save`, the render is wrapped in the ``"default"`` data transformer capped at
 ``maxRows`` (``overrideMaxRows=True`` lifts the cap), so ``ds.show()`` works regardless of
