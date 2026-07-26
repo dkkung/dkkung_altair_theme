@@ -98,7 +98,7 @@ aren't typeset, the axisOffset grid gap remains, and with ``inwardTicks=True`` t
 ticks still point outward. ``ds.show(chart)`` renders the *same* corrected SVG that
 :func:`save` writes and returns it as an ``IPython.display.SVG`` for inline display, so
 the preview matches the saved figure. It renders at the theme's current ``darkmode`` and
-writes no file.
+``transparent`` and writes no file.
 
 Like :func:`save`, the render is wrapped in the ``"default"`` data transformer capped at
 ``maxRows`` (``overrideMaxRows=True`` lifts the cap), so ``ds.show()`` works regardless of

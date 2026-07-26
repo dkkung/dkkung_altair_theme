@@ -372,7 +372,7 @@ def show(chart: _AltairChart | Callable[[], _AltairChart], maxRows: int = 5000, 
     ticks still point outward. ``ds.show(chart)`` renders the *same* corrected SVG that
     :func:`save` writes and returns it as an ``IPython.display.SVG`` for inline display, so
     the preview matches the saved figure. It renders at the theme's current ``darkmode`` and
-    writes no file.
+    ``transparent`` and writes no file.
 
     Like :func:`save`, the render is wrapped in the ``"default"`` data transformer capped at
     ``maxRows`` (``overrideMaxRows=True`` lifts the cap), so ``ds.show()`` works regardless of
@@ -393,8 +393,6 @@ def show(chart: _AltairChart | Callable[[], _AltairChart], maxRows: int = 5000, 
         ) from e
 
     base_obj = cast(_AltairChart, chart() if callable(chart) else chart)  # ty: ignore[call-top-callable]
-    _prev_transp = alt.theme.options.get("transparent")
-    alt.theme.options["transparent"] = True
     # Cap the inlined rows and pin the "default" transformer for the render
     _cap_stack = ExitStack()
     _row_cap = alt.data_transformers.enable("default", max_rows=None if overrideMaxRows else maxRows)
@@ -410,7 +408,6 @@ def show(chart: _AltairChart | Callable[[], _AltairChart], maxRows: int = 5000, 
         ) from e
     finally:
         _cap_stack.close()
-        alt.theme.options["transparent"] = _prev_transp
     return SVG(svg)
 
 

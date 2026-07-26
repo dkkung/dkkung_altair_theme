@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixes
+
+- **`ds.show()` now previews at the theme's `transparent` setting instead of always rendering transparent.** It forced a transparent background on every preview, so a dark-mode theme drew its light ink onto whatever the notebook's background happened to be - in a light-themed notebook, invisible. The built-in `notebook` style is one such theme (`darkmode=True`), so `ds.theme(style="notebook")` followed by `ds.show(chart)` produced a blank-looking figure. The preview is now styled entirely by the theme, like every other rendering setting: `theme(transparent=False)` paints the background (black in dark mode). `save()` is unchanged - a saved figure composites onto a page, so it still defaults to transparent, and keeps its `transparent=` override for that reason.
+
 ## [3.10.0] - 2026-07-26
 
 ### New features

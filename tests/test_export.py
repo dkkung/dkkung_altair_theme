@@ -364,6 +364,29 @@ class TestShow:
         chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
         assert "<svg" in show(chart, maxRows=5, overrideMaxRows=True).data
 
+    def test_inherits_theme_transparent(self, simple_chart):
+        # show() used to force transparent=True, so a darkmode theme previewed white-on-nothing
+        # (invisible ink in a light notebook). The theme's own value must govern the preview.
+        from dysonsphere.export import show
+
+        theme(darkmode=True, transparent=False)
+        assert re.search(r'<rect width="\d+" height="\d+" fill="black"', show(simple_chart).data)
+
+    def test_theme_transparent_true_has_no_background(self, simple_chart):
+        from dysonsphere.export import show
+
+        theme(darkmode=True, transparent=True)
+        assert not re.search(r'<rect width="\d+" height="\d+" fill=', show(simple_chart).data)
+
+    def test_does_not_mutate_theme_options(self, simple_chart):
+        # show() renders straight at the theme's values - it must set nothing to restore
+        from dysonsphere.export import show
+
+        theme(darkmode=True, transparent=False)
+        before = dict(alt.theme.options)
+        show(simple_chart)
+        assert alt.theme.options == before
+
     def test_restores_transformer_on_error(self):
         # Even when the render raises (over-cap), the "default" transformer state must be
         # restored to whatever was active before.
