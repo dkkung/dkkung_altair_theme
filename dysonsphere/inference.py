@@ -183,28 +183,59 @@ def _bracket_offsets(
     anchors: list[float],
     spans: list[tuple[int, int]],
     gap_px: float,
-    min_step_px: float,
+    step_px: float,
     to_px,
 ) -> list[float]:
     """Each bracket's upward pixel offset from its own data anchor.
 
-    A bracket sits ``gap_px`` clear of its pair's data; brackets whose category spans overlap are
-    pushed apart to at least ``min_step_px``. The gap is a CONSTANT pixel offset off a datum
-    anchor, so it is exact at any y domain without the scale being consulted - which is what makes
-    this work inside facets, concats and ``add_multilabel``, where Vega renames the y scale and a
-    ``scale('y', …)`` expression would silently resolve against nothing.
+    Brackets are placed on a **ladder**: within a set of brackets that overlap, consecutive rungs
+    are exactly ``step_px`` apart and the whole ladder sits as low as every bracket's own data
+    allows. A ladder rather than per-bracket bumping so the stack reads as one deliberate rhythm
+    instead of leaving a short bracket stranded well below the rest.
 
-    Only the collision test needs pixel positions, and for that ``to_px`` estimates the rendered
-    domain. A mis-estimate changes a bump by a few pixels; it cannot affect the gaps."""
-    order = sorted(range(len(anchors)), key=lambda i: anchors[i])
-    pos = {i: to_px(anchors[i]) - gap_px for i in range(len(anchors))}
-    placed: list[int] = []
-    for i in order:
-        for j in placed:
-            if not (spans[i][1] < spans[j][0] or spans[i][0] > spans[j][1]):
-                pos[i] = min(pos[i], pos[j] - min_step_px)
-        placed.append(i)
-    return [to_px(anchors[i]) - pos[i] for i in range(len(anchors))]
+    Ladders are per **connected component** of the span-overlap graph, so brackets with nothing in
+    common are never tied to each other - two comparisons at opposite ends of a chart each hug
+    their own groups instead of the shorter one floating up to meet the taller.
+
+    The rungs are CONSTANT pixel offsets off a datum anchor, so they are exact at any y domain
+    without the scale being consulted - which is what makes this survive facets, concats and
+    ``add_multilabel``, where Vega renames the y scale. Only the ladder arithmetic needs pixel
+    positions, and for that ``to_px`` estimates the rendered domain; a mis-estimate shifts a
+    ladder slightly, it cannot change the gap between rungs."""
+    n = len(anchors)
+    if not n:
+        return []
+    required = [to_px(anchors[i]) - gap_px for i in range(n)]  # smaller px = higher on screen
+
+    def _overlap(i: int, j: int) -> bool:
+        return not (spans[i][1] < spans[j][0] or spans[i][0] > spans[j][1])
+
+    # Connected components of the overlap graph (transitively - a chain shares one ladder).
+    comp = list(range(n))
+    for i in range(n):
+        for j in range(i + 1, n):
+            if _overlap(i, j) and comp[i] != comp[j]:
+                old, keep = comp[j], comp[i]
+                comp = [keep if c == old else c for c in comp]
+
+    offsets = [0.0] * n
+    for root in set(comp):
+        members = [i for i in range(n) if comp[i] == root]
+        # Bottom rung to the bracket needing the least height (largest pixel y), narrower first on
+        # a tie. Putting the highest requirement on the top rung is what lets the ladder sit low.
+        members.sort(key=lambda i: (-required[i], spans[i][1] - spans[i][0]))
+        level: dict[int, int] = {}
+        for i in members:
+            taken = {level[j] for j in level if _overlap(i, j)}
+            lvl = 0
+            while lvl in taken:
+                lvl += 1
+            level[i] = lvl
+        # Lowest base that still clears every bracket: base - level*step <= required.
+        base = min(required[i] + level[i] * step_px for i in members)
+        for i in members:
+            offsets[i] = to_px(anchors[i]) - (base - level[i] * step_px)
+    return offsets
 
 
 def _emit_report(record: dict[str, Any], report: bool, save: bool | str) -> str:
@@ -1019,7 +1050,11 @@ def add_comparisons(
     **Placement.** By default each annotation anchors at the data maximum of the pair it
     compares and is lifted a fixed number of pixels, so it stays with its own groups rather
     than riding the tallest annotated one, and the gap looks the same on every chart whatever
-    the y range. Brackets whose spans overlap are pushed apart by at least a label's height.
+    the y range. Brackets that overlap sit on an evenly spaced **ladder** - one step of a
+    label's height between rungs - placed as low as every bracket's own data allows, so a short
+    comparison joins the rhythm instead of being stranded below the rest. Brackets sharing no
+    category form separate ladders, so a comparison at one end of the chart is never dragged up
+    by a taller one elsewhere.
     The lift is a Vega expression over the rendered y scale, so an explicit ``domain``,
     ``zero=False`` and nice-rounding all work without being predicted in advance - and because
     the offsets are not data values, the y axis ends at your data and the annotations sit in

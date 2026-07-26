@@ -16,6 +16,8 @@
 
 - **Fixed p-value brackets breaking inside facets, concats and `add_multilabel`.** The bracket offsets were emitted as Vega expressions over the y scale, which Vega renames inside a concat - so the expression resolved against nothing and the bracket, its label and its end legs each landed somewhere different, silently. Since `add_multilabel` composes with a vconcat, that broke a first-class combination. The offsets are plain pixel constants again, which are exact at any domain and survive being composed; only the collision test between overlapping brackets uses an estimate of the rendered domain, where being slightly off moves a bracket a few pixels and never changes a gap. On a closed plot (`ds.theme(closed=True)`) the top of the y scale is raised so the brackets stay inside the border, rather than sitting in the margin outside it.
 
+- **Overlapping p-value brackets now sit on an evenly spaced ladder.** Previously each bracket was placed just above its own groups and only nudged when it would collide, which left a short comparison stranded well below the rest of the stack. Brackets that overlap now take evenly spaced rungs, one label-height apart, positioned as low as every bracket's own data allows. Brackets that share no category form separate ladders, so a comparison at one end of a chart is never dragged upward by a taller one elsewhere.
+
 - `mark_line` stroke cap is now `butt` instead of `round`.
 
 - **Data marks now render above axis lines and closed borders in `save()`/`show()` output.** A datum plotted exactly on an axis draws over the axis line instead of being cut by it. The stacking order in exported SVG/PNG is view fill, then grid, then axes and the closed border, then marks; the grid still never paints over the border.
