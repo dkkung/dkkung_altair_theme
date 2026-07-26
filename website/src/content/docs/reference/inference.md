@@ -79,6 +79,21 @@ bracket (see ``reference``).
 A descriptive + effect-size report is generated on every call and queued for
 the export metadata written by ``ds.save()`` (see ``report``/``save``).
 
+**Placement.** By default each annotation anchors at the data maximum of the pair it
+compares and is lifted a fixed number of pixels, so it stays with its own groups rather
+than riding the tallest annotated one, and the gap looks the same on every chart whatever
+the y range. Brackets whose spans overlap are pushed apart by at least a label's height.
+The lift is a Vega expression over the rendered y scale, so an explicit ``domain``,
+``zero=False`` and nice-rounding all work without being predicted in advance - and because
+the offsets are not data values, the y axis ends at your data and the annotations sit in
+the margin above it. Pass any of ``yStart``/``yStep``/``yPad``/``yPositions`` to place them
+in data units on your own scale instead.
+
+A test label at one of the ``top`` presets would sit flush with the plot edge, which is where
+the brackets now are, so the annotation raises the **top** of the y scale (``domainMax``) far
+enough for the stack to fit beneath it. Only the upper bound moves - the lower bound, ``zero``
+and nice-rounding are untouched - and only when there are brackets to clear.
+
 Combine with your chart using ``+``:  ``chart + add_comparisons(...)``.
 
 **Parameters**
@@ -96,14 +111,14 @@ Combine with your chart using ``+``:  ``chart + add_comparisons(...)``.
 - **`xOffsetCol`** (`str | None`) - **Grouped mode.** Column encoded as the chart's ``xOffset`` (the subgroup that splits each x-category into side-by-side bars, e.g. ``"condition"`` in a qPCR gene × condition panel). When set, ``pairs`` names subgroup **levels** (not x-categories) and one bracket is drawn per x-category, each above its own bars. With exactly two levels ``pairs`` defaults to comparing them. Only the pairwise tests are supported here (``'mannwhitneyu'``/``'ttest_ind'``/``'ttest_rel'``/``'wilcoxon'``); ``correction`` adjusts over the whole family (``categories × pairs``). The bracket label centres on the band - exact for two levels / symmetric pairs, slightly off the midpoint only for an asymmetric 3+-level pair.
 - **`xOffsetSort`** (`list[str] | None`) - Grouped mode - the subgroup level order. Must match the ``sort`` on your chart's ``xOffset`` encoding (and ``categories`` must match the ``x`` sort), or the shared scale reorders the bars. ``None`` (default) reads the data's first-appearance order.
 - **`yPositions`** (`float | list[float] | dict[Any, Any] | None`) - Explicit y positions (data units) for the annotations. **A single number** puts *every* annotation at that y - one global flat row. **Pairwise:** a list, one per pair in order (overrides auto-stacking). **Reference mode:** a **dict** keyed by the non-reference **group** (single-factor) or ``(category, level)`` (grouped) for a per-label height. **Grouped** additionally accepts a dict keyed by **category** - a flat row per category, each at its own height (handy when categories span very different magnitudes); and grouped brackets take ``(category, (level1, level2))`` keys (order-insensitive). Dicts are partial (unlisted → auto) and their keys must be uniform (all category names, or all tuples). Beats ``yStart``; unknown keys raise.
-- **`yStart`** (`float | dict[Any, Any] | None`) - The exact y (data units) of the lowest bracket - the stack base (levels rise from it by ``yStep``). Defaults to ``max(annotated groups) + yPad``. **Grouped (`xOffsetCol`) brackets** additionally accept a **dict** keyed by category for a per-category base (partial - unlisted categories use the auto base). **Does not apply to reference mode** (there is no stack - each label sits above its own mark); passing it there raises. Use ``yPositions`` for exact per-label heights.
-- **`yStep`** (`float | None`) - Vertical distance (data units) between stacking levels. Defaults to ``yPad * 1.75``, leaving clearance between a bracket's label and the bracket stacked above it.
-- **`yPad`** (`float | None`) - Padding above the data maximum when ``yStart`` is auto-placed. Defaults to a visual gap of ~8 px (``bracketStyle='line'``) or ~10 px (``bracketStyle='bracket'``), expressed in data units as a fraction of the **full** data extent over ``chartHeight``. Using the full extent (not just the compared groups) keeps the spacing stable - and stops the brackets collapsing when an un-annotated group inflates the rendered domain - since the gap in pixels tracks ``chartHeight / rendered domain``.
+- **`yStart`** (`float | dict[Any, Any] | None`) - The exact y (data units) of the lowest bracket - the stack base (levels rise from it by ``yStep``). **Setting it opts the whole stack into data-unit placement** (see the note below). **Grouped (`xOffsetCol`) brackets** additionally accept a **dict** keyed by category for a per-category base (partial - unlisted categories use the auto base). **Does not apply to reference mode** (there is no stack - each label sits above its own mark); passing it there raises. Use ``yPositions`` for exact per-label heights.
+- **`yStep`** (`float | None`) - Vertical distance (data units) between stacking levels, when placement is in data units. Setting it opts out of automatic pixel placement.
+- **`yPad`** (`float | None`) - Padding (data units) above the data maximum, when placement is in data units. Setting it opts out of the automatic pixel placement described above.
 - **`categories`** (`list[Any] | None`) - Ordered list of all x-axis categories. Inferred from ``df`` (sorted alphabetically) when not provided.
 - **`chartWidth`** (`int | None`) - Width of the chart in pixels, used to compute text x positions. Auto-detected from ``ds.theme()`` when not set.
 - **`bracketStyle`** (`str | dict[tuple[str, str], Any]`) - ``'bracket'`` (default; bar + end ticks) or ``'line'`` (horizontal bar only) applied to every bracket. Or a ``dict`` mapping a pair to its style for per-pair control, e.g. ``{("A", "B"): "line", ("A", "C"): "bracket"}`` — keys match either pair order; pairs absent from the dict fall back to ``'bracket'``.
 - **`labelStyle`** (`str`) - ``'p'`` (default) renders ``P = 0.012`` / ``P < 0.001``. ``'asterisks'`` renders ``*`` / ``**`` / ``***`` / ``ns``. ``'value'`` renders the bare value to save room - the same as ``'p'`` but without the ``P`` symbol and the redundant ``= `` (``0.012``), keeping a meaningful operator (``< 0.001`` when floored, ``≈ 10⁻⁵`` for ``notation='power'``). ``notation`` still applies.
-- **`tickHeight`** (`float | None`) - Height of bracket end ticks in data units. Defaults to the theme's ``tickSize`` (converted from px to data units), so bracket ticks match the axis ticks. Always positive, so it works with reverse (negative-``yStep``) brackets without an explicit override. Only used when ``bracketStyle='bracket'``.
+- **`tickHeight`** (`float | None`) - Height of bracket end ticks in data units, used when placement is in data units. Under automatic placement the ticks are the theme's ``tickSize`` in **pixels**, so they match the axis ticks on any y range. Always positive, so it works with reverse (negative-``yStep``) brackets without an explicit override. Only used when ``bracketStyle='bracket'``.
 - **`strokeWidth`** (`float | None`) - Stroke width of bracket lines. Inherits ``axisWidth`` from ``ds.theme()`` when not set.
 - **`fontSize`** (`int | None`) - Font size of the p-value / corner labels. Defaults to the theme's primary ``fontSize`` (``7`` under the built-in defaults), matching the axis font.
 - **`reverse`** (`list[tuple[str, str]] | None`) - List of ``(group1, group2)`` tuples identifying brackets to flip — text moves below the bar and ticks point upward.

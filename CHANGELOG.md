@@ -30,6 +30,21 @@
 
 ### Changes
 
+- **p-value brackets are now placed in pixels, above the pair they compare.** `add_comparisons`
+  used to convert its gap and stack step from pixels into data units using the data's extent,
+  but the axis Vega actually renders is nice-rounded and starts at zero, so the gap you got was
+  never the gap requested and changed with the data - values offset from zero (any assay with a
+  baseline) could compress a stack of brackets until the labels overlapped. Each bracket now
+  anchors at the maximum of the two groups it compares and is lifted a fixed number of pixels,
+  with overlapping brackets pushed apart by at least a label's height. The lift is a Vega
+  expression evaluated against the real scale, so an explicit `domain`, `zero=False`, and
+  nice-rounding are all handled correctly. Brackets also no longer stretch the y axis, so it
+  ends at your data. Applies to single-factor, grouped (`xOffsetCol`) and reference modes.
+  Passing any of `yStart`, `yStep`, `yPad` or `yPositions` keeps the previous data-unit
+  placement. When an omnibus or test label is placed at a `top` preset, the annotation now raises
+  the top of the y scale enough for the brackets to fit beneath it, so the label stays flush with
+  the plot edge without you padding the domain by hand - only the upper bound moves.
+
 - `mark_line` stroke cap is now `butt` instead of `round`.
 
 - **Data marks now render above axis lines and closed borders in `save()`/`show()` output.**

@@ -26,9 +26,6 @@ df = ds.add_quasirandom(df, "y", ["grp", "cond"])
 jmax = df["quasirandom_x"].abs().max()
 df = df.with_columns((pl.col("cond").replace_strict(idx) + pl.col("quasirandom_x") / jmax * 0.34).alias("xoff"))
 
-# Category-keyed yPositions: one flat asterisk row per group, above that group's bars.
-YPOS = {"Sham": 6.5, "Stim": 15.5, "Stim+IFN": 22.0}
-
 x = alt.X("grp:N", sort=GROUPS, title=None)
 xo = alt.XOffset("cond:N", sort=CONDS)
 base = alt.Chart(df).encode(x, xo)
@@ -44,7 +41,7 @@ ann = ds.add_comparisons(
     xOffsetCol="cond", reference="Veh",
     categories=GROUPS, xOffsetSort=CONDS,
     test="mannwhitneyu", correction="holm",
-    labelStyle="asterisks", yPositions=YPOS,
+    labelStyle="asterisks",
 )
 
 points = alt.Chart(df).mark_circle(size=2).encode(
