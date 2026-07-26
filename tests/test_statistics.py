@@ -184,12 +184,11 @@ class TestAddComparisons:
         bar_ys = [pair_layer["layer"][0]["data"]["values"][0]["y"] for pair_layer in spec["layer"]]
         assert abs(abs(bar_ys[1] - bar_ys[0]) - 1.75 * 5.0) < 1e-9
 
-    def test_auto_ypad_uses_full_data_extent(self):
-        # yPad/yStep scale to the FULL data extent, not just the compared groups. Here a
-        # large un-annotated group ("Z") dominates the rendered domain; if the gap were
-        # sized from the A/B/C extent (~0.5) the stacked brackets would collapse to a sliver.
-        # Basing it on the full extent (0..100) keeps them readable. Regression for the
-        # positive-control failure mode.
+    def test_auto_brackets_anchor_on_their_own_pair(self):
+        # Each bracket anchors at ITS OWN pair's data maximum, not the tallest annotated group,
+        # so a bracket over two low groups stays with them. An un-annotated group ("Z") that
+        # dominates the domain must not move anything: placement is pixel offsets off the
+        # anchors, evaluated against the real scale, so the domain never enters the arithmetic.
         df = pl.DataFrame(
             {
                 "group": ["A"] * 4 + ["B"] * 4 + ["C"] * 4 + ["Z"] * 4,
@@ -199,17 +198,52 @@ class TestAddComparisons:
                 + [0.0, 100.0, 50.0, 25.0],  # un-annotated, dominates the domain
             }
         )
-        result = add_comparisons(
-            df,
-            "group",
-            "value",
-            [("A", "B"), ("A", "C")],  # overlapping spans -> two stacking levels
-            pvalues=[0.01, 0.02],
-        )
+        result = add_comparisons(df, "group", "value", [("A", "B"), ("A", "C")], pvalues=[0.01, 0.02])
         spec = result.to_dict()
         bar_ys = [pair_layer["layer"][0]["data"]["values"][0]["y"] for pair_layer in spec["layer"]]
-        # Full extent 100, chartHeight 200 (fixture), bracket pad 10 -> yPad 5, yStep 8.75.
-        assert abs(abs(bar_ys[1] - bar_ys[0]) - 1.75 * (10.0 * 100.0 / 200.0)) < 1e-6
+        # A-B anchors on B's max (0.28); A-C on C's max (0.48). Neither is Z's 100.
+        assert bar_ys == pytest.approx([0.28, 0.48])
+
+    def test_auto_brackets_offset_by_render_time_expression(self):
+        # The lift off the anchor is a Vega expression over scale('y', …), evaluated when Vega
+        # knows its final domain - so nice-rounding, `zero`, or an explicit `domain` need no
+        # prediction here. A constant offset would reintroduce exactly that guess.
+        df = pl.DataFrame({"group": ["A"] * 4 + ["B"] * 4, "value": [1.0, 2, 3, 4] + [5.0, 6, 7, 8]})
+        spec = add_comparisons(df, "group", "value", [("A", "B")], pvalues=[0.01]).to_dict()
+        y_offset = spec["layer"][0]["layer"][0]["mark"]["yOffset"]
+        assert "expr" in y_offset and "scale('y'" in y_offset["expr"]
+
+    def test_auto_bracket_stack_clears_its_labels(self):
+        # Overlapping spans are pushed apart by at least a label's worth of pixels. Too small a
+        # step puts the lower bracket's label through the bar above it (the collision that a
+        # flat 10 px minimum produced).
+        df = pl.DataFrame(
+            {
+                "group": ["A"] * 4 + ["B"] * 4 + ["C"] * 4,
+                "value": [1.0, 1.1, 1.05, 1.08] + [2.0, 2.1, 2.05, 2.08] + [3.0, 3.1, 3.05, 3.08],
+            }
+        )
+        theme(chartHeight=200, fontSize=7)
+        spec = add_comparisons(df, "group", "value", [("A", "B"), ("A", "C")], pvalues=[0.01, 0.02]).to_dict()
+        exprs = [pair["layer"][0]["mark"]["yOffset"]["expr"] for pair in spec["layer"]]
+        # the later bracket's expression clamps against the earlier one by the minimum step
+        assert any(f"- {7 + 6}.0" in e or f"- {float(7 + 6)}" in e for e in exprs)
+
+    def test_explicit_spacing_args_opt_out_of_pixel_mode(self):
+        # yStep / yPad / yStart / yPositions are the user's own numbers on their own scale, so
+        # passing any of them keeps data-unit placement rather than being silently ignored.
+        df = pl.DataFrame({"group": ["A"] * 4 + ["B"] * 4, "value": [1.0, 2, 3, 4] + [5.0, 6, 7, 8]})
+        args = [("A", "B")]
+
+        def _no_expr(chart, why):
+            spec = chart.to_dict()
+            marks = [sub["mark"] for sub in spec["layer"][0]["layer"] if isinstance(sub.get("mark"), dict)]
+            assert marks, "expected bracket sub-layers"
+            assert not any("expr" in str(m.get("yOffset", "")) for m in marks), why
+
+        _no_expr(add_comparisons(df, "group", "value", args, pvalues=[0.01], yStep=2.0), "yStep")
+        _no_expr(add_comparisons(df, "group", "value", args, pvalues=[0.01], yPad=1.5), "yPad")
+        _no_expr(add_comparisons(df, "group", "value", args, pvalues=[0.01], yStart=12.0), "yStart")
 
     def test_asterisk_label_style(self, group_df):
         result = add_comparisons(
@@ -373,14 +407,27 @@ class TestTickHeight:
         rng = np.random.default_rng(0)
         return pl.DataFrame({"g": ["A"] * 12 + ["B"] * 12 + ["C"] * 12, "v": rng.normal(0, 1, 36)})
 
-    def test_tick_height_defaults_to_tick_size(self, tri_df):
-        # bracket end-tick height (data units) = tickSize(px) * y_range / chartHeight
+    def test_tick_height_is_tick_size_in_pixels(self, tri_df):
+        # The end legs are now tickSize PIXELS off the bracket bar, not a data-unit conversion,
+        # so they are the same length whatever the y range. Both ends sit at the same anchor and
+        # the leg length rides in y2Offset.
         theme(chartWidth=200, chartHeight=200, tickSize=3)
-        sub = tri_df.filter(pl.col("g").is_in(["A", "B"]))
-        y_range = float(sub["v"].max() - sub["v"].min())
-        expected = 3 * y_range / 200
         layer = add_comparisons(tri_df, "g", "v", [("A", "B")], categories=MULTI, bracketStyle="bracket")
-        # the end-tick sub-layers carry y/y2 whose gap equals tickHeight
+        spec = layer.to_dict()
+        legs = [
+            sub["mark"]["y2Offset"]["expr"]
+            for sub in spec["layer"][0]["layer"]
+            if isinstance(sub.get("mark"), dict) and "y2Offset" in sub.get("mark", {})
+        ]
+        assert legs, "expected end-leg layers carrying a y2Offset"
+        assert all("3.0" in e for e in legs)
+
+    def test_tick_height_explicit_stays_data_units(self, tri_df):
+        # An explicit tickHeight is a data-unit number on the user's scale, unchanged.
+        theme(chartWidth=200, chartHeight=200, tickSize=3)
+        layer = add_comparisons(
+            tri_df, "g", "v", [("A", "B")], categories=MULTI, bracketStyle="bracket", yStart=10.0, tickHeight=0.5
+        )
         spec = layer.to_dict()
         gaps = [
             abs(v["y"] - v["y2"])
@@ -388,7 +435,7 @@ class TestTickHeight:
             for v in sub.get("data", {}).get("values", [])
             if "y" in v and "y2" in v
         ]
-        assert any(abs(g - expected) < 1e-9 for g in gaps)
+        assert any(abs(g - 0.5) < 1e-9 for g in gaps)
 
 
 class TestLabelBaseline:

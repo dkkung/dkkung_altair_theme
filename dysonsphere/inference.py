@@ -404,13 +404,16 @@ def _reference_label_layer(
     categories: list[Any],
     chartWidth: int,
     fontSize: int,
+    offset_px: float = 0.0,
 ) -> alt.Chart:
-    """A bare p-value label centred over one group's band, at data-coordinate ``y`` - the
-    reference-mode annotation (no bracket; the comparison to the reference is implicit)."""
+    """A bare p-value label centred over one group's band, anchored at data-coordinate ``y`` and
+    lifted ``offset_px`` pixels - the reference-mode annotation (no bracket; the comparison to the
+    reference is implicit). A lone label has nothing to collide with, so a constant pixel offset is
+    already exact - no scale expression needed, unlike the stacked brackets."""
     x_px = band_geometry(len(categories), chartWidth).centers[categories.index(group)]
     return (
         alt.Chart(_internal_data([{"y": y, "label": label}]))
-        .mark_text(align="center", baseline="bottom", fontSize=fontSize, dy=-4)
+        .mark_text(align="center", baseline="bottom", fontSize=fontSize, dy=-4 - offset_px)
         .encode(x=alt.value(x_px), y=alt.Y("y:Q"), text="label:N")
     )
 
@@ -482,6 +485,8 @@ def _grouped_bracket_layer(
     level_order: list[str],
     strokeWidth: float,
     fontSize: int,
+    offset_expr: str | None = None,
+    tick_px: float | None = None,
 ) -> alt.LayerChart:
     """One within-category bracket for grouped comparisons.
 
@@ -491,7 +496,11 @@ def _grouped_bracket_layer(
     bars out. The label sits at the band centre - exact for two levels / symmetric pairs, slightly off
     the true midpoint only for an asymmetric 3+-level pair (the bar and ticks stay exact).
     """
-    rk = {"strokeWidth": strokeWidth, "strokeDash": [0, 0], "strokeCap": _opt("strokeCap")}
+    rk: dict[str, Any] = {"strokeWidth": strokeWidth, "strokeDash": [0, 0], "strokeCap": _opt("strokeCap")}
+    # Same placement contract as the single-factor path: anchor in data, lift in pixels via a
+    # render-time scale expression, so the gap does not follow the rendered y domain.
+    if offset_expr is not None:
+        rk["yOffset"] = {"expr": f"-({offset_expr})"}
     xenc = alt.X(f"{x_col}:N", sort=categories)
     xoff = alt.XOffset(f"{xoffset_col}:N", sort=level_order)
 
@@ -505,23 +514,30 @@ def _grouped_bracket_layer(
         .encode(x=xenc, xOffset=xoff, y=alt.Y("__y:Q"))
     )
     # Asterisk glyphs sit close to the baseline; alphanumeric labels ("ns", "P = …") need more.
-    dy = -(2 if label_style == "asterisks" and label != "ns" else 4)
+    _dym = -(2 if label_style == "asterisks" and label != "ns" else 4)
+    dy: Any = _dym if offset_expr is None else {"expr": f"{_dym} - ({offset_expr})"}
     text = (
         alt.Chart(_internal_data([{x_col: category, "__y": y, "__label": label}]))
         .mark_text(align="center", fontSize=fontSize, dy=dy)
         .encode(x=alt.X(f"{x_col}:N", sort=categories), y=alt.Y("__y:Q"), text="__label:N")
     )
     if bracket_style == "bracket":
+        # In pixel mode both ends sit at the anchor and the leg length rides in y2Offset.
+        tk = dict(rk)
+        y2_val = y - tick_height
+        if offset_expr is not None and tick_px is not None:
+            tk["y2Offset"] = {"expr": f"-(({offset_expr}) - {tick_px})"}
+            y2_val = y
         ticks = (
             alt.Chart(
                 _internal_data(
                     [
-                        {x_col: category, xoffset_col: level1, "__y": y, "__y2": y - tick_height},
-                        {x_col: category, xoffset_col: level2, "__y": y, "__y2": y - tick_height},
+                        {x_col: category, xoffset_col: level1, "__y": y, "__y2": y2_val},
+                        {x_col: category, xoffset_col: level2, "__y": y, "__y2": y2_val},
                     ]
                 )
             )
-            .mark_rule(**rk)
+            .mark_rule(**tk)
             .encode(x=xenc, xOffset=xoff, y=alt.Y("__y:Q"), y2="__y2:Q")
         )
         return cast(alt.LayerChart, alt.layer(top, ticks, text))
@@ -540,11 +556,13 @@ def _grouped_reference_label_layer(
     categories: list[Any],
     level_order: list[str],
     fontSize: int,
+    offset_px: float = 0.0,
 ) -> alt.Chart:
     """A bare p-value label centred over one (category, level) sub-bar - the grouped reference-mode
     annotation (no bracket). Rides the SHARED x + xOffset scales (sort matched to the bars) so it
-    lands on that sub-bar wherever Vega lays the grouped bars out."""
-    dy = -(2 if label_style == "asterisks" and label != "ns" else 4)
+    lands on that sub-bar wherever Vega lays the grouped bars out. ``offset_px`` lifts it off its
+    anchor in pixels, so the gap does not vary with the rendered y domain."""
+    dy = -(2 if label_style == "asterisks" and label != "ns" else 4) - offset_px
     return (
         alt.Chart(_internal_data([{x_col: category, xoffset_col: level, "__y": y, "__label": label}]))
         .mark_text(align="center", baseline="bottom", fontSize=fontSize, dy=dy)
@@ -654,6 +672,9 @@ def _add_grouped_comparisons(
 
     # Reference mode: compare every other level against `reference` WITHIN each category, drawing the
     # p-value above each non-reference sub-bar (no bracket). Derives its own level-pairs.
+    # Remember which spacing args the caller passed: any one of them opts out of pixel
+    # placement below, since an explicit number is data units on the user's own scale.
+    _y_step_arg, _y_pad_arg = yStep, yPad
     is_reference = reference is not None
     if is_reference:
         if reference not in level_order:
@@ -807,11 +828,35 @@ def _add_grouped_comparisons(
         cdf = df.filter(pl.col(x_col) == cat)
         cat_max = cast(float, cdf[y_col].cast(pl.Float64).max() or 0.0)
         bracket_base = _cat_base(cat, cat_max + yPad)  # brackets only; reference ignores yStart
+        # Pixel placement, matching the single-factor path: each bracket anchors at its own
+        # level-pair's maximum WITHIN this category, and overlapping pairs are pushed apart by a
+        # label's worth of pixels - all resolved by Vega against the real scale.
+        grp_pixel_mode = (
+            not is_reference and yPositions is None and yStart is None and _y_step_arg is None and _y_pad_arg is None
+        )
+        cat_pair_anchor: list[float] = []
+        cat_offset_exprs: list[str] = []
+        if grp_pixel_mode:
+            cat_pair_anchor = [
+                cast(
+                    float,
+                    cdf.filter(pl.col(xoffset_col).is_in([a, b]))[y_col].cast(pl.Float64).max() or 0.0,
+                )
+                for a, b in pairs
+            ]
+            cat_spans = [
+                (min(level_order.index(a), level_order.index(b)), max(level_order.index(a), level_order.index(b)))
+                for a, b in pairs
+            ]
+            cat_offset_exprs = _bracket_offset_exprs(
+                cat_pair_anchor, cat_spans, 6.0, float(fontSize or _opt("fontSize")) + 6.0
+            )
         for pi, (l1, l2) in enumerate(pairs):
             p = adj[k]
             en, ev = effects[k]
             k += 1
             key = _grouped_key(cat, l1, l2, is_reference)
+            ref_offset_px = 0.0
             label = _format_label(p, labelStyle, effective_sigfigs, notation_val)
             if is_reference:
                 # yPositions flat > per-category > per-comparison > the sub-bar's own data max + yPad.
@@ -823,7 +868,8 @@ def _add_grouped_comparisons(
                     y = float(ypos_map[key])
                 else:
                     sub_max = cast(float, cdf.filter(pl.col(xoffset_col) == l2)[y_col].cast(pl.Float64).max() or 0.0)
-                    y = sub_max + yPad
+                    # Auto: anchor at the sub-bar's own maximum, lift in pixels (see single-factor).
+                    y, ref_offset_px = (sub_max, 6.0) if _y_pad_arg is None else (sub_max + yPad, 0.0)
                 layers.append(
                     _grouped_reference_label_layer(
                         x_col,
@@ -836,6 +882,7 @@ def _add_grouped_comparisons(
                         categories=categories,
                         level_order=level_order,
                         fontSize=fontSize,
+                        offset_px=ref_offset_px,
                     )
                 )
             else:
@@ -846,6 +893,8 @@ def _add_grouped_comparisons(
                     y = ypos_cat[cat]
                 elif ypos_map is not None and key in ypos_map:
                     y = float(ypos_map[key])
+                elif grp_pixel_mode:
+                    y = cat_pair_anchor[pi]
                 else:
                     y = bracket_base + pair_level[pi] * yStep
                 layers.append(
@@ -864,6 +913,8 @@ def _add_grouped_comparisons(
                         level_order=level_order,
                         strokeWidth=strokeWidth,
                         fontSize=fontSize,
+                        offset_expr=(cat_offset_exprs[pi] if grp_pixel_mode else None),
+                        tick_px=(float(_opt("tickSize")) if grp_pixel_mode else None),
                     )
                 )
             comparisons.append(
@@ -1043,23 +1094,27 @@ def add_comparisons(
         uniform (all category names, or all tuples). Beats ``yStart``; unknown keys raise.
     yStart:
         The exact y (data units) of the lowest bracket - the stack base (levels rise from it
-        by ``yStep``). Defaults to ``max(annotated groups) + yPad``. **Grouped (`xOffsetCol`)
-        brackets** additionally accept a **dict** keyed by category for a per-category base
-        (partial - unlisted categories use the auto base). **Does not apply to reference mode**
-        (there is no stack - each label sits above its own mark); passing it there raises. Use
-        ``yPositions`` for exact per-label heights.
+        by ``yStep``). **Setting it opts the whole stack into data-unit placement** (see the
+        note below). **Grouped (`xOffsetCol`) brackets** additionally accept a **dict** keyed by
+        category for a per-category base (partial - unlisted categories use the auto base).
+        **Does not apply to reference mode** (there is no stack - each label sits above its own
+        mark); passing it there raises. Use ``yPositions`` for exact per-label heights.
     yStep:
-        Vertical distance (data units) between stacking levels. Defaults to
-        ``yPad * 1.75``, leaving clearance between a bracket's label and the
-        bracket stacked above it.
+        Vertical distance (data units) between stacking levels, when placement is in data
+        units. Setting it opts out of automatic pixel placement.
     yPad:
-        Padding above the data maximum when ``yStart`` is auto-placed. Defaults
-        to a visual gap of ~8 px (``bracketStyle='line'``) or ~10 px
-        (``bracketStyle='bracket'``), expressed in data units as a fraction of
-        the **full** data extent over ``chartHeight``. Using the full extent
-        (not just the compared groups) keeps the spacing stable - and stops the
-        brackets collapsing when an un-annotated group inflates the rendered
-        domain - since the gap in pixels tracks ``chartHeight / rendered domain``.
+        Padding (data units) above the data maximum, when placement is in data units. Setting
+        it opts out of automatic pixel placement.
+
+        **Automatic placement (all three unset).** Each bracket anchors at the data maximum of
+        the pair *it compares* and is lifted a fixed number of pixels - so it stays with its own
+        groups rather than riding the tallest annotated one, and the gap is identical on every
+        chart. Brackets whose spans overlap are pushed apart by at least a label's height. The
+        lift is emitted as a Vega expression over ``scale('y', …)`` and resolved when Vega knows
+        its final domain, so nice-rounding, ``zero=False`` and an explicit ``domain`` all work
+        without being predicted here. Because the offsets contribute nothing to the scale, the
+        y axis ends at your data and the brackets sit in the margin above it. Pass any of
+        ``yStart``/``yStep``/``yPad``/``yPositions`` to place them in data units instead.
     categories:
         Ordered list of all x-axis categories. Inferred from ``df`` (sorted
         alphabetically) when not provided.
@@ -1079,10 +1134,11 @@ def add_comparisons(
         the redundant ``= `` (``0.012``), keeping a meaningful operator (``< 0.001``
         when floored, ``≈ 10⁻⁵`` for ``notation='power'``). ``notation`` still applies.
     tickHeight:
-        Height of bracket end ticks in data units. Defaults to the theme's
-        ``tickSize`` (converted from px to data units), so bracket ticks match the
-        axis ticks. Always positive, so it works with reverse (negative-``yStep``)
-        brackets without an explicit override. Only used when ``bracketStyle='bracket'``.
+        Height of bracket end ticks in data units, used when placement is in data units.
+        Under automatic placement the ticks are the theme's ``tickSize`` in **pixels**, so they
+        match the axis ticks on any y range. Always positive, so it works with reverse
+        (negative-``yStep``) brackets without an explicit override. Only used when
+        ``bracketStyle='bracket'``.
     strokeWidth:
         Stroke width of bracket lines. Inherits ``axisWidth`` from
         ``ds.theme()`` when not set.
@@ -1299,6 +1355,10 @@ def add_comparisons(
     is_omnibus = test in _OMNIBUS_TESTS
     groups = [df.filter(pl.col(xCol) == cat)[yCol].to_numpy() for cat in categories]
 
+    # Remember which spacing args the caller passed: any one of them opts out of the pixel
+    # placement below, since an explicit number is data units on the user's own scale.
+    _y_step_arg, _y_pad_arg = yStep, yPad
+
     # Reference mode: compare every other category against `reference`, drawing the p-value above
     # each mark with NO bracket (the comparison is implicit - a many-vs-one/control design). It
     # derives `pairs` and switches the rendering to bare labels; it is a pairwise-only modifier.
@@ -1430,6 +1490,7 @@ def add_comparisons(
             float(yPositions) if isinstance(yPositions, (int, float)) and not isinstance(yPositions, bool) else None
         )
         for i, (_, g) in enumerate(pairs):
+            ref_offset_px = 0.0
             pval = pval_lookup[frozenset((reference, g))]
             if ypos_flat is not None:
                 y = ypos_flat
@@ -1437,10 +1498,14 @@ def add_comparisons(
                 y = float(yPositions[g])
             else:
                 g_max = cast(float, df.filter(pl.col(xCol) == g)[yCol].cast(pl.Float64).max() or 0.0)
-                y = g_max + ref_pad
+                # Auto: anchor at the group's own maximum and lift in pixels, so the gap is the
+                # same on every chart. An explicit yPad keeps its data-unit meaning.
+                y, ref_offset_px = (g_max, 6.0) if _y_pad_arg is None else (g_max + ref_pad, 0.0)
             label = _format_label(pval, labelStyle, effective_sigfigs, pair_notations[i])
             annotation_layers.append(
-                _reference_label_layer(g, y, label, categories=categories, chartWidth=cw, fontSize=fs)
+                _reference_label_layer(
+                    g, y, label, categories=categories, chartWidth=cw, fontSize=fs, offset_px=ref_offset_px
+                )
             )
 
     # --- brackets ---
@@ -1465,9 +1530,6 @@ def add_comparisons(
         # groups - see below.)
         y_all = df[yCol].cast(pl.Float64)
         y_range = cast(float, y_all.max() or 0.0) - cast(float, y_all.min() or 0.0)
-        # Remember which spacing args the caller actually passed: any one of them opts out of
-        # pixel mode below, since an explicit number is in data units on the user's own scale.
-        _y_step_arg, _y_pad_arg = yStep, yPad
         # Data-unit fallbacks for that opted-out path. Tick height matches the theme tickSize;
         # always positive so it survives a negative yStep (reverse).
         yPad, tickHeight, yStep = _resolve_y_spacing(
