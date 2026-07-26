@@ -1023,10 +1023,11 @@ def add_comparisons(
     the margin above it. Pass any of ``yStart``/``yStep``/``yPad``/``yPositions`` to place them
     in data units on your own scale instead.
 
-    A test label at one of the ``top`` presets would sit flush with the plot edge, which is where
-    the brackets now are, so the annotation raises the **top** of the y scale (``domainMax``) far
-    enough for the stack to fit beneath it. Only the upper bound moves - the lower bound, ``zero``
-    and nice-rounding are untouched - and only when there are brackets to clear.
+    The top of the y scale is raised (``domainMax``) far enough for the stack to fit inside the
+    plot in two cases: a test label at one of the ``top`` presets, which would otherwise sit on
+    the brackets, and a closed plot (``ds.theme(closed=True)``), whose border would leave them
+    outside the box. Only the upper bound moves - the lower bound, ``zero`` and nice-rounding are
+    untouched - and only when there are brackets to clear.
 
     Combine with your chart using ``+``:  ``chart + add_comparisons(...)``.
 
@@ -1610,12 +1611,15 @@ def add_comparisons(
                 final_y = pair_anchor
                 offsets_px = _bracket_offsets(pair_anchor, idx_span, gap_px, min_step_px, _to_px)
 
-                # A test label at a TOP preset sits flush with the plot edge, which is now where
-                # the brackets are. Raise only the top of the y scale so the stack fits beneath
-                # it. The needed height is bounded by every bracket colliding into one chain, and
-                # converting that to data units needs the rendered top - estimated here, biased
-                # HIGH on purpose: too much only adds air under the label, too little collides.
-                if isinstance(resolved_pos, str) and resolved_pos.startswith("top"):
+                # Raise the TOP of the y scale so the stack fits inside the plot, in the two cases
+                # where the margin is not usable: a test label at a `top` preset would otherwise
+                # sit flush with the plot edge on top of the brackets, and a closed plot draws a
+                # border around the plot area, so anything in the margin is outside the box.
+                # The height is bounded by every bracket colliding into one chain; converting it
+                # to data units needs the rendered top, estimated here and biased HIGH on purpose
+                # - too much only adds air, too little collides.
+                _label_on_top = isinstance(resolved_pos, str) and resolved_pos.startswith("top")
+                if _label_on_top or _opt("closed"):
                     stack_px = gap_px + (len(pairs) - 1) * min_step_px + min_step_px
                     bracket_domain_max = _yhi + stack_px * _yspan / _ch
             else:

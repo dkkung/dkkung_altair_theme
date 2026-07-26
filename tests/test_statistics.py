@@ -257,6 +257,29 @@ class TestAddComparisons:
         assert "domainMax" in scales[0] and set(scales[0]) == {"domainMax"}
         assert scales[0]["domainMax"] > df["value"].cast(pl.Float64).max()
 
+    def test_closed_plot_raises_the_domain_for_its_brackets(self):
+        # A closed plot draws a border around the plot area, so a bracket in the margin above it
+        # is outside the box - with its label further out still. Raise the top so the stack sits
+        # inside the frame, the same lift a top-preset test label gets.
+        df = pl.DataFrame(
+            {
+                "group": ["A"] * 4 + ["B"] * 4 + ["C"] * 4,
+                "value": [1.0, 1.2, 0.9, 1.1] + [3.0, 3.2, 2.9, 3.1] + [6.0, 6.2, 5.9, 6.1],
+            }
+        )
+        theme(closed=True)
+        spec = add_comparisons(
+            df, "group", "value", [("A", "B"), ("A", "C")], pvalues=[0.01, 0.02], categories=["A", "B", "C"]
+        ).to_dict()
+        bounds = [
+            sub["encoding"]["y"]["scale"]
+            for pair in spec["layer"]
+            for sub in pair.get("layer", [])
+            if "scale" in sub.get("encoding", {}).get("y", {})
+        ]
+        assert len(bounds) == 1 and set(bounds[0]) == {"domainMax"}
+        assert bounds[0]["domainMax"] > df["value"].cast(pl.Float64).max()
+
     def test_no_domain_bound_without_a_top_label(self):
         # Nothing to clear: a pairwise call draws no test label by default, so the axis is
         # left exactly as the user's data defines it.
