@@ -683,7 +683,7 @@ def create_config(directory: str | Path | None = None, *, persist: bool = False)
         dest = dest / "dysonsphere.toml"
 
     if dest.exists():
-        print(f"dysonsphere.toml already exists at {dest} — not overwriting.")
+        print(f"dysonsphere.toml already exists at {dest} - not overwriting.")
         return
 
     lines = [
@@ -715,7 +715,7 @@ def create_config(directory: str | Path | None = None, *, persist: bool = False)
         "",
         "[my_style]  # Rename to your desired style name",
         "",
-        '# Custom palettes — lists of hex strings, available via ds.palette("name")',
+        '# Custom palettes - lists of hex strings, available via ds.palette("name")',
         '# or ds.theme(palette="name"). dysonsphere palettes are typically 12 stops',
         "# for sequential palettes, and 13 stops for diverging palettes.",
         "",
