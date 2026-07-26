@@ -292,12 +292,14 @@ class TestHtmlExport:
 
 
 class TestShow:
-    def test_returns_ipython_svg(self, simple_chart):
+    def test_returns_ipython_html(self, simple_chart):
+        # HTML, not SVG: an image/svg+xml output goes to the frontend's image renderer, which in
+        # VS Code composites onto white - a transparent dark-mode figure came back white on white.
         from dysonsphere.export import show
 
         obj = show(simple_chart)
-        assert type(obj).__name__ == "SVG"  # IPython.display.SVG
-        assert "<svg" in obj.data
+        assert type(obj).__name__ == "HTML"  # IPython.display.HTML
+        assert obj.data.startswith("<svg")  # bare markup, no XML prolog to confuse the HTML parser
 
     def test_runs_full_pipeline_inward_ticks(self):
         # show()'s whole point: the preview matches save() output. With inwardTicks the preview

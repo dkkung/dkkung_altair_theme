@@ -4,6 +4,8 @@
 
 ### Fixes
 
+- **`ds.show()` no longer previews as white ink on white in VS Code.** It returned its SVG as an `IPython.display.SVG`, which the notebook sends to the frontend's *image* renderer - and VS Code composites images onto a white canvas regardless of the editor theme. A transparent dark-mode figure therefore arrived as white axes and white labels on white, while the same chart displayed bare (through Altair's own vega-embed output) sat on the notebook's dark background and read fine. The preview is now returned as `IPython.display.HTML` wrapping the same SVG, so it lands on the notebook's own background exactly like a bare Altair chart, in every frontend.
+
 - **`ds.show()` now previews at the theme's `transparent` setting instead of always rendering transparent.** It forced a transparent background on every preview, so a dark-mode theme drew its light ink onto whatever the notebook's background happened to be - in a light-themed notebook, invisible. The built-in `notebook` style is one such theme (`darkmode=True`), so `ds.theme(style="notebook")` followed by `ds.show(chart)` produced a blank-looking figure. The preview is now styled entirely by the theme, like every other rendering setting: `theme(transparent=False)` paints the background (black in dark mode). `save()` is unchanged - a saved figure composites onto a page, so it still defaults to transparent, and keeps its `transparent=` override for that reason.
 
 ## [3.10.0] - 2026-07-26

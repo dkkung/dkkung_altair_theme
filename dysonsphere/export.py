@@ -370,9 +370,14 @@ def show(chart: _AltairChart | Callable[[], _AltairChart], maxRows: int = 5000, 
     dysonsphere's SVG post-processors, so its preview is approximate - superscript labels
     aren't typeset, the axisOffset grid gap remains, and with ``inwardTicks=True`` the
     ticks still point outward. ``ds.show(chart)`` renders the *same* corrected SVG that
-    :func:`save` writes and returns it as an ``IPython.display.SVG`` for inline display, so
+    :func:`save` writes and returns it as an ``IPython.display.HTML`` for inline display, so
     the preview matches the saved figure. It renders at the theme's current ``darkmode`` and
     ``transparent`` and writes no file.
+
+    The SVG is returned as **HTML** rather than ``IPython.display.SVG`` so the preview lands on
+    the notebook's own background, exactly like a bare Altair chart. An ``image/svg+xml`` output
+    goes to the frontend's *image* renderer instead, which in VS Code composites onto a white
+    canvas - so a transparent dark-mode figure came back as white ink on white.
 
     Like :func:`save`, the render is wrapped in the ``"default"`` data transformer capped at
     ``maxRows`` (``overrideMaxRows=True`` lifts the cap), so ``ds.show()`` works regardless of
@@ -386,7 +391,7 @@ def show(chart: _AltairChart | Callable[[], _AltairChart], maxRows: int = 5000, 
     :func:`save` to write a file instead.
     """
     try:
-        from IPython.display import SVG
+        from IPython.display import HTML
     except ImportError as e:
         raise ImportError(
             "ds.show() needs IPython (available in notebooks). Use ds.save() to write a file instead."
@@ -408,7 +413,8 @@ def show(chart: _AltairChart | Callable[[], _AltairChart], maxRows: int = 5000, 
         ) from e
     finally:
         _cap_stack.close()
-    return SVG(svg)
+    # Drop the file's XML prolog - an HTML parser reads it as a bogus comment (SVG() stripped it)
+    return HTML(svg[svg.index("<svg") :])
 
 
 def load(path: str, *, raw: bool = False, applyTheme: bool = True) -> "_AltairChart | dict[str, Any]":

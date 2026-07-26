@@ -33,9 +33,9 @@ can differ subtly from the saved file. `ds.show(chart)` renders a chart *through
 pipeline so the preview matches the exported figure exactly.
 
 `show()` styles the preview entirely from the theme, including `transparent` - unlike `save()`,
-which defaults to a transparent background so exports composite onto a page. A dark-mode theme
-therefore needs `ds.theme(transparent=False)` to paint its background, or the light ink lands on
-the notebook's own background.
+which defaults to a transparent background so exports composite onto a page. The preview is
+returned as HTML wrapping the SVG, so it sits on the notebook's own background just like a bare
+Altair chart, and a transparent dark-mode figure stays readable.
 
 The SVG is post-processed for publication: `<g>` wrappers are flattened for Illustrator, axis ticks
 and log/power minor ticks are snapped to exact positions, superscript exponents are realigned, and
