@@ -4,6 +4,20 @@
 
 ### New features
 
+- **`mark_violin`: Prism-style violins.** `inner` picks the statistic display inside the
+  violin - `"quartiles"` (default: a solid median line at twice the outline weight, clipped to
+  the violin border, plus dashed quartile lines, each spanning the violin's width at that
+  value), `"median"` (the median line only), `"box"` (an embedded boxplot), or `None`
+  (silhouette only). The violin is outlined by default (`stroke=True` draws the theme's
+  `markStroke`, black in dark mode too, like `mark_strip`'s points; `stroke=False` disables
+  it); `innerColor` colors the median/quartile lines (plain black in both modes - they sit
+  inside the mark fill, so deliberately not darkmode-sensitive); `trim=True` ends the violin
+  sharply at the observed data extremes; `bandwidth` tunes the KDE smoothness
+  (`scipy.stats.gaussian_kde` `bw_method`, as in `add_quasirandom`); untrimmed tails extend
+  2 KDE bandwidths past the extremes (previously a fixed ±1 data units). Upgraders: violins
+  render as outlined quartile-line violins instead of the embedded boxplot - pass
+  `inner="box"` for the previous look.
+
 - **`ds_cat_3`: a saturated cool qualitative palette.** Ten colors - a light/dark grey pair
   followed by blue, green, purple and teal at two lightness tiers each - built from four new
   base ramps (`cat3_blues`, `cat3_greens`, `cat3_purples`, `cat3_teals`). Opt in with
@@ -34,22 +48,6 @@
 - `add_multilabel` no longer re-enables a layer's explicitly hidden x axis (`axis=None`, e.g.
   `mark_violin`'s internal pixel-positioned layers) when stripping x labels - the replacement
   axis drew a phantom domain line and ticks above the chart.
-
-### New features
-
-- **`mark_violin`: Prism-style violins.** `inner` picks the statistic display inside the
-  violin - `"quartiles"` (default: a solid median line at twice the outline weight, clipped to
-  the violin border, plus dashed quartile lines, each spanning the violin's width at that
-  value), `"median"` (the median line only), `"box"` (an embedded boxplot), or `None`
-  (silhouette only). The violin is outlined by default (`stroke=True` draws the theme's
-  `markStroke`, black in dark mode too, like `mark_strip`'s points; `stroke=False` disables
-  it); `innerColor` colors the median/quartile lines (plain black in both modes - they sit
-  inside the mark fill, so deliberately not darkmode-sensitive); `trim=True` ends the violin
-  sharply at the observed data extremes; `bandwidth` tunes the KDE smoothness
-  (`scipy.stats.gaussian_kde` `bw_method`, as in `add_quasirandom`); untrimmed tails extend
-  2 KDE bandwidths past the extremes (previously a fixed ±1 data units). Upgraders: violins
-  render as outlined quartile-line violins instead of the embedded boxplot - pass
-  `inner="box"` for the previous look.
 
 ## [3.9.0] - 2026-07-20
 
