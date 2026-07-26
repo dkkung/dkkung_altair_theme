@@ -298,7 +298,7 @@ class TestAddComparisons:
         anchors = [pair["layer"][0]["data"]["values"][0]["y"] for pair in spec["layer"]]
         assert anchors[0] == anchors[1], "this case is only meaningful when the anchors coincide"
         offsets = sorted(abs(pair["layer"][0]["mark"]["yOffset"]) for pair in spec["layer"])
-        assert offsets[1] - offsets[0] >= 7 + 6 - 1e-6
+        assert offsets[1] - offsets[0] >= 7 + 10 - 1e-6
 
     def test_top_preset_test_label_raises_only_the_domain_top(self):
         # A top-preset test label sits flush with the plot edge, which is where the brackets now

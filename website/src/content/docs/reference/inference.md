@@ -82,8 +82,8 @@ the export metadata written by ``ds.save()`` (see ``report``/``save``).
 **Placement.** By default each annotation anchors at the data maximum of the pair it
 compares and is lifted a fixed number of pixels, so it stays with its own groups rather
 than riding the tallest annotated one, and the gap looks the same on every chart whatever
-the y range. Brackets that overlap sit on an evenly spaced **ladder** - one step of a
-label's height between rungs - placed as low as every bracket's own data allows, so a short
+the y range. Brackets that overlap sit on an evenly spaced **ladder** - each rung clear
+of the label hanging under the one above - placed as low as every bracket's own data allows, so a short
 comparison joins the rhythm instead of being stranded below the rest. Brackets sharing no
 category form separate ladders, so a comparison at one end of the chart is never dragged up
 by a taller one elsewhere.
