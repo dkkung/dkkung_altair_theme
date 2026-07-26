@@ -204,6 +204,23 @@ class TestAddComparisons:
         # A-B anchors on B's max (0.28); A-C on C's max (0.48). Neither is Z's 100.
         assert bar_ys == pytest.approx([0.28, 0.48])
 
+    def test_reverse_brackets_anchor_below_their_data(self):
+        # A `reverse` bracket hangs BELOW its groups, so it anchors on their MINIMUM and its
+        # collisions push further down. Anchoring on the maximum (the upward rule) and then
+        # hanging downward from it drops the bracket straight onto the data.
+        df = pl.DataFrame(
+            {
+                "group": ["A"] * 4 + ["B"] * 4,
+                "value": [5.0, 5.4, 4.6, 5.2] + [8.0, 8.4, 7.6, 8.2],
+            }
+        )
+        spec = add_comparisons(df, "group", "value", [("A", "B")], pvalues=[0.01], reverse=[("A", "B")]).to_dict()
+        pair = spec["layer"][0]
+        anchor = pair["layer"][0]["data"]["values"][0]["y"]
+        assert anchor == pytest.approx(4.6), "reverse brackets anchor on the spanned minimum"
+        # and the offset moves it further down (larger pixel y), not up
+        assert "+" in pair["layer"][0]["mark"]["yOffset"]["expr"]
+
     def test_auto_brackets_offset_by_render_time_expression(self):
         # The lift off the anchor is a Vega expression over scale('y', …), evaluated when Vega
         # knows its final domain - so nice-rounding, `zero`, or an explicit `domain` need no

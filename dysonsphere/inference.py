@@ -180,24 +180,38 @@ def _resolve_y_spacing(
 
 
 def _bracket_offset_exprs(
-    anchors: list[float], spans: list[tuple[int, int]], gap_px: float, min_step_px: float
+    anchors: list[float],
+    spans: list[tuple[int, int]],
+    gap_px: float,
+    min_step_px: float,
+    downward: bool = False,
 ) -> list[str]:
-    """Vega expressions for each bracket's UPWARD pixel offset from its own data anchor.
+    """Vega expressions for each bracket's pixel offset (a magnitude) from its own data anchor.
 
-    Each bracket starts ``gap_px`` above its pair's data maximum. Brackets whose category spans
-    overlap are then pushed apart to at least ``min_step_px``. Both the anchor's pixel position
-    and the resulting bumps are written as ``scale('y', …)`` expressions, so Vega evaluates them
-    against the domain it actually renders - no estimate of nice-rounding, ``zero``, or a
-    user-supplied ``domain`` is needed. Placement order is by ascending anchor (lowest on screen
-    first), which is domain-independent because the y scale is monotonic."""
-    order = sorted(range(len(anchors)), key=lambda i: anchors[i])
+    Each bracket starts ``gap_px`` clear of its pair's data, and brackets whose category spans
+    overlap are pushed apart to at least ``min_step_px``. Both the anchor's pixel position and the
+    resulting bumps are written as ``scale('y', …)`` expressions, so Vega evaluates them against
+    the domain it actually renders - no estimate of nice-rounding, ``zero``, or a user-supplied
+    ``domain`` is needed.
+
+    ``downward`` is the ``reverse`` case: the bracket hangs BELOW its groups, so it clears the
+    data by moving to larger pixel y and collisions push it further down. Placement order is by
+    anchor (the ones nearest the data first) and is domain-independent, since the y scale is
+    monotonic. The caller applies the direction, so this always returns a positive magnitude."""
+    # Nearest-the-data first: ascending anchor going up, descending going down.
+    order = sorted(range(len(anchors)), key=lambda i: anchors[i], reverse=downward)
+    combine, sign = ("max", "+") if downward else ("min", "-")
     pos: dict[int, str] = {}  # index -> expression for that bracket's y pixel position
     for i in order:
-        own = f"scale('y',{anchors[i]!r}) - {gap_px}"
+        own = f"scale('y',{anchors[i]!r}) {sign} {gap_px}"
         clamps = [
-            f"({pos[j]}) - {min_step_px}" for j in pos if not (spans[i][1] < spans[j][0] or spans[i][0] > spans[j][1])
+            f"({pos[j]}) {sign} {min_step_px}"
+            for j in pos
+            if not (spans[i][1] < spans[j][0] or spans[i][0] > spans[j][1])
         ]
-        pos[i] = own if not clamps else "min(" + ", ".join([own, *clamps]) + ")"
+        pos[i] = own if not clamps else f"{combine}(" + ", ".join([own, *clamps]) + ")"
+    if downward:
+        return [f"({pos[i]}) - scale('y',{anchors[i]!r})" for i in range(len(anchors))]
     return [f"scale('y',{anchors[i]!r}) - ({pos[i]})" for i in range(len(anchors))]
 
 
@@ -1583,16 +1597,42 @@ def add_comparisons(
                 # 4 px label dy, plus a margin. Less than this lets a label meet the bar above.
                 min_step_px = float(fontSize or _opt("fontSize")) + 6.0
                 tick_px = float(_opt("tickSize"))
+                # A `reverse` bracket hangs BELOW its groups, so it anchors on their minimum and
+                # its collisions push downward. The two directions never collide with each other
+                # (they sit on opposite sides of the data), so each gets its own placement pass.
+                _rev_pairs: list[tuple[str, str]] = reverse or []
+                rev_flags = [(g1, g2) in _rev_pairs for g1, g2 in pairs]
                 pair_anchor = [
-                    cast(float, df.filter(pl.col(xCol).is_in([g1, g2]))[yCol].cast(pl.Float64).max() or 0.0)
-                    for g1, g2 in pairs
+                    cast(
+                        float,
+                        (
+                            df.filter(pl.col(xCol).is_in([g1, g2]))[yCol].cast(pl.Float64).min()
+                            if rev
+                            else df.filter(pl.col(xCol).is_in([g1, g2]))[yCol].cast(pl.Float64).max()
+                        )
+                        or 0.0,
+                    )
+                    for (g1, g2), rev in zip(pairs, rev_flags)
                 ]
                 idx_span = [
                     (min(categories.index(g1), categories.index(g2)), max(categories.index(g1), categories.index(g2)))
                     for g1, g2 in pairs
                 ]
                 final_y = pair_anchor
-                offset_exprs = _bracket_offset_exprs(pair_anchor, idx_span, gap_px, min_step_px)
+                offset_exprs = [""] * len(pairs)
+                for _down in (False, True):
+                    _idx = [i for i, rev in enumerate(rev_flags) if rev is _down]
+                    if not _idx:
+                        continue
+                    _exprs = _bracket_offset_exprs(
+                        [pair_anchor[i] for i in _idx],
+                        [idx_span[i] for i in _idx],
+                        gap_px,
+                        min_step_px,
+                        downward=_down,
+                    )
+                    for slot, expr in zip(_idx, _exprs):
+                        offset_exprs[slot] = expr
 
                 # A test label at a TOP preset sits flush with the plot edge, which is now where
                 # the brackets are. Raise only the top of the y scale so the stack fits beneath
