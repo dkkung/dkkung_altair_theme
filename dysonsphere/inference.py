@@ -179,26 +179,32 @@ def _resolve_y_spacing(
     return y_pad, tick_height, y_step
 
 
-def _bracket_offset_exprs(
-    anchors: list[float], spans: list[tuple[int, int]], gap_px: float, min_step_px: float
-) -> list[str]:
-    """Vega expressions for each bracket's UPWARD pixel offset from its own data anchor.
+def _bracket_offsets(
+    anchors: list[float],
+    spans: list[tuple[int, int]],
+    gap_px: float,
+    min_step_px: float,
+    to_px,
+) -> list[float]:
+    """Each bracket's upward pixel offset from its own data anchor.
 
-    Each bracket starts ``gap_px`` above its pair's data maximum. Brackets whose category spans
-    overlap are then pushed apart to at least ``min_step_px``. Both the anchor's pixel position
-    and the resulting bumps are written as ``scale('y', …)`` expressions, so Vega evaluates them
-    against the domain it actually renders - no estimate of nice-rounding, ``zero``, or a
-    user-supplied ``domain`` is needed. Placement order is by ascending anchor (lowest on screen
-    first), which is domain-independent because the y scale is monotonic."""
+    A bracket sits ``gap_px`` clear of its pair's data; brackets whose category spans overlap are
+    pushed apart to at least ``min_step_px``. The gap is a CONSTANT pixel offset off a datum
+    anchor, so it is exact at any y domain without the scale being consulted - which is what makes
+    this work inside facets, concats and ``add_multilabel``, where Vega renames the y scale and a
+    ``scale('y', …)`` expression would silently resolve against nothing.
+
+    Only the collision test needs pixel positions, and for that ``to_px`` estimates the rendered
+    domain. A mis-estimate changes a bump by a few pixels; it cannot affect the gaps."""
     order = sorted(range(len(anchors)), key=lambda i: anchors[i])
-    pos: dict[int, str] = {}  # index -> expression for that bracket's y pixel position
+    pos = {i: to_px(anchors[i]) - gap_px for i in range(len(anchors))}
+    placed: list[int] = []
     for i in order:
-        own = f"scale('y',{anchors[i]!r}) - {gap_px}"
-        clamps = [
-            f"({pos[j]}) - {min_step_px}" for j in pos if not (spans[i][1] < spans[j][0] or spans[i][0] > spans[j][1])
-        ]
-        pos[i] = own if not clamps else "min(" + ", ".join([own, *clamps]) + ")"
-    return [f"scale('y',{anchors[i]!r}) - ({pos[i]})" for i in range(len(anchors))]
+        for j in placed:
+            if not (spans[i][1] < spans[j][0] or spans[i][0] > spans[j][1]):
+                pos[i] = min(pos[i], pos[j] - min_step_px)
+        placed.append(i)
+    return [to_px(anchors[i]) - pos[i] for i in range(len(anchors))]
 
 
 def _emit_report(record: dict[str, Any], report: bool, save: bool | str) -> str:
@@ -247,7 +253,6 @@ def _pvalue_layer(
     notation: str | None = None,
     offset_px: float = 0.0,
     tick_px: float | None = None,
-    offset_expr: str | None = None,
     domain_max: float | None = None,
 ) -> alt.LayerChart:
     from scipy import stats as _stats
@@ -321,12 +326,9 @@ def _pvalue_layer(
         "strokeDash": [0, 0],
         "strokeCap": stroke_cap,
     }
-    # `offset_expr` is a Vega expression giving the upward pixel offset, evaluated at RENDER time
-    # against the real y scale (`scale('y', v)`), so the placement needs no guess about the domain
-    # Vega will settle on. `offset_px` is the constant fallback.
-    if offset_expr is not None:
-        _rule_kwargs["yOffset"] = {"expr": f"{_sign} * ({offset_expr})"}
-    elif offset_px:
+    # A CONSTANT pixel offset off the data anchor: exact at any y domain, and it survives being
+    # placed inside a facet/concat, which a scale expression does not.
+    if offset_px:
         _rule_kwargs["yOffset"] = _sign * offset_px
 
     # dy offsets in SVG pixels. Asterisk glyphs sit close to the baseline so a small
@@ -335,16 +337,12 @@ def _pvalue_layer(
     # reverse=True sets baseline="top" so the text hangs *below* the bar instead of
     # overlapping it — the inherited baseline left the below-bar text cramped.
     _dy_mag = 2 if label_style == "asterisks" and label != "ns" else 4
-    text_dy: Any = (_dy_mag if reverse else -_dy_mag) + _sign * offset_px
-    if offset_expr is not None:
-        text_dy = {"expr": f"{_dy_mag if reverse else -_dy_mag} + {_sign} * ({offset_expr})"}
+    text_dy = (_dy_mag if reverse else -_dy_mag) + _sign * offset_px
     text_baseline = "top" if reverse else None
     # In pixel mode the end legs are a pixel offset off the same anchor; otherwise data units.
     tick_y2 = y if tick_px is not None else (y + tick_height if reverse else y - tick_height)
     _tick_kwargs = dict(_rule_kwargs)
-    if tick_px is not None and offset_expr is not None:
-        _tick_kwargs["y2Offset"] = {"expr": f"{_sign} * (({offset_expr}) - {tick_px})"}
-    elif tick_px is not None:
+    if tick_px is not None:
         _tick_kwargs["y2Offset"] = _sign * offset_px - _sign * tick_px
 
     # `domain_max` raises ONLY the top of the shared y scale, leaving the lower bound, `zero`,
@@ -491,7 +489,7 @@ def _grouped_bracket_layer(
     level_order: list[str],
     strokeWidth: float,
     fontSize: int,
-    offset_expr: str | None = None,
+    offset_px: float = 0.0,
     tick_px: float | None = None,
 ) -> alt.LayerChart:
     """One within-category bracket for grouped comparisons.
@@ -505,8 +503,8 @@ def _grouped_bracket_layer(
     rk: dict[str, Any] = {"strokeWidth": strokeWidth, "strokeDash": [0, 0], "strokeCap": _opt("strokeCap")}
     # Same placement contract as the single-factor path: anchor in data, lift in pixels via a
     # render-time scale expression, so the gap does not follow the rendered y domain.
-    if offset_expr is not None:
-        rk["yOffset"] = {"expr": f"-({offset_expr})"}
+    if offset_px:
+        rk["yOffset"] = -offset_px
     xenc = alt.X(f"{x_col}:N", sort=categories)
     xoff = alt.XOffset(f"{xoffset_col}:N", sort=level_order)
 
@@ -521,7 +519,7 @@ def _grouped_bracket_layer(
     )
     # Asterisk glyphs sit close to the baseline; alphanumeric labels ("ns", "P = …") need more.
     _dym = -(2 if label_style == "asterisks" and label != "ns" else 4)
-    dy: Any = _dym if offset_expr is None else {"expr": f"{_dym} - ({offset_expr})"}
+    dy = _dym - offset_px
     text = (
         alt.Chart(_internal_data([{x_col: category, "__y": y, "__label": label}]))
         .mark_text(align="center", fontSize=fontSize, dy=dy)
@@ -531,8 +529,8 @@ def _grouped_bracket_layer(
         # In pixel mode both ends sit at the anchor and the leg length rides in y2Offset.
         tk = dict(rk)
         y2_val = y - tick_height
-        if offset_expr is not None and tick_px is not None:
-            tk["y2Offset"] = {"expr": f"-(({offset_expr}) - {tick_px})"}
+        if tick_px is not None:
+            tk["y2Offset"] = -(offset_px - tick_px)
             y2_val = y
         ticks = (
             alt.Chart(
@@ -841,7 +839,7 @@ def _add_grouped_comparisons(
             not is_reference and yPositions is None and yStart is None and _y_step_arg is None and _y_pad_arg is None
         )
         cat_pair_anchor: list[float] = []
-        cat_offset_exprs: list[str] = []
+        cat_offsets: list[float] = []
         if grp_pixel_mode:
             cat_pair_anchor = [
                 cast(
@@ -854,8 +852,18 @@ def _add_grouped_comparisons(
                 (min(level_order.index(a), level_order.index(b)), max(level_order.index(a), level_order.index(b)))
                 for a, b in pairs
             ]
-            cat_offset_exprs = _bracket_offset_exprs(
-                cat_pair_anchor, cat_spans, 6.0, float(fontSize or _opt("fontSize")) + 6.0
+            _clo, _chi = _nice_domain(
+                min(0.0, cast(float, cdf[y_col].cast(pl.Float64).min() or 0.0)),
+                cast(float, cdf[y_col].cast(pl.Float64).max() or 0.0),
+            )
+            _cspan = (_chi - _clo) or 1.0
+            _ch = float(_opt("chartHeight"))
+            cat_offsets = _bracket_offsets(
+                cat_pair_anchor,
+                cat_spans,
+                6.0,
+                float(fontSize or _opt("fontSize")) + 6.0,
+                lambda v, _lo=_clo, _sp=_cspan, _h=_ch: _h * (1.0 - (v - _lo) / _sp),
             )
         for pi, (l1, l2) in enumerate(pairs):
             p = adj[k]
@@ -919,7 +927,7 @@ def _add_grouped_comparisons(
                         level_order=level_order,
                         strokeWidth=strokeWidth,
                         fontSize=fontSize,
-                        offset_expr=(cat_offset_exprs[pi] if grp_pixel_mode else None),
+                        offset_px=(cat_offsets[pi] if grp_pixel_mode else 0.0),
                         tick_px=(float(_opt("tickSize")) if grp_pixel_mode else None),
                     )
                 )
@@ -1556,7 +1564,6 @@ def add_comparisons(
         # silently ignoring one would make a documented parameter a no-op.
         pixel_mode = yPositions is None and yStart is None and _y_step_arg is None and _y_pad_arg is None
         offsets_px = [0.0] * len(pairs)
-        offset_exprs: list[str] | None = None
         tick_px = None
         bracket_domain_max: float | None = None
 
@@ -1572,12 +1579,11 @@ def add_comparisons(
                 df.filter(pl.col(xCol).is_in(annotated_groups_for_pad))[yCol].cast(pl.Float64).max() or 0.0,
             )
             if pixel_mode:
-                # Each bracket anchors above ITS OWN pair's data and lifts a fixed number of
+                # Each bracket anchors above ITS OWN pair's data and lifts a CONSTANT number of
                 # pixels, so it stays with the groups it compares instead of riding the tallest
-                # annotated group; overlapping spans are pushed apart to a minimum separation.
-                # All of that is emitted as a Vega expression over scale('y', …) and evaluated at
-                # render time, so an explicit domain, zero=False, or nice-rounding are all handled
-                # by Vega itself rather than predicted here.
+                # annotated group, and the gap is exact at any y domain. Only the collision test
+                # between overlapping brackets needs pixel positions, and for that the rendered
+                # domain is estimated - a mis-estimate moves a bump slightly, never the gaps.
                 gap_px = 6.0 if "bracket" in pair_styles else 5.0
                 # A bracket occupies its bar plus the label above it - `fontSize` of glyph and the
                 # 4 px label dy, plus a margin. Less than this lets a label meet the bar above.
@@ -1591,8 +1597,18 @@ def add_comparisons(
                     (min(categories.index(g1), categories.index(g2)), max(categories.index(g1), categories.index(g2)))
                     for g1, g2 in pairs
                 ]
+                _ylo, _yhi = _nice_domain(
+                    min(0.0, cast(float, df[yCol].cast(pl.Float64).min() or 0.0)),
+                    cast(float, df[yCol].cast(pl.Float64).max() or 0.0),
+                )
+                _yspan = (_yhi - _ylo) or 1.0
+                _ch = float(_opt("chartHeight"))
+
+                def _to_px(v: float, _lo=_ylo, _sp=_yspan, _h=_ch) -> float:
+                    return _h * (1.0 - (v - _lo) / _sp)
+
                 final_y = pair_anchor
-                offset_exprs = _bracket_offset_exprs(pair_anchor, idx_span, gap_px, min_step_px)
+                offsets_px = _bracket_offsets(pair_anchor, idx_span, gap_px, min_step_px, _to_px)
 
                 # A test label at a TOP preset sits flush with the plot edge, which is now where
                 # the brackets are. Raise only the top of the y scale so the stack fits beneath
@@ -1601,10 +1617,7 @@ def add_comparisons(
                 # HIGH on purpose: too much only adds air under the label, too little collides.
                 if isinstance(resolved_pos, str) and resolved_pos.startswith("top"):
                     stack_px = gap_px + (len(pairs) - 1) * min_step_px + min_step_px
-                    _yv2 = df[yCol].cast(pl.Float64)
-                    _ymin = cast(float, _yv2.min() or 0.0)
-                    _lo, _hi = _nice_domain(min(0.0, _ymin), cast(float, _yv2.max() or 0.0))
-                    bracket_domain_max = _hi + stack_px * ((_hi - _lo) or 1.0) / float(_opt("chartHeight"))
+                    bracket_domain_max = _yhi + stack_px * _yspan / _ch
             else:
                 # Data-unit path: the stack base is the caller's yStart, else the annotated
                 # groups' maximum plus yPad (the pre-pixel-mode behaviour, unchanged).
@@ -1630,7 +1643,6 @@ def add_comparisons(
                     notation=pair_notations[i],
                     offset_px=offsets_px[i],
                     tick_px=tick_px,
-                    offset_expr=offset_exprs[i] if offset_exprs else None,
                     domain_max=bracket_domain_max if i == 0 else None,
                 )
             )

@@ -204,30 +204,35 @@ class TestAddComparisons:
         # A-B anchors on B's max (0.28); A-C on C's max (0.48). Neither is Z's 100.
         assert bar_ys == pytest.approx([0.28, 0.48])
 
-    def test_auto_brackets_offset_by_render_time_expression(self):
-        # The lift off the anchor is a Vega expression over scale('y', …), evaluated when Vega
-        # knows its final domain - so nice-rounding, `zero`, or an explicit `domain` need no
-        # prediction here. A constant offset would reintroduce exactly that guess.
+    def test_auto_brackets_lift_by_a_constant_pixel_offset(self):
+        # The lift is a plain number, not a `scale('y', …)` expression. An expression would be
+        # exact under a custom domain but resolves against nothing inside a facet/concat (Vega
+        # renames the scale there), which silently wrecks `add_multilabel` compositions.
         df = pl.DataFrame({"group": ["A"] * 4 + ["B"] * 4, "value": [1.0, 2, 3, 4] + [5.0, 6, 7, 8]})
         spec = add_comparisons(df, "group", "value", [("A", "B")], pvalues=[0.01]).to_dict()
         y_offset = spec["layer"][0]["layer"][0]["mark"]["yOffset"]
-        assert "expr" in y_offset and "scale('y'" in y_offset["expr"]
+        assert isinstance(y_offset, (int, float)), f"expected a constant offset, got {y_offset!r}"
+        assert y_offset == pytest.approx(-6.0)
 
     def test_auto_bracket_stack_clears_its_labels(self):
         # Overlapping spans are pushed apart by at least a label's worth of pixels. Too small a
         # step puts the lower bracket's label through the bar above it (the collision that a
         # flat 10 px minimum produced).
+        # B and C top out at the same value, so both brackets want the same height and one has to
+        # be bumped. Separation comes from the offsets only when the anchors coincide like this;
+        # otherwise the anchors themselves already hold them apart.
         df = pl.DataFrame(
             {
                 "group": ["A"] * 4 + ["B"] * 4 + ["C"] * 4,
-                "value": [1.0, 1.1, 1.05, 1.08] + [2.0, 2.1, 2.05, 2.08] + [3.0, 3.1, 3.05, 3.08],
+                "value": [1.0, 1.1, 1.05, 1.08] + [2.0, 2.1, 2.05, 2.08] + [2.0, 2.1, 2.05, 2.08],
             }
         )
         theme(chartHeight=200, fontSize=7)
         spec = add_comparisons(df, "group", "value", [("A", "B"), ("A", "C")], pvalues=[0.01, 0.02]).to_dict()
-        exprs = [pair["layer"][0]["mark"]["yOffset"]["expr"] for pair in spec["layer"]]
-        # the later bracket's expression clamps against the earlier one by the minimum step
-        assert any(f"- {7 + 6}.0" in e or f"- {float(7 + 6)}" in e for e in exprs)
+        anchors = [pair["layer"][0]["data"]["values"][0]["y"] for pair in spec["layer"]]
+        assert anchors[0] == anchors[1], "this case is only meaningful when the anchors coincide"
+        offsets = sorted(abs(pair["layer"][0]["mark"]["yOffset"]) for pair in spec["layer"])
+        assert offsets[1] - offsets[0] >= 7 + 6 - 1e-6
 
     def test_top_preset_test_label_raises_only_the_domain_top(self):
         # A top-preset test label sits flush with the plot edge, which is where the brackets now
@@ -450,12 +455,13 @@ class TestTickHeight:
         layer = add_comparisons(tri_df, "g", "v", [("A", "B")], categories=MULTI, bracketStyle="bracket")
         spec = layer.to_dict()
         legs = [
-            sub["mark"]["y2Offset"]["expr"]
+            sub["mark"]
             for sub in spec["layer"][0]["layer"]
             if isinstance(sub.get("mark"), dict) and "y2Offset" in sub.get("mark", {})
         ]
         assert legs, "expected end-leg layers carrying a y2Offset"
-        assert all("3.0" in e for e in legs)
+        # the leg spans tickSize px from the bar, whatever the y range
+        assert all(abs(m["y2Offset"] - m["yOffset"]) == pytest.approx(3.0) for m in legs)
 
     def test_tick_height_explicit_stays_data_units(self, tri_df):
         # An explicit tickHeight is a data-unit number on the user's scale, unchanged.
