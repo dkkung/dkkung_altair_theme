@@ -20,6 +20,8 @@
 
 - **`reverse=` brackets hang below their data again.** They anchored on their groups' maximum and then hung downward from it, dropping the bracket and its label onto the points. A reversed bracket now anchors on the spanned minimum and takes a descending ladder of its own, so brackets above and below one chart never push each other around.
 
+- **Fixed p-value brackets colliding on a log axis, and their end legs vanishing there.** Rung spacing was partly carried by the distance between each bracket's own anchor, which the library estimates with a straight-line data-to-pixel map - wrong on a log scale, where two labels could land on top of each other. Every bracket in a stack now hangs off one shared anchor, so the spacing is pure arithmetic and exact on any scale type or custom domain. Separately, an automatic `tickHeight` is now a pixel length in every placement mode; deriving it in data units made the end legs sub-pixel on a log axis. An explicit `tickHeight` still means data units. Known limit: on a log axis the lowest bracket of a stack can start inside its own data, since deciding how low a stack may sit does need that mapping - pass `yPositions` to place them yourself.
+
 - `mark_line` stroke cap is now `butt` instead of `round`.
 
 - **Data marks now render above axis lines and closed borders in `save()`/`show()` output.** A datum plotted exactly on an axis draws over the axis line instead of being cut by it. The stacking order in exported SVG/PNG is view fill, then grid, then axes and the closed border, then marks; the grid still never paints over the border.

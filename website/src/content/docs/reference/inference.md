@@ -88,6 +88,10 @@ comparison joins the rhythm instead of being stranded below the rest. Brackets s
 category form separate ladders, so a comparison at one end of the chart is never dragged up
 by a taller one elsewhere, and a ``reverse`` bracket hangs below its groups on a ladder of
 its own - the two directions never push each other around.
+
+On a log axis the rung spacing is exact, but the lowest bracket of a stack can start inside
+its own data - deciding how low a stack may sit needs the data-to-pixel mapping, which is
+estimated as linear. Pass ``yPositions`` to place them yourself there.
 The lift is a Vega expression over the rendered y scale, so an explicit ``domain``,
 ``zero=False`` and nice-rounding all work without being predicted in advance - and because
 the offsets are not data values, the y axis ends at your data and the annotations sit in
