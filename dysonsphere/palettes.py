@@ -8,21 +8,42 @@ from pathlib import Path
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
 __all__ = ["colors", "palette", "categorical", "export_swatches"]
 
-# The base hues each qualitative palette cycles through, in order. Every color is a
-# slice of an existing base palette (retuning a base hue regenerates the palette), and
-# CVD-close pairs are kept non-adjacent so touching marks stay distinguishable.
-#   ds_cat_1 - the default: five australis-harmonious hues tuned for colorblindness
-#              (teal leads for slot-0 presence, gold is the warm end). See the cat_*
-#              ramps in `colors`.
-#   ds_cat_2 - the legacy set: four brighter pastel hues (blue, pink, yellow, green).
 _QUALITATIVE_HUES = {
     "ds_cat_1": ("cat_teals", "cat_blues", "cat_purples", "cat_greens", "cat_golds"),
     "ds_cat_2": ("blues", "pinks", "yellows", "greens"),
+    "ds_cat_3": ("greys", "cat3_blues", "cat3_greens", "cat3_purples", "cat3_teals"),
 }
-_DEFAULT_QUALITATIVE = "ds_cat_1"
+_DEFAULT_QUALITATIVE_PALETTE = "ds_cat_1"
+
+# ds_cat_3's flat palette: a grey pair, then tier-major over blue/green/purple/teal.
+# Explicit stops, not the usual (1, 4, 7)
+_CAT3_FLAT = (
+    ("greys", 3),
+    ("greys", 7),
+    ("cat3_blues", 5),
+    ("cat3_greens", 6),
+    ("cat3_purples", 9),
+    ("cat3_teals", 4),
+    ("cat3_blues", 8),
+    ("cat3_greens", 9),
+    ("cat3_purples", 2),
+    ("cat3_teals", 10),
+)
+_QUALITATIVE_FLAT = {"ds_cat_3": _CAT3_FLAT}
+
+# Usable stop window per qualitative family for grouped mode
+_QUALITATIVE_RANGES = {
+    "ds_cat_3": {
+        "greys": (3, 10),
+        "cat3_blues": (1, 11),
+        "cat3_greens": (6, 11),
+        "cat3_purples": (1, 10),
+        "cat3_teals": (3, 10),
+    }
+}
 
 
-def categorical(members: int = 1, palette: str = _DEFAULT_QUALITATIVE) -> list[str]:
+def categorical(members: int = 1, palette: str = _DEFAULT_QUALITATIVE_PALETTE) -> list[str]:
     """
     Qualitative color palette built from a family of base hues.
 
@@ -57,7 +78,13 @@ def categorical(members: int = 1, palette: str = _DEFAULT_QUALITATIVE) -> list[s
         Which qualitative palette to build. ``"ds_cat_1"`` (default) is the muted,
         australis-harmonious five-hue set (also stored as ``colors["ds_cat_1"]`` and
         wired to ``config.range.category``); ``"ds_cat_2"`` is the legacy four-hue pastel
-        set (``colors["ds_cat_2"]``).
+        set (``colors["ds_cat_2"]``); ``"ds_cat_3"`` is the saturated cool set - two greys
+        plus blue, green, purple and teal (``colors["ds_cat_3"]``).
+
+        ``ds_cat_3`` differs from the other two in how its stops are chosen: its flat
+        palette uses explicit stops (not the canonical ``(1, 4, 7)``), and in grouped
+        mode each family spreads across its own usable window rather than a shared
+        ``1``-``10``. That caps it at ``members=6``, set by ``cat3_greens``.
 
     Raises
     ------
@@ -85,6 +112,23 @@ def categorical(members: int = 1, palette: str = _DEFAULT_QUALITATIVE) -> list[s
     if palette not in _QUALITATIVE_HUES:
         raise ValueError(f"unknown palette {palette!r}; choose from {sorted(_QUALITATIVE_HUES)}")
     hues = _QUALITATIVE_HUES[palette]
+    if members == 1 and palette in _QUALITATIVE_FLAT:
+        return [colors[h][s] for h, s in _QUALITATIVE_FLAT[palette]]
+    if palette in _QUALITATIVE_RANGES:
+        # Each hue spreads across its own window rather than a shared 1-10.
+        ranges = _QUALITATIVE_RANGES[palette]
+        out: list[str] = []
+        for h in hues:
+            lo, hi = ranges[h]
+            stops = tuple(round(lo + (hi - lo) * i / (members - 1)) for i in range(members))
+            if len(set(stops)) != members:
+                raise ValueError(
+                    f"members={members} needs more distinct lightness stops than the "
+                    f"{h!r} ramp provides for {palette!r} (stops {lo}-{hi}, max "
+                    f"{hi - lo + 1} members)."
+                )
+            out.extend(colors[h][s] for s in stops)
+        return out
     if members == 1:
         return [colors[h][s] for s in (1, 4, 7) for h in hues]  # tier-major
     if 1 + 3 * (members - 1) <= 10:
@@ -498,6 +542,64 @@ colors = {
         "#703688",
         "#552D7D",
         "#3A2570",
+    ],
+    # Base ramps for ds_cat_3, fitted so its colors land on stops (see _CAT3_FLAT).
+    # cat3_greens rides the full gamut, so only stops 6-11 are usable in the palette.
+    "cat3_blues": [
+        "#BCCFEE",
+        "#A5BEE8",
+        "#8FAEE3",
+        "#789EDE",
+        "#618DD8",
+        "#4A7CD3",
+        "#396CC5",
+        "#315EAC",
+        "#284F93",
+        "#20427B",
+        "#193464",
+        "#11274E",
+    ],
+    "cat3_greens": [
+        "#00F57F",
+        "#00E274",
+        "#00CE6A",
+        "#00BB60",
+        "#00A955",
+        "#00974B",
+        "#008542",
+        "#007338",
+        "#00622F",
+        "#005226",
+        "#00421D",
+        "#003315",
+    ],
+    "cat3_purples": [
+        "#C4BEE5",
+        "#B3ABDE",
+        "#A398D6",
+        "#9384CF",
+        "#8471C8",
+        "#755CC1",
+        "#664CAF",
+        "#564096",
+        "#47347C",
+        "#382864",
+        "#2A1D4D",
+        "#1C1337",
+    ],
+    "cat3_teals": [
+        "#7AEFE4",
+        "#6FDAD1",
+        "#65C6BD",
+        "#5AB3AB",
+        "#509F98",
+        "#458C86",
+        "#3B7A74",
+        "#326863",
+        "#285753",
+        "#1F4643",
+        "#173633",
+        "#0E2624",
     ],
     # Qualitative base ramps: the five australis-harmonious hues sliced by
     # categorical() to build the ds_cat_1 palette. Tuned for colorblindness -
@@ -5222,3 +5324,4 @@ colors = {
 # they must stay AFTER the colors literal above.
 colors["ds_cat_1"] = categorical(1, palette="ds_cat_1")
 colors["ds_cat_2"] = categorical(1, palette="ds_cat_2")
+colors["ds_cat_3"] = categorical(1, palette="ds_cat_3")

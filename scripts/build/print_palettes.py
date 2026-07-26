@@ -446,6 +446,19 @@ SEQ_SINGLE_OKLAB = {
     "magentas": (330, 0.25, 0.92),
     "byzantiums": (290, 0.22, 0.92),
     "lavenders": (285, 0.30, 0.95),
+    # ds_cat_3 family - L ranges fitted to measured anchors, so narrower than above.
+    "cat3_blues": (260.6, 0.28, 0.85),
+    "cat3_greens": (151.9, 0.28, 0.85),
+    "cat3_purples": (292.0, 0.22, 0.82),
+    "cat3_teals": (187.8, 0.25, 0.88),
+}
+
+# Per-palette chroma overrides for the single-hue recipe (mirrors SEQ_MULTI_FRAC).
+SEQ_SINGLE_FRAC = {
+    "cat3_blues": 0.65,
+    "cat3_greens": 1.00,
+    "cat3_purples": 0.55,
+    "cat3_teals": 0.70,
 }
 
 # All 14 base single-hue palettes in gallery order — used to build "3" pastel set.
@@ -871,7 +884,7 @@ def _print_palette(name, hexes):
 def main():
     print("# ─── Sequential single-hue (Oklab) ───────────────────────────────")
     for name, (hue, L_lo, L_hi) in SEQ_SINGLE_OKLAB.items():
-        _print_palette(name, build_single_hue(hue, L_lo, L_hi))
+        _print_palette(name, build_single_hue(hue, L_lo, L_hi, frac=SEQ_SINGLE_FRAC.get(name, SEQ_FRAC)))
 
     print("\n# ─── Sequential multi-hue (Oklab) ────────────────────────────────")
     for name, kf in SEQ_MULTI_OKLAB.items():
