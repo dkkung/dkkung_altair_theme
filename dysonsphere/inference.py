@@ -896,7 +896,7 @@ def _add_grouped_comparisons(
                 cat_pair_anchor,
                 cat_spans,
                 6.0,
-                float(fontSize or _opt("fontSize")) + 10.0,
+                float(fontSize or _opt("fontSize")) + 6.0,
                 lambda v, _lo=_clo, _sp=_cspan, _h=_ch: _h * (1.0 - (v - _lo) / _sp),
             )
         for pi, (l1, l2) in enumerate(pairs):
@@ -1050,8 +1050,8 @@ def add_comparisons(
     **Placement.** By default each annotation anchors at the data maximum of the pair it
     compares and is lifted a fixed number of pixels, so it stays with its own groups rather
     than riding the tallest annotated one, and the gap looks the same on every chart whatever
-    the y range. Brackets that overlap sit on an evenly spaced **ladder** - each rung clear
-    of the label hanging under the one above - placed as low as every bracket's own data allows, so a short
+    the y range. Brackets that overlap sit on an evenly spaced **ladder** - one step of a
+    label's height between rungs - placed as low as every bracket's own data allows, so a short
     comparison joins the rhythm instead of being stranded below the rest. Brackets sharing no
     category form separate ladders, so a comparison at one end of the chart is never dragged up
     by a taller one elsewhere.
@@ -1624,10 +1624,9 @@ def add_comparisons(
                 # between overlapping brackets needs pixel positions, and for that the rendered
                 # domain is estimated - a mis-estimate moves a bump slightly, never the gaps.
                 gap_px = 6.0 if "bracket" in pair_styles else 5.0
-                # A rung must clear the label hanging under the rung above: the label's own dy
-                # plus its glyph height plus a margin. Measured rather than derived - at
-                # `fontSize + 6` the label visibly sits on the bar above it.
-                min_step_px = float(fontSize or _opt("fontSize")) + 10.0
+                # A bracket occupies its bar plus the label above it - `fontSize` of glyph and the
+                # 4 px label dy, plus a margin. Less than this lets a label meet the bar above.
+                min_step_px = float(fontSize or _opt("fontSize")) + 6.0
                 tick_px = float(_opt("tickSize"))
                 idx_span = [
                     (min(categories.index(g1), categories.index(g2)), max(categories.index(g1), categories.index(g2)))
