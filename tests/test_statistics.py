@@ -1,4 +1,4 @@
-from typing import Any, cast
+from typing import Any
 
 import altair as alt
 import numpy as np
@@ -15,7 +15,6 @@ from dysonsphere.inference import (
     add_correlation,
 )
 from dysonsphere.theme import theme
-from dysonsphere.utils import _nice_domain
 
 CATEGORIES = ["A", "B"]
 
@@ -202,8 +201,10 @@ class TestAddComparisons:
         result = add_comparisons(df, "group", "value", [("A", "B"), ("A", "C")], pvalues=[0.01, 0.02])
         spec = result.to_dict()
         bar_ys = [pair_layer["layer"][0]["data"]["values"][0]["y"] for pair_layer in spec["layer"]]
-        # A-B anchors on B's max (0.28); A-C on C's max (0.48). Neither is Z's 100.
-        assert bar_ys == pytest.approx([0.28, 0.48])
+        # These two overlap, so they share one ladder anchored at C's max (0.48) - the tallest
+        # category any of them spans. Crucially it is NOT Z's 100: an un-annotated group never
+        # drags a bracket up. Disjoint brackets keep separate anchors (see the disjoint test).
+        assert bar_ys == pytest.approx([0.48, 0.48])
 
     def test_auto_bracket_clears_a_taller_group_it_spans(self):
         # A bracket from A to C passes over B, so its anchor is the maximum over every category
@@ -248,15 +249,12 @@ class TestAddComparisons:
             pvalues=[0.5, 0.001, 0.001],
             categories=["A", "B", "C"],
         ).to_dict()
-        # each bracket's screen position = its anchor in px, lifted by its offset. The px map is
-        # the same nice-rounded estimate the library uses, so this measures placement, not the
-        # difference between two domain guesses.
-        lo, hi = _nice_domain(0.0, cast(float, df["value"].cast(pl.Float64).max()))
-        rungs = sorted(
-            100.0 * (1 - (pair["layer"][0]["data"]["values"][0]["y"] - lo) / (hi - lo))
-            - abs(pair["layer"][0]["mark"]["yOffset"])
-            for pair in spec["layer"]
-        )
+        # All rungs of a ladder hang off ONE anchor, so their spacing is a difference of pixel
+        # offsets - no data-to-pixel map involved, which is what makes it exact on a log axis.
+        anchors = {pair["layer"][0]["data"]["values"][0]["y"] for pair in spec["layer"]}
+        assert len(anchors) == 1, f"one ladder should share one anchor, got {anchors}"
+        # offsets are signed - a bracket below the shared anchor gets a positive (downward) one
+        rungs = sorted(pair["layer"][0]["mark"]["yOffset"] for pair in spec["layer"])
         gaps = [round(rungs[i + 1] - rungs[i], 6) for i in range(len(rungs) - 1)]
         assert len(set(gaps)) == 1, f"rungs should be evenly spaced, got {gaps}"
 
@@ -584,6 +582,22 @@ class TestTickHeight:
         assert legs, "expected end-leg layers carrying a y2Offset"
         # the leg spans tickSize px from the bar, whatever the y range
         assert all(abs(m["y2Offset"] - m["yOffset"]) == pytest.approx(3.0) for m in legs)
+
+    def test_auto_tick_height_is_pixels_even_with_explicit_positions(self, tri_df):
+        # The legs are a pixel length by definition ("matching the axis ticks"). Deriving them in
+        # data units assumes a linear axis, and on a log axis they collapse to a fraction of a
+        # pixel - so an auto tickHeight rides in y2Offset whichever placement mode is in use.
+        theme(chartWidth=200, chartHeight=200, tickSize=3)
+        spec = add_comparisons(
+            tri_df, "g", "v", [("A", "B")], categories=MULTI, bracketStyle="bracket", yPositions=[99.0]
+        ).to_dict()
+        legs = [
+            sub["mark"]
+            for sub in spec["layer"][0]["layer"]
+            if isinstance(sub.get("mark"), dict) and "y2Offset" in sub.get("mark", {})
+        ]
+        assert legs, "explicit positions should still get pixel end legs"
+        assert all(abs(m["y2Offset"] - m.get("yOffset", 0)) == pytest.approx(3.0) for m in legs)
 
     def test_tick_height_explicit_stays_data_units(self, tri_df):
         # An explicit tickHeight is a data-unit number on the user's scale, unchanged.

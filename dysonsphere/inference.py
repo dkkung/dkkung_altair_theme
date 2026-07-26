@@ -186,8 +186,8 @@ def _bracket_offsets(
     step_px: float,
     to_px,
     downward: bool = False,
-) -> list[float]:
-    """Each bracket's pixel offset (a magnitude) from its own data anchor.
+) -> list[tuple[float, float]]:
+    """Each bracket's ``(anchor, pixel offset)`` - the data value to hang it from, and how far.
 
     Brackets are placed on a **ladder**: within a set of brackets that overlap, consecutive rungs
     are exactly ``step_px`` apart and the whole ladder sits as low as every bracket's own data
@@ -221,7 +221,7 @@ def _bracket_offsets(
                 old, keep = comp[j], comp[i]
                 comp = [keep if c == old else c for c in comp]
 
-    offsets = [0.0] * n
+    placed_out: list[tuple[float, float]] = [(anchors[i], 0.0) for i in range(n)]
     for root in set(comp):
         members = [i for i in range(n) if comp[i] == root]
         # First rung to the bracket nearest the data (largest pixel y going up, smallest going
@@ -239,9 +239,13 @@ def _bracket_offsets(
         # The tightest base that still clears every bracket in the component.
         pick = max if downward else min
         base = pick(required[i] - _dir * level[i] * step_px for i in members)
+        # One anchor for the whole ladder - the member furthest into the margin, so the rungs are
+        # measured from a single data value and their spacing is pure arithmetic.
+        shared = (min if downward else max)(anchors[i] for i in members)
+        shared_px = to_px(shared)
         for i in members:
-            offsets[i] = _dir * ((base + _dir * level[i] * step_px) - to_px(anchors[i]))
-    return offsets
+            placed_out[i] = (shared, _dir * ((base + _dir * level[i] * step_px) - shared_px))
+    return placed_out
 
 
 def _emit_report(record: dict[str, Any], report: bool, save: bool | str) -> str:
@@ -756,6 +760,8 @@ def _add_grouped_comparisons(
 
     y_all = df[y_col].cast(pl.Float64)
     y_range = cast(float, y_all.max() or 0.0) - cast(float, y_all.min() or 0.0)
+    # See the single-factor path: an auto leg height is pixels, not data units.
+    _tick_arg = tickHeight
     yPad, tickHeight, yStep = _resolve_y_spacing(
         bracketStyle == "bracket", y_range, chart_height, yPad, tickHeight, yStep
     )
@@ -898,13 +904,15 @@ def _add_grouped_comparisons(
             )
             _cspan = (_chi - _clo) or 1.0
             _ch = float(_opt("chartHeight"))
-            cat_offsets = _bracket_offsets(
+            cat_placed = _bracket_offsets(
                 cat_pair_anchor,
                 cat_spans,
                 6.0,
                 float(fontSize or _opt("fontSize")) + 6.0,
                 lambda v, _lo=_clo, _sp=_cspan, _h=_ch: _h * (1.0 - (v - _lo) / _sp),
             )
+            cat_pair_anchor = [a for a, _ in cat_placed]
+            cat_offsets = [o for _, o in cat_placed]
         for pi, (l1, l2) in enumerate(pairs):
             p = adj[k]
             en, ev = effects[k]
@@ -968,7 +976,7 @@ def _add_grouped_comparisons(
                         strokeWidth=strokeWidth,
                         fontSize=fontSize,
                         offset_px=(cat_offsets[pi] if grp_pixel_mode else 0.0),
-                        tick_px=(float(_opt("tickSize")) if grp_pixel_mode else None),
+                        tick_px=(float(_opt("tickSize")) if _tick_arg is None else None),
                     )
                 )
             comparisons.append(
@@ -1062,6 +1070,10 @@ def add_comparisons(
     category form separate ladders, so a comparison at one end of the chart is never dragged up
     by a taller one elsewhere, and a ``reverse`` bracket hangs below its groups on a ladder of
     its own - the two directions never push each other around.
+
+    On a log axis the rung spacing is exact, but the lowest bracket of a stack can start inside
+    its own data - deciding how low a stack may sit needs the data-to-pixel mapping, which is
+    estimated as linear. Pass ``yPositions`` to place them yourself there.
     The lift is a Vega expression over the rendered y scale, so an explicit ``domain``,
     ``zero=False`` and nice-rounding all work without being predicted in advance - and because
     the offsets are not data values, the y axis ends at your data and the annotations sit in
@@ -1595,6 +1607,10 @@ def add_comparisons(
         # groups - see below.)
         y_all = df[yCol].cast(pl.Float64)
         y_range = cast(float, y_all.max() or 0.0) - cast(float, y_all.min() or 0.0)
+        # End legs are a PIXEL length by definition ("matching the axis ticks"), so an auto
+        # tickHeight rides in y2Offset whatever the placement mode. Converting it to data units
+        # assumes a linear axis - on a log axis the legs collapse to a fraction of a pixel.
+        _tick_arg = tickHeight
         # Data-unit fallbacks for that opted-out path. Tick height matches the theme tickSize;
         # always positive so it survives a negative yStep (reverse).
         yPad, tickHeight, yStep = _resolve_y_spacing(
@@ -1610,7 +1626,7 @@ def add_comparisons(
         # silently ignoring one would make a documented parameter a no-op.
         pixel_mode = yPositions is None and yStart is None and _y_step_arg is None and _y_pad_arg is None
         offsets_px = [0.0] * len(pairs)
-        tick_px = None
+        tick_px = float(_opt("tickSize")) if _tick_arg is None else None
         bracket_domain_max: float | None = None
 
         if isinstance(yPositions, (int, float)) and not isinstance(yPositions, bool):
@@ -1634,7 +1650,6 @@ def add_comparisons(
                 # A bracket occupies its bar plus the label above it - `fontSize` of glyph and the
                 # 4 px label dy, plus a margin. Less than this lets a label meet the bar above.
                 min_step_px = float(fontSize or _opt("fontSize")) + 6.0
-                tick_px = float(_opt("tickSize"))
                 idx_span = [
                     (min(categories.index(g1), categories.index(g2)), max(categories.index(g1), categories.index(g2)))
                     for g1, g2 in pairs
@@ -1685,13 +1700,15 @@ def add_comparisons(
                 def _to_px(v: float, _lo=_ylo, _sp=_yspan, _h=_ch) -> float:
                     return _h * (1.0 - (v - _lo) / _sp)
 
-                final_y = pair_anchor
+                # Each ladder returns the shared anchor its rungs hang from, so `final_y` is that
+                # anchor rather than the bracket's own - the rung spacing is then pure pixels.
+                final_y = list(pair_anchor)
                 offsets_px = [0.0] * len(pairs)
                 for _down in (False, True):
                     _idx = [i for i, rev in enumerate(rev_flags) if rev is _down]
                     if not _idx:
                         continue
-                    for slot, off in zip(
+                    for slot, (anch, off) in zip(
                         _idx,
                         _bracket_offsets(
                             [pair_anchor[i] for i in _idx],
@@ -1702,7 +1719,7 @@ def add_comparisons(
                             downward=_down,
                         ),
                     ):
-                        offsets_px[slot] = off
+                        final_y[slot], offsets_px[slot] = anch, off
 
             else:
                 # Data-unit path: the stack base is the caller's yStart, else the annotated
