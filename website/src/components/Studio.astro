@@ -254,6 +254,7 @@ const paletteGroups = [
 <script>
 	import vegaEmbed from 'vega-embed';
 	import { alignGridToContent, fixSubscripts, fixSuperscripts, italicizeStatSymbols } from '../lib/fixSuperscripts';
+	import { chartNaturalSize, scaleChart } from '../lib/scaleChart';
 	import { EditorView, basicSetup } from 'codemirror';
 	import { keymap } from '@codemirror/view';
 	import { python } from '@codemirror/lang-python';
@@ -709,16 +710,16 @@ high,100,26.4,6`;
 		// Fit the render to the panel: the site-wide 3.5x chart zoom overflows once a legend
 		// or a wide canvas grows the chart - cap the zoom so the whole figure stays in view.
 		function fitChartZoom() {
-			const svg = chartEl.querySelector('svg');
-			const natural = svg ? parseFloat(svg.getAttribute('width') ?? '0') : 0;
-			if (natural <= 0) return;
+			// The natural size comes from the viewBox, so re-fitting never compounds (this runs
+			// on every resize, and scaleChart writes the svg's width/height).
+			const natural = chartNaturalSize(chartEl);
+			if (!natural) return;
 			// Measure the PARENT panel: the chart div itself is (re)classed .vega-embed and can
-			// shrink-wrap its zoomed content, so its own size follows the thing being fitted.
+			// shrink-wrap its scaled content, so its own size follows the thing being fitted.
 			const panel = chartEl.parentElement?.getBoundingClientRect().width ?? 0;
 			const avail = panel - 34; // chart padding + panel border
 			if (avail <= 0) return;
-			const z = Math.min(3.5, Math.max(1, avail / natural));
-			chartEl.style.setProperty('--ds-chart-zoom', z.toFixed(3));
+			scaleChart(chartEl, Math.min(3.5, Math.max(1, avail / natural.width)));
 		}
 		new ResizeObserver(() => fitChartZoom()).observe(chartEl);
 

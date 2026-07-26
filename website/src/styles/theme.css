@@ -218,16 +218,16 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
 /* ------------------------------------------------------------------- charts */
 
 /* dysonsphere charts are authored at the library's publication defaults (100x100 px, small
-   fonts/marks), which is tiny on the web. Scale the whole render up uniformly with `zoom` so
-   every proportion is preserved and the theme defaults are untouched. Tune the one value below.
-   (The chart's vega-embed export menu still exports the true, unscaled 100x100 spec.) */
+   fonts/marks), which is tiny on the web. Scale the whole render up uniformly so every
+   proportion is preserved and the theme defaults are untouched. Tune the one value below.
+   (The chart's vega-embed export menu still exports the true, unscaled 100x100 spec.)
+
+   The scale is applied in JS by src/lib/scaleChart.ts, which resizes the <svg> itself, NOT by
+   `zoom` on the wrapper: Firefox mis-maps SVG gradients inside a zoomed subtree, so continuous
+   legends rendered only a sliver of their colour ramp. This stays the tuning knob - the helper
+   reads it as a custom property, so the per-context overrides below still apply. */
 :root {
   --ds-chart-zoom: 3.5;
-}
-/* vega-embed renders the chart SVG into a `.chart-wrapper` div, with its export menu as a
-   sibling. Zoom only the wrapper so the chart scales but the menu stays normal size. */
-.vega-embed .chart-wrapper {
-  zoom: var(--ds-chart-zoom);
 }
 
 /* Reveal the chart's export menu only on hover/focus (or while open), not at rest.
