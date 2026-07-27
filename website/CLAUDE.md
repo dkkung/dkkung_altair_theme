@@ -179,14 +179,18 @@ dissolved 2026-07-06).
   + a `^` author token (`q^2`); `fixSubscripts` = literal Unicode (`t₀`) + a boundary-guarded
   DOUBLE-underscore token (`q__x`). The `__` (not single `_`) + the `(?<![A-Za-z0-9])…(?![A-Za-z0-9])`
   guard keep default column-name axis titles safe (single-underscore `x_1`/`flipper_length_mm` AND
-  double-underscore sklearn-style `model__alpha` are all left alone). Both share an `applyScript`
-  helper. **KNOWN gap vs the library:** these run one match per <text> element and sequentially
-  (super then sub), so a single label mixing BOTH a super and a subscript (`q__x = 10^3`) gets only
-  the first - the library's single-pass engine handles that, this port does not (no site example
-  needs it). Keep the four patterns + `SUB_MAP` in sync with `export._typeset_scripts`. Used by the
+  double-underscore sklearn-style `model__alpha` are all left alone). One exported `typesetScripts` runs all
+  four detectors in a SINGLE pass (`planScripts` collects every match, drops overlaps, then the
+  element is rebuilt once - the library's structure), so a label with several runs, or mixing a super
+  AND a subscript (`q__x = 10^3`), typesets fully; the two-pass `fixSuperscripts`/`fixSubscripts` it
+  replaced typeset only the first match per element. **The one real divergence from the library:
+  `dy` is CUMULATIVE within a `<text>` in the browser** (resvg, the library's target, applies it
+  per-tspan), so each segment emits `dy` as a DELTA from the running baseline and every literal
+  between runs gets its own reset tspan. Keep the four patterns + `SUB_MAP` in sync with
+  `export._typeset_scripts`. Used by the
   diffraction example (`q__x`/`q__y`) and the `subscripts` guide example. Now that the LIBRARY
   typesets `__`/`^` too, an example using them exports correctly via `ds.save()` (no longer
-  site-render-only). **iOS gotcha - charts must opt out of text autosizing.** `applyScript` sizes
+  site-render-only). **iOS gotcha - charts must opt out of text autosizing.** `typesetScripts` sizes
   the run tspan in absolute px off `getComputedStyle(text).fontSize`, but iOS Safari's
   `text-size-adjust: auto` inflates the rendered base text in a narrow viewport, so the run stayed
   a fraction of its intended size (position right, digits unreadable) - mobile-only, desktop and

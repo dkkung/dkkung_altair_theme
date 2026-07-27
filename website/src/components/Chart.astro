@@ -28,7 +28,7 @@ const { name, alt = 'dysonsphere chart', inwardTicks = false, fitWidth = false }
 
 <script>
 	import vegaEmbed from 'vega-embed';
-	import { alignGridToContent, fixSubscripts, fixSuperscripts, flipTicksInward, italicizeStatSymbols } from '../lib/fixSuperscripts';
+	import { alignGridToContent, flipTicksInward, italicizeStatSymbols, typesetScripts } from '../lib/fixSuperscripts';
 	import { fitChartToWidth, scaleChart } from '../lib/scaleChart';
 
 	const BASE = import.meta.env.BASE_URL;
@@ -68,8 +68,7 @@ const { name, alt = 'dysonsphere chart', inwardTicks = false, fitWidth = false }
 				}),
 			);
 			alignGridToContent(el, spec);
-			fixSuperscripts(el);
-			fixSubscripts(el);
+			typesetScripts(el);
 			italicizeStatSymbols(el);
 			if (el.dataset.inward) flipTicksInward(el);
 			if (el.dataset.fit) {
