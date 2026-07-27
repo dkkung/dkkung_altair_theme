@@ -230,6 +230,19 @@ nav.sidebar .sidebar-content a[aria-current='page']:hover {
   --ds-chart-zoom: 3.5;
 }
 
+/* iOS Safari inflates text in narrow viewports (text-size-adjust defaults to `auto`). A chart is
+   fixed-geometry SVG already scaled by scaleChart.ts, so the boost only breaks it: the run tspans
+   that fixSuperscripts.ts writes carry an absolute px font-size read off the UNinflated base, so
+   an inflated base left exponents and subscripts a fraction of their intended size (correct
+   position, unreadable digits) - on mobile only, and only for typeset scripts.
+
+   The `-webkit-` twin - the ONLY form Safari honours - is injected raw via astro.config.mjs's
+   `head`, because the CSS pipeline minifies a prefixed declaration written here away. */
+.vega-embed,
+.vega-embed svg {
+  text-size-adjust: 100%;
+}
+
 /* Reveal the chart's export menu only on hover/focus (or while open), not at rest.
    !important because vega-embed injects its own summary styles at runtime. */
 .vega-embed summary {
