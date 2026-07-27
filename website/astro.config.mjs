@@ -82,6 +82,15 @@ export default defineConfig({
 			description:
 				'An Altair theme and chart-utility library with perceptually uniform palettes and publication-ready defaults.',
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/dkkung/dysonsphere' }],
+			// Injected raw because the CSS pipeline minifies `-webkit-text-size-adjust` away
+			// (it assumes the unprefixed property covers every target - Safari supports only the
+			// prefixed one, and Safari is the whole point). See the matching rule in theme.css.
+			head: [
+				{
+					tag: 'style',
+					content: '.vega-embed,.vega-embed svg{-webkit-text-size-adjust:100%}',
+				},
+			],
 			customCss: [
 				'@fontsource-variable/inter',
 				'@fontsource-variable/jetbrains-mono',

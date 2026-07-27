@@ -186,7 +186,15 @@ dissolved 2026-07-06).
   needs it). Keep the four patterns + `SUB_MAP` in sync with `export._typeset_scripts`. Used by the
   diffraction example (`q__x`/`q__y`) and the `subscripts` guide example. Now that the LIBRARY
   typesets `__`/`^` too, an example using them exports correctly via `ds.save()` (no longer
-  site-render-only).
+  site-render-only). **iOS gotcha - charts must opt out of text autosizing.** `applyScript` sizes
+  the run tspan in absolute px off `getComputedStyle(text).fontSize`, but iOS Safari's
+  `text-size-adjust: auto` inflates the rendered base text in a narrow viewport, so the run stayed
+  a fraction of its intended size (position right, digits unreadable) - mobile-only, desktop and
+  "Request Desktop Website" both fine. Fixed by pinning `text-size-adjust: 100%` on `.vega-embed`.
+  **The `-webkit-` twin lives in astro.config.mjs's `head` as a raw `<style>`, NOT in theme.css:**
+  the CSS pipeline strips a prefixed declaration (it assumes the unprefixed property covers every
+  target), and Safari - the entire point - honours ONLY the prefixed one. Verify after a build with
+  `grep -o -- '-webkit-text-size-adjust:100%' dist/index.html`.
 - **Grid lines are re-seated client-side.** `alignGridToContent` (fixSuperscripts.ts) ports
   `export._align_grid_to_content`: on an open plot the grid inherits its axis group's
   `axisOffset` and renders dragged toward the axis; the fixer translates each line back so the
