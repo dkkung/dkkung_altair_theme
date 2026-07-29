@@ -13,7 +13,7 @@ _QUALITATIVE_HUES = {
     "ds_cat_2": ("blues", "pinks", "yellows", "greens"),
     "ds_cat_3": ("greys", "cat3_blues", "cat3_greens", "cat3_purples", "cat3_teals"),
 }
-_DEFAULT_QUALITATIVE_PALETTE = "ds_cat_1"
+_DEFAULT_QUALITATIVE_PALETTE = "ds_cat_3"
 
 # ds_cat_3's flat palette: tier-major over grey/blue/green/purple/teal.
 # Explicit stops, not the usual (1, 4, 7)

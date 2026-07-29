@@ -596,10 +596,10 @@ def _dysonsphere_theme() -> dict[str, Any]:
             },
             "range": {
                 "category": category_range,
-                "diverging": {"scheme": _scheme("divergingPalette", colors["ds_div_1"])},
-                "heatmap": {"scheme": _scheme("heatmapPalette", colors["australis"])},
+                "diverging": {"scheme": _scheme("divergingPalette", colors["ds_div_3"])},
+                "heatmap": {"scheme": _scheme("heatmapPalette", colors["mpl_viridis"])},
                 "ordinal": {"scheme": _scheme("ordinalPalette", colors["greys"])},
-                "ramp": {"scheme": _scheme("rampPalette", colors["australis"])},
+                "ramp": {"scheme": _scheme("rampPalette", colors["mpl_viridis"])},
             },
             "rule": {
                 "color": "white" if opts["darkmode"] else "black",

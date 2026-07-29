@@ -108,8 +108,8 @@ class TestCategorical:
     def test_default_is_members_one(self):
         assert categorical() == categorical(1)
 
-    def test_default_palette_is_ds_cat_1(self):
-        assert categorical() == categorical(1, palette="ds_cat_1")
+    def test_default_palette_is_ds_cat_3(self):
+        assert categorical() == categorical(1, palette="ds_cat_3")
 
     @pytest.mark.parametrize("name", PALETTES)
     def test_named_palette_matches_function(self, name):

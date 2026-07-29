@@ -191,10 +191,11 @@ class TestRangePalettes:
         theme()
         assert self._range("category") == categorical(1)  # bare array, positional
         assert self._scheme("ordinal") == colors["greys"]
-        assert self._scheme("diverging") == colors["ds_div_1"]  # the ds_1 family diverging (gold<->teal)
-        # continuous defaults: the australis journey (dark-first -> viridis polarity)
-        assert self._scheme("heatmap") == colors["australis"]
-        assert self._scheme("ramp") == colors["australis"]
+        assert self._scheme("diverging") == colors["ds_div_3"]  # the ds_3 family diverging (purple<->teal)
+        # continuous defaults: viridis - its mid-range stays separable when values are
+        # scattered rather than smoothly graded (an RNA-seq matrix, not a density map)
+        assert self._scheme("heatmap") == colors["mpl_viridis"]
+        assert self._scheme("ramp") == colors["mpl_viridis"]
 
     def test_category_is_bare_array(self):
         # nominal scales map positionally, so category must NOT be {"scheme": ...}
@@ -206,7 +207,7 @@ class TestRangePalettes:
 
         theme(categoryPalette="reds")
         assert self._range("category") == colors["reds"]
-        assert self._scheme("diverging") == colors["ds_div_1"]  # others untouched
+        assert self._scheme("diverging") == colors["ds_div_3"]  # others untouched
 
     def test_per_type_override_raw_list(self):
         theme(rampPalette=["#ffffff", "#000000"])
