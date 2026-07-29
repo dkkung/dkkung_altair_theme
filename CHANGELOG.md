@@ -4,9 +4,17 @@
 
 ### New features
 
+- `ds_cat_3` is the new default categorical palette, `ds_div_3` is the new default diverging palette.
+
 - **Band padding is now set per mark type.** Six keys replace the single `bandPadding`: `barPadding` (`0.1`), `rectPadding` (`0`), `tickPadding` (`0.1`), `outerPadding` (`0.1`), `groupPadding` (`0.2`, the gap between groups when `xOffset`/`yOffset` is used) and `subgroupPadding` (`0`, the gap between bars within a group). The last two were previously unreachable - `bandPadding` never affected grouped charts at all, because Vega-Lite routes a band scale with a nested offset through a different key. Outer padding stays a single key because Vega-Lite has no mark-specific counterpart for it.
 
 ### Changes
+
+- `ds.categorical()` now tops out at `members=6` instead of `members=10`. Its default palette changed to `ds_cat_3`, whose `cat3_greens` ramp has a shorter usable window than the `ds_cat_1` hues.
+
+- The new default continuous palette is `mpl_viridis` instead of `australis`, and it is set through `config.range.heatmap` and `config.range.ramp`.
+
+- `ds_cat_3`'s stops were re-leveled: the dark grey moved from slot 2 to slot 6, so each cycle of five is one pass through grey/blue/green/purple/teal rather than opening with two greys. Purple's tier pair flipped from an inverted 9→2 to 6→9 (`#664CAF` light, `#382864` dark) - it was the only hue whose light slot held its darkest stop. Teal's dark slot moved 10→8 (`#173633` → `#285753`), which stops the dark tier ending in what reads as black.
 
 - **`mark_rect` heatmap cells now abut instead of being separated by a gap.** The theme set Vega-Lite's global `bandPaddingInner`, which overrides the per-mark defaults for bar, rect and tick alike, so heatmap cells inherited the spacing meant for bars and every heatmap rendered as a tiled grid. Cells are now flush, as Vega-Lite intends by default; set `rectPadding` if you want the gap back. Note that Vega-Lite routes "rect and other marks" - **boxplot included** - through this one key, so `rectPadding` also governs boxplot band geometry.
 

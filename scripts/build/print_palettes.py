@@ -945,12 +945,11 @@ def main():
     # arm2 = gold (low, stop 0), arm1 = teal (high, stop 12), warm light pivot; default FRAC.
     _print_palette("ds_div_1", build_diverging("#6D572F", "#2C555D", center_hex="#F4F1E9"))
 
-    print("\n# ─── ds_3 family diverging (purple ↔ green, from cat3_purples/cat3_greens) ───")
-    # arm2 = purple (low, stop 0), arm1 = green (high, stop 12), neutral pivot. Both arms taken at
-    # ramp stop 8, not the flat palette's tier-1 stops: purple leads DARK there (its hero is
-    # cat3_purples[9]) while green leads mid, so the tier-1 pair would give one arm reaching
-    # near-black while the other stopped at a mid green. Stop 8 balances the arms and matches
-    # ds_cat_3's chromatic register (C 0.116 vs the family's 0.117).
+    print("\n# ─── ds_3 family diverging (purple ↔ teal, from cat3_purples/cat3_teals) ───")
+    # arm2 = purple (low, stop 0), arm1 = teal (high, stop 12), neutral pivot. Both arms are taken
+    # from the RAMPS at stop 8, not from ds_cat_3's flat palette, so retiering the qualitative set
+    # leaves this palette untouched. Stop 8 balances the arms - the flat palette's own stops sit at
+    # different lightnesses per hue - and matches ds_cat_3's chromatic register (C 0.116 vs 0.117).
     _print_palette("ds_div_3", build_diverging("#47347C", "#285753", center_hex="#F6F6F6"))
 
     print("\n# ─── Tinted greys (same lightness as greys, a fixed small chroma) ───────────")
