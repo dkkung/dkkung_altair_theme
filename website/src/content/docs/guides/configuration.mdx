@@ -205,7 +205,12 @@ Every key below is valid in `[default]`, in any style section, and as a `ds.them
 | `boxplotOutliers` | `false` | Show boxplot outlier glyphs; `true` sizes them from `markSize` |
 | `cornerRadius` | `false` | Round bar tips/rects/arcs; `true` derives px from chart size |
 | `strokeCap` | `round` | Line cap for axis/tick/grid/rule strokes |
-| `bandPadding` | `0.1` | Band-scale padding (category spacing) |
+| `barPadding` | `0.1` | Gap between bars, as a fraction of the band step |
+| `rectPadding` | `0` | Gap between `mark_rect` cells - and boxplots, which Vega-Lite routes through the same key |
+| `tickPadding` | `0.1` | Gap between bare `mark_tick` bands |
+| `outerPadding` | `0.1` | Gap before the first and after the last band (shared by every band scale) |
+| `groupPadding` | `0.2` | Gap between groups when `xOffset`/`yOffset` is used |
+| `subgroupPadding` | `0` | Gap between bars within a group |
 
 ### Dashes
 

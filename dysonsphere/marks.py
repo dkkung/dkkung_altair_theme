@@ -273,9 +273,9 @@ def mark_violin(
         innerColor = "black"
     mark_size = _opt("markSize")
     chart_width = _opt("chartWidth")  # x:Q domain of the violin layer
-    # mark_boxplot lowers to a band scale with paddingInner=paddingOuter=bandPadding
-    # (scale="band"), which is NOT the xOffset/mark_circle variant (scale="offset").
-    geo = band_geometry(len(categories), scale="band")
+    # Vega-Lite routes "rect and other marks" - boxplot included - through rectPadding,
+    # NOT barPadding (scale="rect"), and not the xOffset/mark_circle variant ("offset").
+    geo = band_geometry(len(categories), scale="rect")
     half_width = mark_size * 0.75
 
     # Precompute absolute x positions for each violin point so the violin
@@ -594,7 +594,7 @@ def mark_strip(
     else:
         raise ValueError(f"scatter must be 'jitter' or 'beeswarm', got {scatter!r}")
 
-    band_padding = _opt("bandPadding")
+    band_padding = _opt("outerPadding")  # the offset variant's padding - see band_geometry
     step = band_geometry(len(categories)).step
     # NOT a band centre: the xOffset scale positions relative to the band start, so this
     # is the in-band midpoint expressed in xOffset range coordinates.

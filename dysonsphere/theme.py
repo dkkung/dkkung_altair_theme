@@ -26,12 +26,17 @@ _BUILTIN_STYLES: dict[str, dict[str, Any]] = {
     },
 }
 
-# Keys are alphabetical (case-insensitive), with
-# exception of the palette keys by data type.
+# Keys are alphabetical (case-insensitive), with exception of the palette keys
+# by data type and the band-padding keys by mark type, each kept as one block.
 _BUILTIN_DEFAULTS: dict[str, Any] = {
     "axisOffset": None,
     "axisWidth": 0.25,
-    "bandPadding": 0.1,
+    "barPadding": 0.1,
+    "groupPadding": 0.2,
+    "outerPadding": 0.1,
+    "rectPadding": 0,
+    "subgroupPadding": 0,
+    "tickPadding": 0.1,
     "boxplotOutliers": False,
     "chartFill": None,
     "chartHeight": 100,
@@ -91,6 +96,29 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
 }
 
 
+# DEPRECATED (remove at v4.0.0): old parameter names, silently mapped to their
+# replacements. A value maps to one or more new keys - `bandPadding` set both the
+# inner and outer band padding, so it expands to the two keys that now carry them.
+_DEPRECATED_ALIASES: dict[str, tuple[str, ...]] = {
+    "bandPadding": ("barPadding", "outerPadding"),  # split by mark type in v3.11
+}
+
+
+def _apply_deprecated_aliases(params: dict[str, Any]) -> dict[str, Any]:
+    """Map deprecated parameter names to their replacements.
+
+    Returns a new dict with old keys renamed. An explicitly-set new name wins over
+    the value inherited from the old one.
+    """
+    out = dict(params)
+    for old, new_keys in _DEPRECATED_ALIASES.items():
+        if old in out:
+            val = out.pop(old)
+            for new in new_keys:
+                out.setdefault(new, val)
+    return out
+
+
 def _find_project_config() -> Path | None:
     """Walk up from cwd to find the nearest dysonsphere.toml."""
     current = Path.cwd()
@@ -145,6 +173,7 @@ def _load_style_overrides(style: str | None) -> dict[str, Any]:
 
         for section in ("default", style):
             if section and section in config:
+                config[section] = _apply_deprecated_aliases(config[section])
                 unknown = set(config[section]) - set(_BUILTIN_DEFAULTS)
                 if unknown:
                     raise ValueError(f"Unknown theme parameter(s) in [{section}] of {path}: {sorted(unknown)}")
@@ -194,6 +223,7 @@ def theme(style: str | None = None, **kwargs: Any) -> None:
     overrides. See the README for the config file format and search path.
     Named styles in the config file are selected with ``style=``.
     """
+    kwargs = _apply_deprecated_aliases(kwargs)
     unknown = set(kwargs) - set(_BUILTIN_DEFAULTS)
     if unknown:
         raise TypeError(f"theme() got unexpected keyword argument(s): {sorted(unknown)}")
@@ -581,8 +611,18 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "strokeWidth": opts["axisWidth"],
             },
             "scale": {
-                "bandPaddingInner": opts["bandPadding"],
-                "bandPaddingOuter": opts["bandPadding"],
+                # Band padding is set per mark type, never via the global bandPaddingInner -
+                # that key overrides all three mark-specific defaults at once, which is what
+                # used to band heatmap cells with the bar spacing. Outer has no mark-specific
+                # counterpart in Vega-Lite, so one key covers every band scale.
+                "barBandPaddingInner": opts["barPadding"],
+                "rectBandPaddingInner": opts["rectPadding"],
+                "tickBandPaddingInner": opts["tickPadding"],
+                "bandPaddingOuter": opts["outerPadding"],
+                "bandWithNestedOffsetPaddingInner": opts["groupPadding"],
+                "bandWithNestedOffsetPaddingOuter": opts["groupPadding"],
+                "offsetBandPaddingInner": opts["subgroupPadding"],
+                "offsetBandPaddingOuter": opts["subgroupPadding"],
                 # Closed plots only (an open plot's detached axes already give the marks
                 # room). True -> a 1px request, i.e. the MINIMAL effective inset: Vega-Lite
                 # extends the domain and nice-rounds it, so any small request quantizes up
