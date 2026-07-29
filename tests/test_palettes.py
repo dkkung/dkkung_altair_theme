@@ -185,18 +185,19 @@ class TestDsCat3:
     hue its own usable window in grouped mode - so it needs its own assertions."""
 
     HUES = ("greys", "cat3_blues", "cat3_greens", "cat3_purples", "cat3_teals")
-    # The designed palette: grey pair, then tier-major over blue/green/purple/teal.
+    # The designed palette: tier-major over grey/blue/green/purple/teal, so the first five
+    # categories are five distinct hues and the sixth restarts the cycle one tier down.
     EXPECTED = [
         "#B2B2B2",  # greys[3]        light grey
-        "#636363",  # greys[7]        dark grey
         "#4A7CD3",  # cat3_blues[5]   blue (the hero)
         "#008542",  # cat3_greens[6]  green
-        "#382864",  # cat3_purples[9] indigo
+        "#664CAF",  # cat3_purples[6] violet
         "#509F98",  # cat3_teals[4]   teal
+        "#636363",  # greys[7]        dark grey
         "#284F93",  # cat3_blues[8]   cobalt
         "#005226",  # cat3_greens[9]  dark green
-        "#A398D6",  # cat3_purples[2] lavender
-        "#173633",  # cat3_teals[10]  dark teal
+        "#382864",  # cat3_purples[9] indigo
+        "#285753",  # cat3_teals[8]   dark teal
     ]
 
     def test_flat_palette_is_the_designed_order(self):
@@ -204,6 +205,18 @@ class TestDsCat3:
 
     def test_named_palette_matches_function(self):
         assert colors["ds_cat_3"] == categorical(1, palette="ds_cat_3")
+
+    @pytest.mark.parametrize("cvd", ["deuteranopia", "protanopia"])
+    @pytest.mark.parametrize("n", [4, 5, 6])
+    def test_cvd_separation_at_common_category_counts(self, cvd, n):
+        # cat3_purples stops 3-5 sit at blue's lightness and collapse against it under
+        # dichromacy; 0.07 is the palette's own worst pair. Grouped mode caps at 6.
+        import itertools
+
+        matrix = _DEUTERANOPIA if cvd == "deuteranopia" else _PROTANOPIA
+        labs = [_hex_to_oklab(_simulate_cvd(c, matrix)) for c in colors["ds_cat_3"][:n]]
+        worst = min(math.dist(labs[i], labs[j]) for i, j in itertools.combinations(range(n), 2))
+        assert worst >= 0.07
 
     def test_every_color_derived_from_base_hues(self):
         # Nothing de novo - every entry is a stop on one of the base ramps.
