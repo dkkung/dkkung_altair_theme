@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### New features
+
+- **Band padding is now set per mark type.** Six keys replace the single `bandPadding`: `barPadding` (`0.1`), `rectPadding` (`0`), `tickPadding` (`0.1`), `outerPadding` (`0.1`), `groupPadding` (`0.2`, the gap between groups when `xOffset`/`yOffset` is used) and `subgroupPadding` (`0`, the gap between bars within a group). The last two were previously unreachable - `bandPadding` never affected grouped charts at all, because Vega-Lite routes a band scale with a nested offset through a different key. Outer padding stays a single key because Vega-Lite has no mark-specific counterpart for it.
+
+### Changes
+
+- **`mark_rect` heatmap cells now abut instead of being separated by a gap.** The theme set Vega-Lite's global `bandPaddingInner`, which overrides the per-mark defaults for bar, rect and tick alike, so heatmap cells inherited the spacing meant for bars and every heatmap rendered as a tiled grid. Cells are now flush, as Vega-Lite intends by default; set `rectPadding` if you want the gap back. Note that Vega-Lite routes "rect and other marks" - **boxplot included** - through this one key, so `rectPadding` also governs boxplot band geometry.
+
+- **Boxplot and violin category positions shift by under a pixel.** A consequence of the above: with the global key gone, boxplot band padding returns to Vega-Lite's own default of `0`. At the default 100px chart width, category centres move by at most 0.87px, and only the outermost categories move that far. Nothing moves relative to anything else - axis ticks sit on the same band scale and follow exactly, so tick-to-mark alignment is unchanged. A boxplot now also sits centred inside its `add_shade` band, which it previously did not.
+
+- **`theme(bandPadding=…)` is deprecated** and will be removed in v4.0.0. It is mapped silently to `barPadding` and `outerPadding`, the two keys that now carry the values it used to set, so existing calls, `dysonsphere.toml` files, and `load(applyTheme=True)` on figures exported by earlier versions all keep working.
+
+- **`band_geometry` gains a `"rect"` variant** and resolves its padding from the new per-mark keys. Use `scale="rect"` for `mark_rect` and `mark_boxplot` geometry (`mark_violin` now does), and `scale="band"` for `mark_bar`.
+
 ## [3.10.1] - 2026-07-26
 
 ### Fixes

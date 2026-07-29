@@ -35,7 +35,7 @@ df = ds.add_jitter(df)  # adds "jitter_x" column
 
 # Offset scale: maps jitter values to pixel offsets within the band center.
 # This mirrors what mark_strip() computes internally.
-band_padding = alt.theme.options.get("bandPadding", 0.1)
+band_padding = alt.theme.options.get("outerPadding", 0.1)
 chart_width = alt.theme.options.get("chartWidth", 100)
 step = chart_width / (len(GROUPS) + 2 * band_padding)
 band_center = step * (0.5 - band_padding)

@@ -1,3 +1,5 @@
+from typing import Any
+
 import altair as alt
 import pytest
 
@@ -612,6 +614,102 @@ class TestViewPadding:
         assert pinned and all(sc.get("padding") == 0 for sc in pinned)
 
 
+class TestBandPaddingByMark:
+    # Band padding is set per mark type. The global config.scale.bandPaddingInner is
+    # deliberately NOT emitted: it overrides all three mark-specific keys at once, which
+    # is what used to band mark_rect cells with the bar spacing.
+
+    def test_emits_mark_specific_keys_not_the_global_inner(self):
+        theme()
+        scale = _dysonsphere_theme()["config"]["scale"]
+        assert "bandPaddingInner" not in scale
+        assert scale["barBandPaddingInner"] == 0.1
+        assert scale["rectBandPaddingInner"] == 0
+        assert scale["tickBandPaddingInner"] == 0.1
+        assert scale["bandPaddingOuter"] == 0.1
+        assert scale["bandWithNestedOffsetPaddingInner"] == 0.2
+        assert scale["offsetBandPaddingInner"] == 0
+
+    def test_each_key_is_independently_settable(self):
+        theme(
+            barPadding=0.3,
+            rectPadding=0.05,
+            tickPadding=0.4,
+            outerPadding=0.2,
+            groupPadding=0.5,
+            subgroupPadding=0.1,
+        )
+        scale = _dysonsphere_theme()["config"]["scale"]
+        assert scale["barBandPaddingInner"] == 0.3
+        assert scale["rectBandPaddingInner"] == 0.05
+        assert scale["tickBandPaddingInner"] == 0.4
+        assert scale["bandPaddingOuter"] == 0.2
+        assert scale["bandWithNestedOffsetPaddingOuter"] == 0.5
+        assert scale["offsetBandPaddingOuter"] == 0.1
+
+    def test_rect_cells_abut_in_rendered_output(self):
+        # the regression this split exists to fix: heatmap cells must not be banded
+        import re
+
+        import polars as pl
+        import vl_convert as vlc
+
+        theme()
+        rows = [{"x": x, "y": y, "v": float((x + y) % 3)} for y in range(3) for x in range(4)]
+        chart = (
+            alt.Chart(pl.DataFrame(rows))
+            .mark_rect()
+            .encode(x=alt.X("x:O"), y=alt.Y("y:O"), color=alt.Color("v:Q", legend=None))
+        )
+        svg = vlc.vegalite_to_svg(chart.to_dict())
+        found = re.search(r'class="mark-rect role-mark[^"]*"[^>]*>(.*?)</g>', svg, re.S)
+        assert found is not None
+        marks = found.group(1)
+        cells = re.findall(r'd="M([-\d.]+),[-\d.]+h([-\d.]+)v', marks)
+        spans = sorted({(round(float(a), 4), round(float(w), 4)) for a, w in cells})
+        xs = sorted({s for s, _ in spans})
+        widths = {w for _, w in spans}
+        assert len(widths) == 1  # every cell the same width
+        cell = widths.pop()
+        for left, right in zip(xs, xs[1:]):
+            assert right - left == pytest.approx(cell, abs=1e-6)  # no gap between columns
+
+
+class TestDeprecatedAliases:
+    # bandPadding was split by mark type in v3.11; the alias maps it silently and is
+    # removed at v4.0.0. It set BOTH the inner and outer band padding, so it expands to
+    # the two keys that now carry them.
+
+    def test_kwarg_alias_maps_to_both_keys(self):
+        theme(bandPadding=0.25)
+        assert alt.theme.options["barPadding"] == 0.25
+        assert alt.theme.options["outerPadding"] == 0.25
+
+    def test_explicit_new_key_wins_over_alias(self):
+        theme(bandPadding=0.25, barPadding=0.4)
+        assert alt.theme.options["barPadding"] == 0.4
+        assert alt.theme.options["outerPadding"] == 0.25
+
+    def test_alias_does_not_leak_into_options(self):
+        theme(bandPadding=0.25)
+        assert "bandPadding" not in alt.theme.options
+
+    def test_toml_alias_accepted(self, tmp_path, monkeypatch):
+        (tmp_path / "dysonsphere.toml").write_text("[default]\nbandPadding = 0.3\n")
+        monkeypatch.chdir(tmp_path)
+        theme()
+        assert alt.theme.options["barPadding"] == 0.3
+        assert alt.theme.options["outerPadding"] == 0.3
+
+    def test_baked_theme_from_older_export_still_loads(self):
+        # every v1-v3 export bakes bandPadding into its theme block; ds.load(applyTheme=True)
+        # replays it through theme(**block), so the alias keeps those files readable
+        baked: dict[str, Any] = {"bandPadding": 0.1, "chartWidth": 120}
+        theme(**baked)
+        assert alt.theme.options["barPadding"] == 0.1
+        assert alt.theme.options["chartWidth"] == 120
+
+
 class TestBoxplotOutliers:
     def test_false_default_hides_outliers(self):
         theme()
@@ -634,15 +732,15 @@ class TestOptAccessor:
     def test_reads_active_theme(self):
         from dysonsphere.theme import _opt
 
-        theme(bandPadding=0.25)
-        assert _opt("bandPadding") == 0.25
+        theme(barPadding=0.25)
+        assert _opt("barPadding") == 0.25
 
     def test_falls_back_to_builtin_default(self):
         from dysonsphere.theme import _opt
 
         alt.theme.options = {}  # no theme() called
         try:
-            assert _opt("bandPadding") == 0.1
+            assert _opt("barPadding") == 0.1
             assert _opt("chartWidth") == 100
         finally:
             theme()

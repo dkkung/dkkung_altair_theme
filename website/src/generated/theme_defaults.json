@@ -10,7 +10,32 @@
   "hint": null
  },
  {
-  "key": "bandPadding",
+  "key": "barPadding",
+  "default": "0.1",
+  "hint": null
+ },
+ {
+  "key": "groupPadding",
+  "default": "0.2",
+  "hint": null
+ },
+ {
+  "key": "outerPadding",
+  "default": "0.1",
+  "hint": null
+ },
+ {
+  "key": "rectPadding",
+  "default": "0",
+  "hint": null
+ },
+ {
+  "key": "subgroupPadding",
+  "default": "0",
+  "hint": null
+ },
+ {
+  "key": "tickPadding",
   "default": "0.1",
   "hint": null
  },

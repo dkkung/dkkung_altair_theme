@@ -96,11 +96,25 @@ class TestBandGeometry:
         assert list(geo.ends) == pytest.approx([step * (0.1 + i + 1) for i in range(3)])
 
     def test_band_scale_formulas(self):
-        # paddingInner=paddingOuter=bp (mark_boxplot / mark_violin)
+        # paddingInner=paddingOuter=bp (mark_bar)
         geo = band_geometry(3, 100, scale="band", bandPadding=0.1)
         step = 100 / (3 + 0.1)
         assert geo.step == pytest.approx(step)
         assert list(geo.centers) == pytest.approx([step * (0.5 + 0.05 + i) for i in range(3)])
+
+    def test_rect_scale_formulas(self):
+        # paddingInner=rectPadding (0 by default, so cells abut), paddingOuter=outerPadding
+        from dysonsphere.theme import theme
+
+        theme()
+        geo = band_geometry(4, 100, scale="rect")
+        step = 100 / (4 + 2 * 0.1)
+        assert geo.step == pytest.approx(step)
+        assert list(geo.starts) == pytest.approx([step * (0.1 + i) for i in range(4)])
+        assert list(geo.ends) == pytest.approx([step * (0.1 + i + 1) for i in range(4)])
+        # abutting cells - the whole point of rectPadding=0
+        for i in range(3):
+            assert geo.ends[i] == pytest.approx(geo.starts[i + 1])
 
     def test_point_scale_formulas(self):
         geo = band_geometry(4, 100, scale="point")
@@ -120,16 +134,17 @@ class TestBandGeometry:
 
         from dysonsphere.theme import theme
 
-        theme(chartWidth=200, bandPadding=0.2)
+        theme(chartWidth=200, outerPadding=0.2)
         geo = band_geometry(2)
         assert geo.step == pytest.approx(200 / (2 + 2 * 0.2))
         theme()  # reset
         assert alt.theme.options.get("chartWidth") == 100
 
-    def test_band_centers_match_rendered_boxplot(self, tmp_path):
-        # the "band" case is the boxplot's actual scale: centres must equal the
-        # rendered box centres exactly (which also equal the ticks - see
-        # TestExactTickPositions in test_export.py)
+    def test_rect_centers_match_rendered_boxplot(self, tmp_path):
+        # Vega-Lite routes boxplot through rectBandPaddingInner ("rect and other marks"),
+        # NOT barBandPaddingInner - so the "rect" variant is the boxplot's actual scale and
+        # its centres must equal the rendered box centres exactly (which also equal the
+        # ticks - see TestExactTickPositions in test_export.py)
         import re
 
         import altair as alt
@@ -150,7 +165,7 @@ class TestBandGeometry:
             float(x) + float(w) / 2
             for x, w in re.findall(r'aria-roledescription="box"[^>]*d="M([-\d.]+),[-\d.]+h([-\d.]+)', svg)
         )
-        geo = band_geometry(3, scale="band")
+        geo = band_geometry(3, scale="rect")
         assert boxes == pytest.approx(list(geo.centers), abs=1e-9)
 
     def test_invalid_scale_raises(self):

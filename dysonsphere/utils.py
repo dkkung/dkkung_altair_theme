@@ -34,17 +34,21 @@ def band_geometry(
     midpoints, multilabel spans).
 
     Vega-Lite lowers a nominal axis to a D3 band scale whose step size depends on the
-    padding configuration, which differs by mark type. ``scale`` picks the variant:
+    padding configuration, which differs by mark type. ``scale`` picks the variant, each
+    resolving its inner padding from the matching theme key (outer is one shared key,
+    ``outerPadding``, because Vega-Lite has no mark-specific outer padding):
 
-    - ``"offset"`` (default) - ``paddingInner=0``, ``paddingOuter=bandPadding``: what an
+    - ``"offset"`` (default) - ``paddingInner=0``, ``paddingOuter=outerPadding``: what an
       ``xOffset`` encoding (``mark_circle``/``mark_strip``) or an ``add_shade`` rect sees.
-      ``step = span / (n + 2*bandPadding)``; band ``i`` spans
-      ``[step*(bandPadding+i), step*(bandPadding+i+1)]``.
-    - ``"band"`` - ``paddingInner=paddingOuter=bandPadding``: what ``mark_boxplot``
-      (and so ``mark_violin``'s embedded boxplot) sees.
-      ``step = span / (n + bandPadding)``; centre ``i`` is ``step*(0.5+bandPadding/2+i)``.
+    - ``"band"`` - ``paddingInner=barPadding``: what ``mark_bar`` sees.
+    - ``"rect"`` - ``paddingInner=rectPadding`` (``0`` by default, so cells abut): what a
+      ``mark_rect`` heatmap sees - and also ``mark_boxplot`` (and so ``mark_violin``'s
+      embedded boxplot), since Vega-Lite routes "rect and other marks" through the one key.
     - ``"point"`` - a point scale: ``step = span / n``; centre ``i`` is ``step*(0.5+i)``
       (``starts``/``ends`` equal ``centers``).
+
+    For every variant but ``"point"``, ``step = span / (n - inner + 2*outer)``, band ``i``
+    starts at ``step*(outer+i)`` and is ``step*(1-inner)`` wide.
 
     Parameters
     ----------
@@ -54,9 +58,11 @@ def band_geometry(
         Pixel extent of the axis. ``None`` (default) reads ``chartWidth`` from the
         active theme (pass ``chartHeight`` explicitly for a y-axis).
     scale:
-        ``"offset"``, ``"band"``, or ``"point"`` (see above).
+        ``"offset"``, ``"band"``, ``"rect"``, or ``"point"`` (see above).
     bandPadding:
-        Band padding fraction. ``None`` (default) reads the active theme.
+        Override for the outer padding, and for ``scale="band"`` the inner padding too
+        (the variant where the two are equal by construction). ``None`` (default) reads
+        the active theme.
 
     Returns
     -------
@@ -69,25 +75,25 @@ def band_geometry(
         raise ValueError(f"n must be >= 1, got {n}")
     if span is None:
         span = _opt("chartWidth")
-    if bandPadding is None:
-        bandPadding = _opt("bandPadding")
-    bp = bandPadding
-    if scale == "offset":
-        step = span / (n + 2 * bp)
-        centers = tuple(step * (bp + i + 0.5) for i in range(n))
-        starts = tuple(step * (bp + i) for i in range(n))
-        ends = tuple(step * (bp + i + 1) for i in range(n))
-    elif scale == "band":
-        step = span / (n + bp)
-        centers = tuple(step * (0.5 + bp / 2 + i) for i in range(n))
-        starts = tuple(step * (bp + i) for i in range(n))
-        ends = tuple(step * (bp + i) + step * (1 - bp) for i in range(n))
-    elif scale == "point":
+    if scale == "point":
         step = span / n
         centers = tuple(step * (0.5 + i) for i in range(n))
-        starts = ends = centers
+        return BandGeometry(step, centers, centers, centers)
+    if scale == "offset":
+        inner = 0.0
+    elif scale == "band":
+        inner = _opt("barPadding") if bandPadding is None else bandPadding
+    elif scale == "rect":
+        inner = _opt("rectPadding")
     else:
-        raise ValueError(f"scale must be 'offset', 'band', or 'point', got {scale!r}")
+        raise ValueError(f"scale must be 'offset', 'band', 'rect', or 'point', got {scale!r}")
+    outer = _opt("outerPadding") if bandPadding is None else bandPadding
+
+    step = span / (n - inner + 2 * outer)
+    width = step * (1 - inner)
+    starts = tuple(step * (outer + i) for i in range(n))
+    centers = tuple(s + width / 2 for s in starts)
+    ends = tuple(s + width for s in starts)
     return BandGeometry(step, centers, starts, ends)
 
 
