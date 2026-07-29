@@ -26,17 +26,10 @@ _BUILTIN_STYLES: dict[str, dict[str, Any]] = {
     },
 }
 
-# Keys are alphabetical (case-insensitive), with exception of the palette keys
-# by data type and the band-padding keys by mark type, each kept as one block.
+# Keys are alphabetical (case-insensitive), with the exception of padding and palette configs.
 _BUILTIN_DEFAULTS: dict[str, Any] = {
     "axisOffset": None,
     "axisWidth": 0.25,
-    "barPadding": 0.1,
-    "groupPadding": 0.2,
-    "outerPadding": 0.1,
-    "rectPadding": 0,
-    "subgroupPadding": 0,
-    "tickPadding": 0.1,
     "boxplotOutliers": False,
     "chartFill": None,
     "chartHeight": 100,
@@ -66,6 +59,12 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "markStroke": "black",
     "markStrokeOpacity": 1,
     "markStrokeWidth": None,
+    "barPadding": 0.1,
+    "groupPadding": 0.2,
+    "outerPadding": 0.1,
+    "rectPadding": 0,
+    "subgroupPadding": 0,
+    "tickPadding": 0.1,
     "palette": None,
     "categoryPalette": None,
     "divergingPalette": None,
