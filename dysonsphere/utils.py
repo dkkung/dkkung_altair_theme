@@ -1,5 +1,6 @@
 import hashlib
 import json
+import math
 from collections.abc import Sequence
 from typing import Any, NamedTuple
 
@@ -187,6 +188,57 @@ def ensure_polars(df: pl.DataFrame) -> pl.DataFrame:
     raise TypeError(f"Expected a polars.DataFrame or pandas.DataFrame, got {type(df).__name__}.")
 
 
+def _walk(value: Any, scalar) -> Any:
+    """Apply ``scalar`` to every leaf of a nested dict/list structure."""
+    if isinstance(value, dict):
+        return {k: _walk(v, scalar) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_walk(v, scalar) for v in value]
+    return scalar(value)
+
+
+def _json_safe(value: Any) -> Any:
+    """Replace non-finite floats with ``None``, recursively - for data that gets WRITTEN.
+
+    ``json.dumps`` renders ``NaN``/``Infinity`` as bare tokens, which are a Python extension and
+    not valid JSON: a strict parser (a browser's ``JSON.parse``, ``jq``, ``serde_json``) rejects
+    the file.  ``null`` is what Vega-Lite uses for a missing value, and what vl-convert already
+    writes into the HTML export - so this makes the JSON agree with its sibling formats.
+
+    Deliberately does NOT touch anything else.  In particular it leaves ``1.0`` as a float, so a
+    ``Float64`` column survives a ``save()`` -> ``read(what="data")`` round-trip as ``Float64``;
+    collapsing it to ``1`` is a *hashing* concern only (see :func:`_canonicalize`).
+    """
+    return _walk(value, lambda v: None if isinstance(v, float) and (math.isnan(v) or math.isinf(v)) else v)
+
+
+def _canonicalize(value: Any) -> Any:
+    """Normalize a value so equal data HASHES identically - never used for written output.
+
+    Two spellings of one value would otherwise digest differently:
+
+    - **Non-finite floats become ``None``**, so a missing value has one representation
+      (matching :func:`_json_safe`, and making ``NaN`` and ``null`` agree - both mean absent).
+    - **Integral floats become ints**, so an ``Int64`` column and a ``Float64`` column holding
+      the same values agree.  Matches RFC 8785 (JSON Canonicalization Scheme), where ``1.0``
+      serializes as ``1``.  Without this a dtype change alone would alter a data checksum,
+      defeating the point of a checksum that is meant to identify data independently of how it
+      was drawn.
+
+    Non-JSON-native types (dates, Decimals) are left alone and handled by ``_hash_rows``'s
+    ``default=str``, so their digest still depends on Python's ``str()``.
+    """
+
+    def _scalar(v: Any) -> Any:
+        if isinstance(v, float):
+            if math.isnan(v) or math.isinf(v):
+                return None
+            return int(v) if v.is_integer() else v
+        return v
+
+    return _walk(value, _scalar)
+
+
 def _hash_rows(rows: list[dict[str, Any]]) -> str:
     """Order-independent ``sha256:<hex>`` of a list of record dicts.
 
@@ -194,12 +246,15 @@ def _hash_rows(rows: list[dict[str, Any]]) -> str:
     reordered-but-identical set yields the same value; duplicate rows are preserved.  The single
     implementation shared by the provenance ``dataChecksum`` (over a spec's inlined datasets) and
     ``frame_checksum`` (over a raw dataframe), so both compute identical values for identical rows.
-    ``default=str`` keeps it total for non-JSON-native cell types (dates, Decimals); JSON-native
-    values are unaffected, so the provenance path is byte-identical to before.
+    Every row goes through :func:`_canonicalize` first, so a missing value and a dtype change
+    cannot alter the digest; ``default=str`` then keeps it total for non-JSON-native cell types
+    (dates, Decimals).
     """
     digests = sorted(
         hashlib.sha256(
-            json.dumps(r, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str).encode()
+            json.dumps(
+                _canonicalize(r), sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str
+            ).encode()
         ).hexdigest()
         for r in rows
     )

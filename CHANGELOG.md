@@ -10,6 +10,12 @@
 
 - **Band padding is now set per mark type.** Six keys replace the single `bandPadding`: `barPadding` (`0.1`), `rectPadding` (`0`), `tickPadding` (`0.1`), `outerPadding` (`0.1`), `groupPadding` (`0.2`, the gap between groups when `xOffset`/`yOffset` is used) and `subgroupPadding` (`0`, the gap between bars within a group). The last two were previously unreachable - `bandPadding` never affected grouped charts at all, because Vega-Lite routes a band scale with a nested offset through a different key. Outer padding stays a single key because Vega-Lite has no mark-specific counterpart for it.
 
+### Fixes
+
+- A saved `.json` writes `null` for missing numeric values instead of `NaN`, so the spec parses in browsers, `jq`, and other strict JSON readers. Column dtypes are unaffected.
+
+- `dataChecksum` no longer changes when only a column's dtype does. `Int64` and `Float64` columns holding the same values now hash alike, as do `NaN` and `null`. Checksums from earlier versions won't match for affected frames.
+
 ### Changes
 
 - `ds.categorical()` now tops out at `members=6` instead of `members=10`. Its default palette changed to `ds_cat_3`, whose `cat3_greens` ramp has a shorter usable window than the `ds_cat_1` hues.

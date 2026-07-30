@@ -2,6 +2,8 @@ import polars as pl
 import pytest
 
 from dysonsphere.utils import (
+    _canonicalize,
+    _json_safe,
     _nice_domain,
     band_geometry,
     count_n,
@@ -80,6 +82,65 @@ class TestFrameChecksum:
 
     def test_pandas_matches_polars(self, simple_df):
         assert frame_checksum(simple_df.to_pandas()) == frame_checksum(simple_df)  # ensure_polars first
+
+
+# ── canonicalization ─────────────────────────────────────────────────────────
+
+
+class TestJsonSafe:
+    """Only non-finite floats are replaced - everything else is written unchanged."""
+
+    def test_replaces_non_finite(self):
+        assert _json_safe(float("nan")) is None
+        assert _json_safe(float("inf")) is None
+        assert _json_safe(float("-inf")) is None
+
+    def test_preserves_finite_floats_exactly(self):
+        # 1.0 must NOT collapse to 1: a Float64 column has to survive save() -> read().
+        assert _json_safe(1.0) == 1.0 and isinstance(_json_safe(1.0), float)
+        assert _json_safe(1.5) == 1.5
+
+    def test_leaves_other_types_alone(self):
+        assert _json_safe("a") == "a"
+        assert _json_safe(3) == 3
+        assert _json_safe(None) is None
+        assert _json_safe(True) is True
+
+    def test_recurses_into_nested_structures(self):
+        got = _json_safe({"rows": [{"v": float("nan")}, {"v": 2.5}], "n": [float("inf")]})
+        assert got == {"rows": [{"v": None}, {"v": 2.5}], "n": [None]}
+
+
+class TestCanonicalize:
+    """Hashing normalization - equal data must produce one representation."""
+
+    def test_non_finite_becomes_none(self):
+        assert _canonicalize(float("nan")) is None
+        assert _canonicalize(float("inf")) is None
+
+    def test_integral_float_becomes_int(self):
+        assert _canonicalize(1.0) == 1 and isinstance(_canonicalize(1.0), int)
+        assert isinstance(_canonicalize(2.5), float)  # non-integral untouched
+
+    def test_recurses(self):
+        assert _canonicalize({"a": [1.0, float("nan")]}) == {"a": [1, None]}
+
+
+class TestChecksumCanonicalization:
+    def test_int_and_float_columns_agree(self):
+        di = pl.DataFrame({"g": ["a", "b"], "v": [1, 2]})
+        df = pl.DataFrame({"g": ["a", "b"], "v": [1.0, 2.0]})
+        assert frame_checksum(di) == frame_checksum(df)  # dtype alone must not change identity
+
+    def test_nan_and_null_agree(self):
+        dn = pl.DataFrame({"g": ["a", "b"], "v": [1.0, float("nan")]})
+        dnull = pl.DataFrame({"g": ["a", "b"], "v": [1.0, None]})
+        assert frame_checksum(dn) == frame_checksum(dnull)  # both mean "absent"
+
+    def test_still_distinguishes_real_differences(self):
+        a = pl.DataFrame({"g": ["a", "b"], "v": [1.0, 2.0]})
+        b = pl.DataFrame({"g": ["a", "b"], "v": [1.0, 2.5]})
+        assert frame_checksum(a) != frame_checksum(b)
 
 
 # ── band_geometry() ──────────────────────────────────────────────────────────
