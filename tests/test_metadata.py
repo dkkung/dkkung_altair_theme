@@ -2,6 +2,7 @@ import json
 import re
 import struct
 import sys
+import uuid
 import zlib
 
 import altair as alt
@@ -9,7 +10,12 @@ import polars as pl
 import pytest
 
 from dysonsphere.export import save
-from dysonsphere.metadata import _call_expression, _inject_png_metadata
+from dysonsphere.metadata import (
+    _call_expression,
+    _inject_png_metadata,
+    _resolve_timestamp,
+    _source_date_epoch,
+)
 from dysonsphere.theme import theme
 
 _PROV_ORDER = [
@@ -897,3 +903,75 @@ class TestStatsQueueRobustness:
         assert len(_REPORTS) >= 1
         ds.clear_stats()
         assert len(_REPORTS) == 0
+
+
+class TestSourceDateEpoch:
+    """`SOURCE_DATE_EPOCH` pins the timestamp and the run id, making exports byte-reproducible."""
+
+    def _prov(self, tmp_path, name="out"):
+        spec = json.loads((tmp_path / f"{name}.json").read_text())
+        return spec["usermeta"]["dysonsphere"]["provenance"]
+
+    def test_unset_and_blank_read_as_none(self, monkeypatch):
+        monkeypatch.delenv("SOURCE_DATE_EPOCH", raising=False)
+        assert _source_date_epoch() is None
+        monkeypatch.setenv("SOURCE_DATE_EPOCH", "   ")
+        assert _source_date_epoch() is None
+
+    def test_parses_and_pins_timestamp(self, monkeypatch):
+        monkeypatch.setenv("SOURCE_DATE_EPOCH", "1700000000")
+        assert _source_date_epoch() == 1700000000
+        assert _resolve_timestamp() == "2023-11-14T22:13:20Z"
+
+    def test_malformed_raises(self, monkeypatch):
+        monkeypatch.setenv("SOURCE_DATE_EPOCH", "not-a-number")
+        with pytest.raises(ValueError, match="integer count of UTC seconds"):
+            _source_date_epoch()
+
+    def test_out_of_range_raises_clearly(self, monkeypatch):
+        monkeypatch.setenv("SOURCE_DATE_EPOCH", str(10**18))
+        with pytest.raises(ValueError, match="out of range"):
+            _resolve_timestamp()
+
+    def test_repeated_save_is_byte_identical(self, simple_chart, monkeypatch, tmp_path):
+        import dysonsphere as ds
+
+        monkeypatch.setenv("SOURCE_DATE_EPOCH", "1700000000")
+        ds.save(simple_chart, str(tmp_path / "a"), format=["json", "svg"], background=["light"])
+        ds.save(simple_chart, str(tmp_path / "b"), format=["json", "svg"], background=["light"])
+        for ext in ("json", "svg"):
+            assert (tmp_path / f"a.{ext}").read_bytes() == (tmp_path / f"b.{ext}").read_bytes()
+
+    def test_unpinned_saves_differ(self, simple_chart, monkeypatch, tmp_path):
+        import dysonsphere as ds
+
+        monkeypatch.delenv("SOURCE_DATE_EPOCH", raising=False)
+        ds.save(simple_chart, str(tmp_path / "a"), format="json", background=["light"])
+        ds.save(simple_chart, str(tmp_path / "b"), format="json", background=["light"])
+        assert self._prov(tmp_path, "a")["exportIdentifier"] != self._prov(tmp_path, "b")["exportIdentifier"]
+
+    def test_variants_still_share_one_id(self, simple_chart, monkeypatch, tmp_path):
+        import dysonsphere as ds
+
+        monkeypatch.setenv("SOURCE_DATE_EPOCH", "1700000000")
+        ds.save(simple_chart, str(tmp_path / "v"), format="json", background=["light", "dark"])
+        light, dark = self._prov(tmp_path, "v_light"), self._prov(tmp_path, "v_dark")
+        assert light["exportIdentifier"] == dark["exportIdentifier"]  # still one export event
+        assert light["vegaliteChecksum"] != dark["vegaliteChecksum"]
+
+    def test_distinct_charts_do_not_collide(self, simple_chart, monkeypatch, tmp_path):
+        """Two figures pinned to one epoch must keep distinct ids - the id is content-derived."""
+        import dysonsphere as ds
+
+        monkeypatch.setenv("SOURCE_DATE_EPOCH", "1700000000")
+        df = pl.DataFrame({"x": ["A", "B", "C"], "y": [1.0, 2.0, 3.0]})
+        ds.save(simple_chart, str(tmp_path / "p"), format="json", background=["light"])
+        ds.save(alt.Chart(df).mark_bar().encode(x="x:N", y="y:Q"), str(tmp_path / "b"), format="json")
+        assert self._prov(tmp_path, "p")["exportIdentifier"] != self._prov(tmp_path, "b")["exportIdentifier"]
+
+    def test_id_is_a_uuid_shape(self, simple_chart, monkeypatch, tmp_path):
+        import dysonsphere as ds
+
+        monkeypatch.setenv("SOURCE_DATE_EPOCH", "1700000000")
+        ds.save(simple_chart, str(tmp_path / "u"), format="json", background=["light"])
+        uuid.UUID(self._prov(tmp_path, "u")["exportIdentifier"])  # parses, so the field shape is unchanged

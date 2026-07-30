@@ -8,12 +8,14 @@ import html
 import importlib.metadata
 import json
 import linecache
+import os
 import platform
 import re
 import struct
 import sys
+import uuid
 import zlib
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +26,9 @@ import altair as alt
 __all__ = ["read"]
 
 _REPORT_PREFIX = "dysonsphere-report-"
+
+# Namespace for the derived (reproducible-build) exportIdentifier - see `_derive_export_id`.
+_EXPORT_ID_NAMESPACE = "https://github.com/dkkung/dysonsphere/export/"
 
 
 # ── Writing metadata into output files ───────────────────────────────────────
@@ -135,6 +140,50 @@ def _call_expression(frame) -> str | None:
         return None
     except Exception:
         return None
+
+
+def _source_date_epoch() -> int | None:
+    """The ``SOURCE_DATE_EPOCH`` build timestamp, or ``None`` when unset/empty.
+
+    The reproducible-builds convention (https://reproducible-builds.org/specs/source-date-epoch/):
+    an integer count of UTC seconds that pins every timestamp a build writes.  A malformed value
+    raises rather than being ignored - silently falling back to the wall clock would hand back a
+    non-reproducible export while the caller believes it is pinned.
+    """
+    raw = os.environ.get("SOURCE_DATE_EPOCH")
+    if raw is None or not raw.strip():
+        return None
+    try:
+        return int(raw.strip())
+    except ValueError:
+        raise ValueError(f"SOURCE_DATE_EPOCH must be an integer count of UTC seconds, got {raw!r}.") from None
+
+
+def _resolve_timestamp() -> str:
+    """The export timestamp, pinned to ``SOURCE_DATE_EPOCH`` when that is set."""
+    epoch = _source_date_epoch()
+    if epoch is None:
+        return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        when = datetime.fromtimestamp(epoch, timezone.utc)
+    except (OverflowError, OSError, ValueError):
+        # Out of the platform's representable range - report it as the bad input it is.
+        raise ValueError(f"SOURCE_DATE_EPOCH is out of range for a UTC timestamp: {epoch}.") from None
+    return when.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _derive_export_id(timestamp: str, checksum: str, data_checksum: list[str]) -> str:
+    """A content-derived ``exportIdentifier`` (UUIDv5), for reproducible builds.
+
+    ``save()`` normally stamps a fresh ``uuid4`` so the variants of one export share a run id.
+    That makes byte-identical re-exports impossible, so under ``SOURCE_DATE_EPOCH`` the id is
+    derived instead: identical inputs yield an identical id, and distinct figures still differ
+    because the spec checksum is part of the payload (two plots built from one dataframe in the
+    same build must not collide).  Derived from the FIRST variant's ``checksum`` and reused for
+    the rest, since ``vegaliteChecksum`` differs between the light and dark renders.
+    """
+    payload = f"{timestamp}|{checksum}|{','.join(data_checksum)}"
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, _EXPORT_ID_NAMESPACE + payload))
 
 
 def _build_provenance(
