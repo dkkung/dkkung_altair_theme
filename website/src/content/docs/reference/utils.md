@@ -118,7 +118,7 @@ name only.  If ``df`` is neither, a ``TypeError`` is raised.
 def frame_checksum(df: pl.DataFrame | Any) -> str: ...
 ```
 
-Order-independent ``sha256:<hex>`` fingerprint of a dataframe's rows.
+Order-independent ``multiset-sha256:<hex>`` fingerprint of a dataframe's rows.
 
 Same algorithm as the provenance ``dataChecksum`` (via :func:`_hash_rows`), so identical
 content in any row order yields the same value.  Used to tag a statistics record with the

@@ -97,7 +97,7 @@ versions), and ends with the machine-identity checksums:
   },
   "vegaliteChecksum": "sha256:53a99fe9a0e4ad703751014765e01a7f0860d7d89a78add9d50ead172f7aa9f2",
   "exportIdentifier": "ef49895a-2e06-495a-86d3-7b0f2980cd8b",
-  "dataChecksum": ["sha256:281a94603a8549cda02866679f34c8d0d5ed490d3944c5ab881423ff388b52e8"]
+  "dataChecksum": ["multiset-sha256:281a94603a8549cda02866679f34c8d0d5ed490d3944c5ab881423ff388b52e8"]
 }
 ```
 
@@ -107,7 +107,10 @@ variable's name. It is best-effort convenience (omitted where no source is avail
 REPL) - identity belongs to the checksums. The three checksums answer different questions:
 `dataChecksum` (one per dataframe, order-independent) is the **data** identity - two charts of the
 same numbers match even if drawn differently; `vegaliteChecksum` is the exact **spec content**;
-`exportIdentifier` is shared by every file from one `save()` call. A figure produced by an extension (say
+`exportIdentifier` is shared by every file from one `save()` call. The prefixes differ because the
+guarantees do: `sha256:` is SHA-256 over the spec's bytes, so anyone can strip `usermeta` and re-hash
+the file to check it, while `multiset-sha256:` is a hash of the multiset of row digests - which is
+what makes it independent of row order, and what means it cannot be reproduced by hashing the file. A figure produced by an extension (say
 `ds.biology.volcano`) additionally records `"dysonsphere-extensions": {"biology": "0.1.0"}` in
 `environment` - only extensions that actually built the chart, not merely installed ones.
 
@@ -117,7 +120,7 @@ the rounded on-plot labels. One omnibus record from the chart above (trimmed):
 ```json
 {
   "kind": "omnibus",
-  "dataChecksum": "sha256:d99fd99e862f635c276ed548bd0fb28602ba50e51bf7437b3847ea83c241e01c",
+  "dataChecksum": "multiset-sha256:d99fd99e862f635c276ed548bd0fb28602ba50e51bf7437b3847ea83c241e01c",
   "test": "kruskal",
   "groups": [
     {"label": "Europe", "n": 70, "mean": 27.89, "sd": 6.72, "median": 26.5, "q1": 24.0, "q3": 30.65},
@@ -190,6 +193,26 @@ JSON carries the full data). `what="data"` returns the user's frame, filtering o
 internal sidecar datasets; pick the output type with `output=` (`"polars"`, `"pandas"`, `"duckdb"`,
 or `"records"`).
 
+## Verifying a figure
+
+`ds.verify()` re-checks a figure against the checksums it carries, with no access to the original
+script:
+
+```python
+ds.verify("figure.json")                   # was the spec edited after export?
+ds.verify("figure.png", df=df)             # did this figure come from this data?
+ds.verify("figure.json", df=[counts, meta]) # multi-frame chart
+```
+
+It returns a `VerifyResult` with `specValid`, `dataMatches`, and `.ok`. Both checks are tri-state:
+`None` means the check could not run, which is not a failure - SVG and PNG carry the checksums but
+not the spec, so `specValid` is `None` there while `dataMatches` still works. Neither row order nor
+the order dataframes are passed in affects the result.
+
+Because the checksums are derived from content rather than stored alongside it, a figure that has
+lost its metadata entirely - screenshotted, or re-saved by another tool - can still be identified:
+verify an intact sibling export, or compare `ds.frame_checksum(df)` against a recorded value.
+
 ## Rebuilding the chart
 
 ```python
@@ -211,3 +234,24 @@ chart = base + ds.add_comparisons(df, "group", "value", pairs, test="anova", rep
 
 See the [Saving & loading](/reference/export/) and [Reading exports](/reference/metadata/)
 reference pages for the full API.
+
+## How the fields map to provenance standards
+
+The field names are dysonsphere's own, but the concepts are not - each has a counterpart in an
+established provenance vocabulary:
+
+| dysonsphere | Equivalent |
+| --- | --- |
+| `user` | W3C PROV `Agent` + `wasAttributedTo`; Dublin Core `dcterms:creator` |
+| `script` | PROV `Plan` / `hadPlan` |
+| `chart` | no equivalent in any standard |
+| `timestamp` | PROV `generatedAtTime`; `dcterms:created` |
+| `environment` | SLSA `runDetails.builder.version` |
+| `vegaliteChecksum` | in-toto `subject[].digest` |
+| `exportIdentifier` | SLSA `metadata.invocationId`; XMP `xmpMM:InstanceID` |
+| `dataChecksum` | SLSA `resolvedDependencies[].digest` |
+
+No single standard covers the whole block. PROV, Dublin Core and XMP describe who and when but have
+no place for a content digest; SLSA and in-toto have digests but no human author and no notion of a
+chart expression. The block is deliberately plain JSON rather than any of these, so it stays
+readable without a toolchain.
