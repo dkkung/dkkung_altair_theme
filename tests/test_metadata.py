@@ -17,6 +17,7 @@ from dysonsphere.metadata import (
     _source_date_epoch,
 )
 from dysonsphere.theme import theme
+from dysonsphere.utils import _ROW_HASH_PREFIX
 
 _PROV_ORDER = [
     "user",
@@ -772,7 +773,7 @@ class TestStatsQueueRobustness:
         ds.save(simple_chart, str(tmp_path / "out"), format="json", background=["light"])
         sums = self._um(tmp_path)["provenance"]["dataChecksum"]
         assert isinstance(sums, list) and sums  # non-empty list
-        assert all(s.startswith("sha256:") and len(s) == len("sha256:") + 64 for s in sums)
+        assert all(s.startswith(_ROW_HASH_PREFIX) and len(s) == len(_ROW_HASH_PREFIX) + 64 for s in sums)
 
     def test_data_checksum_matches_across_specs(self, tmp_path):
         # The core value prop: same data, DIFFERENT specs → identical dataChecksum.
@@ -893,7 +894,7 @@ class TestStatsQueueRobustness:
         )
         ds.save(chart, str(tmp_path / "s"), format="json", background=["light"])
         rec = self._um(tmp_path, "s")["statistics"][0]
-        assert rec["dataChecksum"] and rec["dataChecksum"].startswith("sha256:")
+        assert rec["dataChecksum"] and rec["dataChecksum"].startswith(_ROW_HASH_PREFIX)
 
     def test_clear_stats_empties_queue(self):
         import dysonsphere as ds

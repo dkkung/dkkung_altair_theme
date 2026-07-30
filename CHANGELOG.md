@@ -12,6 +12,8 @@
 
 ### Fixes
 
+- `dataChecksum` is now prefixed `multiset-sha256:` rather than `sha256:`. It is a hash of the multiset of row digests, not of the file's bytes, so the old prefix implied it could be checked by re-hashing the file. `vegaliteChecksum` still reads `sha256:`, because that one can.
+
 - A saved `.json` writes `null` for missing numeric values instead of `NaN`, so the spec parses in browsers, `jq`, and other strict JSON readers. Column dtypes are unaffected.
 
 - `dataChecksum` no longer changes when only a column's dtype does. `Int64` and `Float64` columns holding the same values now hash alike, as do `NaN` and `null`. Checksums from earlier versions won't match for affected frames.

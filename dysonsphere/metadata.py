@@ -331,7 +331,7 @@ def _user_datasets(spec) -> dict[str, list[Any]]:
 
 
 def _data_checksum(spec) -> list[str]:
-    """One ``sha256:<hex>`` per user dataframe, order-independent, as a sorted list.
+    """One ``multiset-sha256:<hex>`` per user dataframe, order-independent, as a sorted list.
 
     Unlike ``vegaliteChecksum`` (which changes with row order, since the inlined data is part
     of the spec it hashes), this ignores row order: it hashes the *multiset* of per-row

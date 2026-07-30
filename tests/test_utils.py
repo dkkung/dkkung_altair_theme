@@ -2,6 +2,7 @@ import polars as pl
 import pytest
 
 from dysonsphere.utils import (
+    _ROW_HASH_PREFIX,
     _canonicalize,
     _json_safe,
     _nice_domain,
@@ -70,7 +71,7 @@ class TestCountN:
 class TestFrameChecksum:
     def test_shape_and_prefix(self, simple_df):
         s = frame_checksum(simple_df)
-        assert s.startswith("sha256:") and len(s) == len("sha256:") + 64
+        assert s.startswith(_ROW_HASH_PREFIX) and len(s) == len(_ROW_HASH_PREFIX) + 64
 
     def test_order_independent(self, simple_df):
         shuffled = simple_df.sample(fraction=1.0, shuffle=True, seed=3)
