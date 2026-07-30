@@ -975,3 +975,61 @@ class TestSourceDateEpoch:
         monkeypatch.setenv("SOURCE_DATE_EPOCH", "1700000000")
         ds.save(simple_chart, str(tmp_path / "u"), format="json", background=["light"])
         uuid.UUID(self._prov(tmp_path, "u")["exportIdentifier"])  # parses, so the field shape is unchanged
+
+
+class TestNonFiniteJson:
+    """`NaN`/`Infinity` are Python `json` extensions, not JSON - the written spec must not carry them."""
+
+    @staticmethod
+    def _chart_with_nan():
+        df = pl.DataFrame({"g": ["a", "b", "c"], "v": [1.0, float("nan"), 3.0]})
+        return df, alt.Chart(df).mark_point().encode(x="g:N", y="v:Q")
+
+    @staticmethod
+    def _strict_load(txt):
+        """Parse the way a browser's JSON.parse or serde_json would - no bare constants."""
+
+        def reject(token):
+            raise ValueError(f"bare {token}")
+
+        return json.loads(txt, parse_constant=reject)
+
+    def test_written_json_is_strict_valid(self, tmp_path):
+        import dysonsphere as ds
+
+        _, chart = self._chart_with_nan()
+        ds.save(chart, str(tmp_path / "n"), format="json", background=["light"])
+        txt = (tmp_path / "n.json").read_text()
+        assert "NaN" not in txt
+        rows = next(iter(self._strict_load(txt)["datasets"].values()))
+        assert [r["v"] for r in rows] == [1.0, None, 3.0]  # null, and the finite floats untouched
+
+    def test_finite_floats_survive_the_round_trip(self, tmp_path):
+        """A Float64 column must not come back as Int64 - only non-finite values are rewritten."""
+        import dysonsphere as ds
+
+        df, chart = self._chart_with_nan()
+        ds.save(chart, str(tmp_path / "r"), format="json", background=["light"])
+        back = ds.read(str(tmp_path / "r.json"), what="data")
+        assert back.dtypes == df.dtypes
+
+    def test_checksum_still_revalidates(self, tmp_path):
+        """The spec is made JSON-safe BEFORE hashing, so the stored checksum matches the file."""
+        import hashlib
+
+        import dysonsphere as ds
+
+        _, chart = self._chart_with_nan()
+        ds.save(chart, str(tmp_path / "c"), format="json", background=["light"])
+        spec = json.loads((tmp_path / "c.json").read_text())
+        clean = {k: v for k, v in spec.items() if k != "usermeta"}
+        canon = json.dumps(clean, sort_keys=True, separators=(",", ":"))
+        recomputed = "sha256:" + hashlib.sha256(canon.encode()).hexdigest()
+        assert spec["usermeta"]["dysonsphere"]["provenance"]["vegaliteChecksum"] == recomputed
+
+    def test_renders_still_succeed(self, tmp_path):
+        import dysonsphere as ds
+
+        _, chart = self._chart_with_nan()
+        ds.save(chart, str(tmp_path / "v"), format=["svg", "png"], background=["light"])
+        assert (tmp_path / "v.svg").stat().st_size > 0 and (tmp_path / "v.png").stat().st_size > 0

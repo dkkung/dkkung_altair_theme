@@ -14,7 +14,7 @@ import altair as alt
 
 from . import discovery, metadata
 from .theme import _opt
-from .utils import _SUP
+from .utils import _SUP, _json_safe
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
@@ -305,7 +305,9 @@ def save(
             # checksum); the SVG/PNG re-render below at the `transparent` param's value.
             alt.theme.options["transparent"] = original_transparent
             base_obj = _resolve_base()
-            spec = base_obj.to_dict()
+            # Non-finite floats become null before the spec is hashed OR written, so the checksum still
+            # revalidates against the file and the JSON never carries a bare NaN (not valid JSON).
+            spec = _json_safe(base_obj.to_dict())
             _hashes = metadata._scan_marker_hashes(spec) if saveMetadata else set()
             _records = _select_reports(_hashes)
             _exts = discovery._used_extensions(spec) if saveMetadata else {}  # extensions that made it
