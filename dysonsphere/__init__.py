@@ -23,6 +23,7 @@ from .utils import *  # noqa: F403
 # nothing else (no leaked stdlib/third-party imports on the dysonsphere namespace).
 __all__ = [
     "BandGeometry",
+    "VerifyResult",
     "add_beeswarm",
     "add_comparisons",
     "add_correlation",
@@ -57,6 +58,7 @@ __all__ = [
     "save",
     "show",
     "theme",
+    "verify",
 ]
 
 
