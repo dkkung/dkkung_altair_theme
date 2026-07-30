@@ -4,6 +4,8 @@
 
 ### New features
 
+- **`save()` honours `SOURCE_DATE_EPOCH`, making exports byte-reproducible.** `timestamp` and `exportIdentifier` previously changed on every call, so re-saving an unchanged figure rewrote its bytes - churn for anyone committing figures next to a manuscript. Setting the environment variable (the [reproducible-builds convention](https://reproducible-builds.org/specs/source-date-epoch/): an integer count of UTC seconds) pins the timestamp and derives the identifier from the figure's own content, so repeated saves produce identical files. Distinct figures still get distinct identifiers, and the light/dark variants of one export still share one. A malformed value raises rather than silently falling back to the wall clock.
+
 - `ds_cat_3` is the new default categorical palette, `ds_div_3` is the new default diverging palette.
 
 - **Band padding is now set per mark type.** Six keys replace the single `bandPadding`: `barPadding` (`0.1`), `rectPadding` (`0`), `tickPadding` (`0.1`), `outerPadding` (`0.1`), `groupPadding` (`0.2`, the gap between groups when `xOffset`/`yOffset` is used) and `subgroupPadding` (`0`, the gap between bars within a group). The last two were previously unreachable - `bandPadding` never affected grouped charts at all, because Vega-Lite routes a band scale with a nested offset through a different key. Outer padding stays a single key because Vega-Lite has no mark-specific counterpart for it.

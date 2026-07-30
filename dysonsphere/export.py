@@ -7,7 +7,6 @@ import tempfile
 import uuid
 import xml.etree.ElementTree as ET
 from contextlib import ExitStack
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Union, cast
 
@@ -209,6 +208,14 @@ def save(
 
         ``saveMetadata=False`` suppresses the structured block entirely; your
         ``description`` (if any) is still written.
+
+        **Reproducible exports.** ``timestamp`` and ``exportIdentifier`` normally change on
+        every call, so re-saving an unchanged figure rewrites its bytes.  Setting the
+        ``SOURCE_DATE_EPOCH`` environment variable (the reproducible-builds convention: an
+        integer count of UTC seconds) pins the timestamp to that instant and derives the
+        identifier from the figure's own content, making repeated saves byte-identical —
+        useful when figures are committed alongside a manuscript.  Distinct figures still
+        get distinct identifiers, and the light/dark variants of one export still share one.
     embedReport:
         If ``True`` (default) and ``saveMetadata`` is on, also embeds the human-readable
         **report table** (the descriptive + effect-size text from ``add_comparisons`` /
@@ -256,8 +263,12 @@ def save(
     # generated once (shared by every variant of this export); the checksum is per-variant.
     from .statistics import _select_reports
 
-    export_id = str(uuid.uuid4())
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # Under SOURCE_DATE_EPOCH both are pinned so two saves of one figure are byte-identical:
+    # the timestamp comes from the epoch, and the run id is derived from the first variant's
+    # content below (it needs the checksums, which are only computed inside the loop).
+    _reproducible = metadata._source_date_epoch() is not None
+    export_id = "" if _reproducible else str(uuid.uuid4())
+    timestamp = metadata._resolve_timestamp()
 
     # Resolve the base chart (callable re-invoked each variant so darkmode-sensitive colours
     # rebuild correctly).  The `description` property feeds the JSON spec's description key
@@ -301,13 +312,17 @@ def save(
             metadata._strip_markers(spec)  # markers are internal — never in the written output
             _usermeta = _usermeta_json = _report_sections = None
             if saveMetadata:
+                _checksum = metadata._spec_checksum(spec)
+                _data_checksum = metadata._data_checksum(spec)
+                if _reproducible and not export_id:
+                    export_id = metadata._derive_export_id(timestamp, _checksum, _data_checksum)
                 _usermeta, _usermeta_json, _report_sections = metadata._build_block(
                     _records,
                     embed_report=embedReport,
                     export_id=export_id,
                     timestamp=timestamp,
-                    checksum=metadata._spec_checksum(spec),
-                    data_checksum=metadata._data_checksum(spec),
+                    checksum=_checksum,
+                    data_checksum=_data_checksum,
                     extensions=_exts,
                     chart_expression=_chart_expression,
                     description=description,
