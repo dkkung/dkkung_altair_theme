@@ -72,20 +72,6 @@ Tag ``chart`` as produced by the extension ``name`` (e.g. ``"biology"``) so ``sa
 records that extension's version in provenance. The tag is a view-``name`` marker that
 survives composition (``+``/layer/concat) and is stripped from the written spec.
 
-## `internal_data`
-
-```python
-def internal_data(
-    data: list[dict[str, Any]] | pl.DataFrame | Any,
-) -> Any: ...
-```
-
-Tag dysonsphere-generated (non-user) chart data with the internal sentinel column.
-
-Accepts a list of record dicts (returned as an ``alt.Data``) or a polars/pandas
-DataFrame (returned as a polars DataFrame with the sentinel column added).  Pass the
-result straight to ``alt.Chart(...)``.
-
 ## `opt`
 
 ```python
@@ -101,3 +87,17 @@ present in ``alt.theme.options``, so the fallback only matters when a chart help
 called before any ``theme()``; it then sees the fully derived built-in defaults
 (``markSize`` 10.0, ``axisOffset`` 4.5, …), computed once and cached. Unknown keys
 raise ``KeyError``.
+
+## `internal_data`
+
+```python
+def internal_data(
+    data: list[dict[str, Any]] | pl.DataFrame | Any,
+) -> Any: ...
+```
+
+Tag dysonsphere-generated (non-user) chart data with the internal sentinel column.
+
+Accepts a list of record dicts (returned as an ``alt.Data``) or a polars/pandas
+DataFrame (returned as a polars DataFrame with the sentinel column added).  Pass the
+result straight to ``alt.Chart(...)``.

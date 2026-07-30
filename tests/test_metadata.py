@@ -17,6 +17,7 @@ from dysonsphere.metadata import (
     _source_date_epoch,
 )
 from dysonsphere.theme import theme
+from dysonsphere.utils import _ROW_HASH_PREFIX
 
 _PROV_ORDER = [
     "user",
@@ -772,7 +773,7 @@ class TestStatsQueueRobustness:
         ds.save(simple_chart, str(tmp_path / "out"), format="json", background=["light"])
         sums = self._um(tmp_path)["provenance"]["dataChecksum"]
         assert isinstance(sums, list) and sums  # non-empty list
-        assert all(s.startswith("sha256:") and len(s) == len("sha256:") + 64 for s in sums)
+        assert all(s.startswith(_ROW_HASH_PREFIX) and len(s) == len(_ROW_HASH_PREFIX) + 64 for s in sums)
 
     def test_data_checksum_matches_across_specs(self, tmp_path):
         # The core value prop: same data, DIFFERENT specs → identical dataChecksum.
@@ -893,7 +894,7 @@ class TestStatsQueueRobustness:
         )
         ds.save(chart, str(tmp_path / "s"), format="json", background=["light"])
         rec = self._um(tmp_path, "s")["statistics"][0]
-        assert rec["dataChecksum"] and rec["dataChecksum"].startswith("sha256:")
+        assert rec["dataChecksum"] and rec["dataChecksum"].startswith(_ROW_HASH_PREFIX)
 
     def test_clear_stats_empties_queue(self):
         import dysonsphere as ds
@@ -1033,3 +1034,96 @@ class TestNonFiniteJson:
         _, chart = self._chart_with_nan()
         ds.save(chart, str(tmp_path / "v"), format=["svg", "png"], background=["light"])
         assert (tmp_path / "v.svg").stat().st_size > 0 and (tmp_path / "v.png").stat().st_size > 0
+
+
+class TestVerify:
+    """`verify()` re-checks a saved figure against its own embedded checksums."""
+
+    @pytest.fixture
+    def saved(self, simple_chart, tmp_path):
+        import dysonsphere as ds
+
+        ds.save(simple_chart, str(tmp_path / "fig"), format=["json", "svg", "png"], background=["light"])
+        return tmp_path / "fig"
+
+    @pytest.fixture
+    def source_df(self):
+        return pl.DataFrame({"x": ["A", "B", "C"], "y": [1.0, 2.0, 3.0]})
+
+    def test_clean_json_passes(self, saved):
+        import dysonsphere as ds
+
+        r = ds.verify(f"{saved}.json")
+        assert r.specValid is True
+        assert r.dataMatches is None  # no df supplied - not a failure
+        assert r.ok
+
+    def test_matching_dataframe(self, saved, source_df):
+        import dysonsphere as ds
+
+        assert ds.verify(f"{saved}.json", df=source_df).dataMatches is True
+
+    def test_wrong_dataframe_fails(self, saved):
+        import dysonsphere as ds
+
+        other = pl.DataFrame({"x": ["A", "B", "C"], "y": [9.0, 9.0, 9.0]})
+        r = ds.verify(f"{saved}.json", df=other)
+        assert r.dataMatches is False and not r.ok
+
+    def test_row_order_does_not_matter(self, saved, source_df):
+        import dysonsphere as ds
+
+        shuffled = source_df.sample(fraction=1.0, shuffle=True, seed=7)
+        assert ds.verify(f"{saved}.json", df=shuffled).dataMatches is True
+
+    def test_pandas_accepted(self, saved, source_df):
+        import dysonsphere as ds
+
+        assert ds.verify(f"{saved}.json", df=source_df.to_pandas()).dataMatches is True
+
+    @pytest.mark.parametrize("ext", ["svg", "png"])
+    def test_data_verifiable_without_a_spec(self, saved, source_df, ext):
+        """SVG/PNG carry the checksums but not the spec - unknown, not failed."""
+        import dysonsphere as ds
+
+        r = ds.verify(f"{saved}.{ext}", df=source_df)
+        assert r.specValid is None  # could not run
+        assert r.dataMatches is True and r.ok
+
+    def test_detects_a_tampered_spec(self, saved, tmp_path):
+        import dysonsphere as ds
+
+        spec = json.loads((tmp_path / "fig.json").read_text())
+        spec["mark"] = {"type": "bar"}  # someone edited the chart after export
+        (tmp_path / "edited.json").write_text(json.dumps(spec, indent=2))
+        r = ds.verify(str(tmp_path / "edited.json"))
+        assert r.specValid is False and not r.ok
+
+    def test_multiframe_order_independent(self, tmp_path):
+        import dysonsphere as ds
+
+        d1 = pl.DataFrame({"g": ["a", "b"], "v": [1.0, 2.0]})
+        d2 = pl.DataFrame({"k": ["x", "y"], "n": [7, 8]})
+        chart = alt.hconcat(
+            alt.Chart(d1).mark_point().encode(x="g:N", y="v:Q"),
+            alt.Chart(d2).mark_bar().encode(x="k:N", y="n:Q"),
+        )
+        ds.save(chart, str(tmp_path / "m"), format="json", background=["light"])
+        assert ds.verify(str(tmp_path / "m.json"), df=[d1, d2]).dataMatches is True
+        assert ds.verify(str(tmp_path / "m.json"), df=[d2, d1]).dataMatches is True
+        assert ds.verify(str(tmp_path / "m.json"), df=[d1]).dataMatches is False  # incomplete
+
+    def test_surfaces_identity_fields(self, saved):
+        import dysonsphere as ds
+
+        r = ds.verify(f"{saved}.json")
+        assert r.exportIdentifier is not None and r.timestamp is not None
+        uuid.UUID(r.exportIdentifier)
+        assert r.timestamp.endswith("Z")
+
+    def test_rejects_a_file_without_metadata(self, tmp_path):
+        import dysonsphere as ds
+
+        (tmp_path / "plain.json").write_text('{"mark":"point"}')
+        with pytest.raises(ValueError, match="no dysonsphere metadata"):
+            ds.verify(str(tmp_path / "plain.json"))

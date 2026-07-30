@@ -6,11 +6,15 @@
 
 - **`save()` honors `SOURCE_DATE_EPOCH`, making exports byte-reproducible.** `timestamp` and `exportIdentifier` previously changed on every call, so re-saving an unchanged figure rewrote its bytes - churn for anyone committing figures next to a manuscript. Setting the environment variable (the [reproducible-builds convention](https://reproducible-builds.org/specs/source-date-epoch/): an integer count of UTC seconds) pins the timestamp and derives the identifier from the figure's own content, so repeated saves produce identical files. Distinct figures still get distinct identifiers, and the light/dark variants of one export still share one. A malformed value raises rather than silently falling back to the wall clock.
 
+- **`ds.verify(path, df=None)`** checks a saved figure against its own embedded checksums, without the original script. It re-hashes the spec to detect an edited file (JSON only - SVG and PNG carry the checksums but not the spec), and compares `df` against the recorded `dataChecksum` to confirm a figure came from a given dataset, which works for all three formats. Row order and the order dataframes are passed in are both irrelevant. Returns a `VerifyResult` whose `specValid` and `dataMatches` are `None` when a check could not run, so an impossible check never reads as a failure.
+
 - `ds_cat_3` is the new default categorical palette, `ds_div_3` is the new default diverging palette.
 
 - **Band padding is now set per mark type.** Six keys replace the single `bandPadding`: `barPadding` (`0.1`), `rectPadding` (`0`), `tickPadding` (`0.1`), `outerPadding` (`0.1`), `groupPadding` (`0.2`, the gap between groups when `xOffset`/`yOffset` is used) and `subgroupPadding` (`0`, the gap between bars within a group). The last two were previously unreachable - `bandPadding` never affected grouped charts at all, because Vega-Lite routes a band scale with a nested offset through a different key. Outer padding stays a single key because Vega-Lite has no mark-specific counterpart for it.
 
 ### Fixes
+
+- `dataChecksum` is now prefixed `multiset-sha256:` rather than `sha256:`. It is a hash of the multiset of row digests, not of the file's bytes, so the old prefix implied it could be checked by re-hashing the file. `vegaliteChecksum` still reads `sha256:`, because that one can.
 
 - A saved `.json` writes `null` for missing numeric values instead of `NaN`, so the spec parses in browsers, `jq`, and other strict JSON readers. Column dtypes are unaffected.
 

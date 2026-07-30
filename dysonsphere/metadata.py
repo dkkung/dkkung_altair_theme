@@ -15,6 +15,7 @@ import struct
 import sys
 import uuid
 import zlib
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -23,7 +24,7 @@ import altair as alt
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
-__all__ = ["read"]
+__all__ = ["VerifyResult", "read", "verify"]
 
 _REPORT_PREFIX = "dysonsphere-report-"
 
@@ -331,7 +332,7 @@ def _user_datasets(spec) -> dict[str, list[Any]]:
 
 
 def _data_checksum(spec) -> list[str]:
-    """One ``sha256:<hex>`` per user dataframe, order-independent, as a sorted list.
+    """One ``multiset-sha256:<hex>`` per user dataframe, order-independent, as a sorted list.
 
     Unlike ``vegaliteChecksum`` (which changes with row order, since the inlined data is part
     of the spec it hashes), this ignores row order: it hashes the *multiset* of per-row
@@ -626,3 +627,98 @@ def read(
         ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         (directory / f"dysonsphere_report_{ts}.txt").write_text(text + "\n", encoding="utf-8")
     return text
+
+
+@dataclass(frozen=True)
+class VerifyResult:
+    """Outcome of :func:`verify` - what could be checked, and what matched.
+
+    ``specValid`` and ``dataMatches`` are **tri-state**: ``True``/``False`` when the check ran,
+    and ``None`` when it could not run at all.  A check that was impossible is not a failure -
+    an SVG or PNG carries no spec to re-hash, so ``specValid`` is ``None`` there, and
+    ``dataMatches`` is ``None`` when no dataframe was supplied to compare against.
+    """
+
+    path: str
+    specValid: bool | None
+    dataMatches: bool | None
+    storedDataChecksums: list[str]
+    computedDataChecksums: list[str]
+    exportIdentifier: str | None
+    timestamp: str | None
+
+    @property
+    def ok(self) -> bool:
+        """True when every check that actually ran passed (an un-run check does not fail)."""
+        return self.specValid is not False and self.dataMatches is not False
+
+
+def verify(path: str, df: Any = None) -> VerifyResult:
+    """Check a saved figure against its own embedded checksums, and optionally against its data.
+
+    Two independent questions, neither of which needs the original script:
+
+    - **Is the file internally consistent?**  The spec is re-hashed and compared with the
+      recorded ``vegaliteChecksum``, so an edited spec is detectable.  JSON only - SVG and PNG
+      embed the metadata block but not the full spec, so ``specValid`` is ``None`` for them.
+    - **Did this figure come from this data?**  Pass ``df`` and each frame's checksum is
+      compared with the recorded ``dataChecksum``.  This works for **all three formats**, since
+      the checksums travel in the metadata block, and it is order-independent in both senses:
+      row order within a frame does not matter, nor does the order frames are passed in.
+
+    Because the checksums are content-derived, a figure that has lost its metadata entirely
+    (screenshotted, re-saved by another tool) can still be identified: verify an intact sibling
+    export, or compare ``frame_checksum(df)`` against a recorded value directly.
+
+    Parameters
+    ----------
+    path:
+        A dysonsphere-exported ``.png``, ``.svg``, or ``.json``.
+    df:
+        Optional dataframe, or list of dataframes, that the figure should have been built from.
+        Polars or pandas.  Omit to check only the spec.
+
+    Returns
+    -------
+    VerifyResult
+        ``.ok`` is ``True`` when every check that ran passed.  ``specValid``/``dataMatches`` are
+        ``None`` for checks that could not run.
+
+    Examples
+    --------
+    ::
+
+        ds.verify("fig.json").ok                 # untampered?
+        ds.verify("fig.png", df=df).dataMatches  # built from this data?
+        ds.verify("fig.json", df=[counts, meta]) # multi-frame chart
+    """
+    from .utils import frame_checksum
+
+    block = _read_dysonsphere_block(path)
+    prov = block.get("provenance") or {}
+    stored = sorted(prov.get("dataChecksum") or [])
+
+    spec_valid: bool | None = None
+    if Path(path).suffix.lower() == ".json":
+        spec = json.loads(Path(path).read_text(encoding="utf-8"))
+        recorded = prov.get("vegaliteChecksum")
+        if recorded is not None:
+            # Re-hash exactly what save() hashed: the spec without usermeta.
+            spec_valid = _spec_checksum({k: v for k, v in spec.items() if k != "usermeta"}) == recorded
+
+    computed: list[str] = []
+    data_matches: bool | None = None
+    if df is not None:
+        frames = df if isinstance(df, (list, tuple)) else [df]
+        computed = sorted(frame_checksum(f) for f in frames)
+        data_matches = computed == stored
+
+    return VerifyResult(
+        path=str(path),
+        specValid=spec_valid,
+        dataMatches=data_matches,
+        storedDataChecksums=stored,
+        computedDataChecksums=computed,
+        exportIdentifier=prov.get("exportIdentifier"),
+        timestamp=prov.get("timestamp"),
+    )

@@ -239,8 +239,11 @@ def _canonicalize(value: Any) -> Any:
     return _walk(value, _scalar)
 
 
+_ROW_HASH_PREFIX = "multiset-sha256:"
+
+
 def _hash_rows(rows: list[dict[str, Any]]) -> str:
-    """Order-independent ``sha256:<hex>`` of a list of record dicts.
+    """Order-independent ``multiset-sha256:<hex>`` of a list of record dicts.
 
     Hashes the *multiset* of per-row canonical-JSON digests (sort the digests, then hash), so a
     reordered-but-identical set yields the same value; duplicate rows are preserved.  The single
@@ -249,6 +252,11 @@ def _hash_rows(rows: list[dict[str, Any]]) -> str:
     Every row goes through :func:`_canonicalize` first, so a missing value and a dtype change
     cannot alter the digest; ``default=str`` then keeps it total for non-JSON-native cell types
     (dates, Decimals).
+
+    The prefix names the *construction*, not just the hash function.  A bare ``sha256:`` means
+    SHA-256 over an artifact's bytes everywhere it is used as a digest label (OCI, in-toto,
+    Frictionless), and this is not that - it is a multiset hash, so it cannot be reproduced by
+    hashing the file.  ``vegaliteChecksum`` does hash bytes and keeps the plain ``sha256:``.
     """
     digests = sorted(
         hashlib.sha256(
@@ -258,11 +266,11 @@ def _hash_rows(rows: list[dict[str, Any]]) -> str:
         ).hexdigest()
         for r in rows
     )
-    return "sha256:" + hashlib.sha256(json.dumps(digests, separators=(",", ":")).encode()).hexdigest()
+    return _ROW_HASH_PREFIX + hashlib.sha256(json.dumps(digests, separators=(",", ":")).encode()).hexdigest()
 
 
 def frame_checksum(df: "pl.DataFrame | Any") -> str:
-    """Order-independent ``sha256:<hex>`` fingerprint of a dataframe's rows.
+    """Order-independent ``multiset-sha256:<hex>`` fingerprint of a dataframe's rows.
 
     Same algorithm as the provenance ``dataChecksum`` (via :func:`_hash_rows`), so identical
     content in any row order yields the same value.  Used to tag a statistics record with the
