@@ -2353,3 +2353,38 @@ class TestDropTicks:
             ]
         assert bars["drop"] == bars["bracket"]
         assert bars["drop"] != bars["line"]
+
+    def test_explicit_tick_height_with_drop_raises(self):
+        # tickHeight fixes a length, drop computes one per end - accepting both would silently
+        # ignore whichever lost.
+        rng = np.random.default_rng(0)
+        df = pl.DataFrame({"g": ["A"] * 10 + ["B"] * 10 + ["C"] * 10, "v": rng.normal(0, 1, 30)})
+        with pytest.raises(ValueError, match="Pass one or the other"):
+            add_comparisons(df, "g", "v", [("A", "B")], categories=MULTI, bracketStyle="drop", tickHeight=0.5)
+
+    def test_explicit_tick_height_with_drop_raises_in_grouped(self):
+        rows = []
+        for gene in ("G1", "G2"):
+            for cond in ("Veh", "Low"):
+                rows += [{"gene": gene, "cond": cond, "expr": float(i)} for i in range(6)]
+        with pytest.raises(ValueError, match="Pass one or the other"):
+            add_comparisons(
+                pl.DataFrame(rows),
+                "gene",
+                "expr",
+                pairs=[("Veh", "Low")],
+                xOffsetCol="cond",
+                categories=["G1", "G2"],
+                xOffsetSort=["Veh", "Low"],
+                bracketStyle="drop",
+                tickHeight=0.5,
+            )
+
+    def test_tick_height_still_works_with_other_styles(self):
+        rng = np.random.default_rng(0)
+        df = pl.DataFrame({"g": ["A"] * 10 + ["B"] * 10 + ["C"] * 10, "v": rng.normal(0, 1, 30)})
+        for style in ("bracket", "line"):
+            assert (
+                add_comparisons(df, "g", "v", [("A", "B")], categories=MULTI, bracketStyle=style, tickHeight=0.5)
+                is not None
+            )

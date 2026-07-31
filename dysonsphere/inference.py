@@ -863,6 +863,11 @@ def _add_grouped_comparisons(
 
     y_all = df[y_col].cast(pl.Float64)
     y_range = cast(float, y_all.max() or 0.0) - cast(float, y_all.min() or 0.0)
+    if tickHeight is not None and bracketStyle == "drop":
+        raise ValueError(
+            "tickHeight sets a fixed end-tick length, which bracketStyle='drop' computes per end. "
+            "Pass one or the other."
+        )
     # See the single-factor path: an auto leg height is pixels, not data units.
     _tick_arg = tickHeight
     yPad, tickHeight, yStep = _resolve_y_spacing(
@@ -1400,7 +1405,8 @@ def add_comparisons(
         Under automatic placement the ticks are a fixed 2 **pixels** on any y range. Always
         positive, so it works with reverse
         (negative-``yStep``) brackets without an explicit override. Only used when
-        ``bracketStyle='bracket'``.
+        ``bracketStyle='bracket'``; raises with ``bracketStyle='drop'``, which computes a
+        length per end.
     strokeWidth:
         Stroke width of bracket lines. Inherits ``axisWidth`` from
         ``ds.theme()`` when not set.
@@ -1773,6 +1779,11 @@ def add_comparisons(
     # --- brackets ---
     elif pairs:
         pair_styles = _resolve_bracket_styles(bracketStyle, pairs)
+        if tickHeight is not None and "drop" in pair_styles:
+            raise ValueError(
+                "tickHeight sets a fixed end-tick length, which bracketStyle='drop' computes per end. "
+                "Pass one or the other."
+            )
 
         if pvalues is not None:
             if len(pvalues) != len(pairs):
