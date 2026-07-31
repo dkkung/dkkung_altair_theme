@@ -647,20 +647,22 @@ def _grouped_bracket_layer(
     chartWidth: float,
     offset_px: float = 0.0,
     tick_px: float | tuple[float, float] | None = None,
+    reverse: bool = False,
 ) -> alt.LayerChart:
     """One within-category bracket for grouped comparisons.
 
     The top bar spans the two xOffset sub-bars via the SHARED xOffset scale (``sort`` matched to the
     bars so they keep their order), the optional end-ticks drop from it, and the label centres on the
-    band. Everything is encoded (no pixel math), so the bracket tracks wherever Vega lays the grouped
-    bars out. The label sits at the band centre - exact for two levels / symmetric pairs, slightly off
-    the true midpoint only for an asymmetric 3+-level pair (the bar and ticks stay exact).
+    bracket's own midpoint. The bar and ticks are encoded (no pixel math), so they track wherever
+    Vega lays the grouped bars out; only the label is positioned in pixels, since it has no sub-bar
+    of its own to ride. ``reverse`` hangs the bracket below its groups with the ticks pointing up.
     """
     rk: dict[str, Any] = {"strokeWidth": strokeWidth, "strokeDash": [0, 0], "strokeCap": _opt("strokeCap")}
     # Same placement contract as the single-factor path: anchor in data, lift in pixels via a
     # render-time scale expression, so the gap does not follow the rendered y domain.
+    _sign = 1 if reverse else -1
     if offset_px:
-        rk["yOffset"] = -offset_px
+        rk["yOffset"] = _sign * offset_px
     xenc = alt.X(f"{x_col}:N", sort=categories)
     xoff = alt.XOffset(f"{xoffset_col}:N", sort=level_order)
 
@@ -674,8 +676,8 @@ def _grouped_bracket_layer(
         .encode(x=xenc, xOffset=xoff, y=alt.Y("__y:Q"))
     )
     # Asterisk glyphs sit close to the baseline; alphanumeric labels ("ns", "P = …") need more.
-    _dym = -(2 if label_style == "asterisks" and label != "ns" else 4)
-    dy = _dym - offset_px
+    _dym = 2 if label_style == "asterisks" and label != "ns" else 4
+    dy = (_dym if reverse else -_dym) + _sign * offset_px
     # Centred on the bracket's own midpoint in PIXELS. The label cannot ride the xOffset
     # encoding (a subset domain there reorders the bars), and the band centre it used through
     # 3.10.1 drifts a whole sub-bar away from an asymmetric pair - far enough to sit over a
@@ -684,7 +686,7 @@ def _grouped_bracket_layer(
     _mid_px = (_sub[level_order.index(level1)] + _sub[level_order.index(level2)]) / 2
     text = (
         alt.Chart(_internal_data([{"__y": y, "__label": label}]))
-        .mark_text(align="center", fontSize=fontSize, dy=dy)
+        .mark_text(align="center", fontSize=fontSize, dy=dy, **({"baseline": "top"} if reverse else {}))
         .encode(x=alt.value(_mid_px), y=alt.Y("__y:Q"), text="__label:N")
     )
     if bracket_style in ("bracket", "drop"):
@@ -694,9 +696,9 @@ def _grouped_bracket_layer(
         legs = []
         for level, tlen in zip((level1, level2), _lens if _lens is not None else (None, None)):
             tk = dict(rk)
-            y2_val = y - tick_height
+            y2_val = y + tick_height if reverse else y - tick_height
             if tlen is not None:
-                tk["y2Offset"] = -(offset_px - tlen)
+                tk["y2Offset"] = _sign * offset_px - _sign * tlen
                 y2_val = y
             legs.append(
                 alt.Chart(_internal_data([{x_col: category, xoffset_col: level, "__y": y, "__y2": y2_val}]))
@@ -774,6 +776,7 @@ def _add_grouped_comparisons(
     pairs: list[tuple[str, str]] | None,
     *,
     reference: Any,
+    reverse: list[tuple[str, str]] | None,
     pvalues: Any,
     yStart: float | dict[Any, Any] | None,
     yPositions: Any,
@@ -991,6 +994,9 @@ def _add_grouped_comparisons(
             return float(yStart[cat]) if cat in yStart else auto_base
         return float(yStart) if yStart is not None else auto_base
 
+    _rev_lvl_pairs = [frozenset(p) for p in (reverse or [])]
+    rev_flags = [frozenset((l1, l2)) in _rev_lvl_pairs for l1, l2 in pairs]
+
     layers: list[Any] = []
     comparisons: list[dict[str, Any]] = []
     k = 0
@@ -1013,14 +1019,21 @@ def _add_grouped_comparisons(
                 for a, b in pairs
             ]
             # Over every sub-bar the bracket SPANS, not just its endpoints - see the single-factor
-            # path: a taller level in the middle would otherwise sit above the bracket.
+            # path: a taller level in the middle would otherwise sit above the bracket. A reverse
+            # bracket hangs BELOW its groups, so it anchors on their minimum instead.
             cat_pair_anchor = [
                 cast(
                     float,
-                    cdf.filter(pl.col(xoffset_col).is_in(level_order[lo : hi + 1]))[y_col].cast(pl.Float64).max()
+                    (
+                        cdf.filter(pl.col(xoffset_col).is_in(level_order[lo : hi + 1]))[y_col].cast(pl.Float64).min()
+                        if rev_flags[pi]
+                        else cdf.filter(pl.col(xoffset_col).is_in(level_order[lo : hi + 1]))[y_col]
+                        .cast(pl.Float64)
+                        .max()
+                    )
                     or 0.0,
                 )
-                for lo, hi in cat_spans
+                for pi, (lo, hi) in enumerate(cat_spans)
             ]
             _clo, _chi = _nice_domain(
                 min(0.0, cast(float, cdf[y_col].cast(pl.Float64).min() or 0.0)),
@@ -1028,15 +1041,27 @@ def _add_grouped_comparisons(
             )
             _cspan = (_chi - _clo) or 1.0
             _ch = float(_opt("chartHeight"))
-            cat_placed = _bracket_offsets(
-                cat_pair_anchor,
-                cat_spans,
-                6.0,
-                float(fontSize or _opt("fontSize")) + 6.0,
-                lambda v, _lo=_clo, _sp=_cspan, _h=_ch: _h * (1.0 - (v - _lo) / _sp),
-            )
-            cat_pair_anchor = [a for a, _ in cat_placed]
-            cat_offsets = [o for _, o in cat_placed]
+            _cpx = lambda v, _lo=_clo, _sp=_cspan, _h=_ch: _h * (1.0 - (v - _lo) / _sp)  # noqa: E731
+            # Up and down brackets sit on opposite sides of the data and never collide, so each
+            # direction gets its own ladder (same as the single-factor path).
+            cat_pair_anchor = list(cat_pair_anchor)
+            cat_offsets = [0.0] * len(pairs)
+            for _down in (False, True):
+                _sel = [i for i, r in enumerate(rev_flags) if r is _down]
+                if not _sel:
+                    continue
+                for _slot, (_a, _o) in zip(
+                    _sel,
+                    _bracket_offsets(
+                        [cat_pair_anchor[i] for i in _sel],
+                        [cat_spans[i] for i in _sel],
+                        6.0,
+                        float(fontSize or _opt("fontSize")) + 6.0,
+                        _cpx,
+                        downward=_down,
+                    ),
+                ):
+                    cat_pair_anchor[_slot], cat_offsets[_slot] = _a, _o
             if bracketStyle == "drop":
                 # The y scale is shared across categories, so drop lengths - unlike the ladder
                 # offsets above, which are relative - must be measured against the WHOLE frame's
@@ -1050,11 +1075,13 @@ def _add_grouped_comparisons(
                 def _cat_px(v: float, _lo: float = _dlo, _sp: float = _dspan, _h: float = _ch) -> float:
                     return _h * (1.0 - (v - _lo) / _sp)
 
-                _cbars = [_cat_px(cat_pair_anchor[i]) - cat_offsets[i] for i in range(len(pairs))]
-                _clevel_px = [
-                    _cat_px(cast(float, cdf.filter(pl.col(xoffset_col) == lv)[y_col].cast(pl.Float64).max() or 0.0))
-                    for lv in level_order
+                _cbars = [
+                    _cat_px(cat_pair_anchor[i]) + (cat_offsets[i] if rev_flags[i] else -cat_offsets[i])
+                    for i in range(len(pairs))
                 ]
+                _lvl_col = [cdf.filter(pl.col(xoffset_col) == lv)[y_col].cast(pl.Float64) for lv in level_order]
+                _clevel_px = [_cat_px(cast(float, c.max() or 0.0)) for c in _lvl_col]
+                _clevel_lo = [_cat_px(cast(float, c.min() or 0.0)) for c in _lvl_col] if any(rev_flags) else _clevel_px
                 # Every label in a category centres on the same band, and the sub-bar pixel
                 # positions are Vega's, not band_geometry's - so a label is treated as covering
                 # the whole category. Conservative: it can only shorten a tick, never overlap one.
@@ -1066,12 +1093,21 @@ def _add_grouped_comparisons(
                     (
                         float("-inf"),
                         float("inf"),
-                        _cbars[i] - (2.0 if labelStyle == "asterisks" and lb != "ns" else 4.0) - _cfs,
+                        _cbars[i]
+                        - (-1.0 if rev_flags[i] else 1.0)
+                        * ((2.0 if labelStyle == "asterisks" and lb != "ns" else 4.0) + _cfs),
                     )
                     for i, lb in enumerate(_clabels)
                 ]
                 cat_drop = _drop_tick_lengths(
-                    _cbars, cat_spans, _clevel_px, ["drop"] * len(pairs), [0.0] * len(level_order), _cedges
+                    _cbars,
+                    cat_spans,
+                    _clevel_px,
+                    ["drop"] * len(pairs),
+                    [0.0] * len(level_order),
+                    _cedges,
+                    rev_flags,
+                    _clevel_lo,
                 )
         if not is_reference:
             # Every bracket's y, resolved before emitting so drop ticks can be solved against it
@@ -1178,6 +1214,7 @@ def _add_grouped_comparisons(
                         strokeWidth=strokeWidth,
                         fontSize=fontSize,
                         chartWidth=chartWidth,
+                        reverse=rev_flags[pi],
                         offset_px=(cat_offsets[pi] if grp_pixel_mode else 0.0),
                         tick_px=(
                             cat_drop[pi] if cat_drop is not None else (_BRACKET_TICK_PX if _tick_arg is None else None)
@@ -1431,7 +1468,10 @@ def add_comparisons(
         ``fontSize`` (``7`` under the built-in defaults), matching the axis font.
     reverse:
         List of ``(group1, group2)`` tuples identifying brackets to flip —
-        text moves below the bar and ticks point upward.
+        text moves below the bar and ticks point upward, and the bracket hangs
+        below its groups rather than above them. In grouped mode (``xOffsetCol``)
+        the tuples name ``xOffsetCol`` levels, like ``pairs``, and apply in every
+        category.
     sigFigs:
         Significant figures for p-value labels (and the correlation readout). Gives
         consistent visual precision across magnitudes — e.g. ``sigFigs=2`` renders both
@@ -1584,6 +1624,7 @@ def add_comparisons(
             xOffsetCol,
             pairs,
             reference=reference,
+            reverse=reverse,
             xOffsetSort=xOffsetSort,
             test=test,
             correction=correction,
