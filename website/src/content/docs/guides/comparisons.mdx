@@ -10,22 +10,38 @@ with `+`. Every call also builds a structured report - descriptives, exact p-val
 sizes - that `save()` embeds in the export metadata, so a figure carries its own analysis. Pass
 `report=True` to print it, or `save=True` to write a text file.
 
-It classifies `test=` into **pairwise** (`mannwhitneyu`, `ttest_ind`, `ttest_rel`, `wilcoxon`,
-`tukey_hsd`) or **omnibus** (`anova`, `kruskal`, `friedman`, `alexandergovern`). Here an ANOVA with
-a corner label plus two post-hoc brackets - nothing is positioned by hand. The corner label sits at
-the top of the plot, so the annotation raises the top of the y axis enough for the brackets to fit
-beneath it:
+Which annotation you get is decided by `test=`, which classifies into **pairwise** (`mannwhitneyu`,
+`ttest_ind`, `ttest_rel`, `wilcoxon`, `tukey_hsd`) or **omnibus** (`anova`, `kruskal`, `friedman`,
+`alexandergovern`). Here an ANOVA with a corner label plus two post-hoc brackets - nothing is
+positioned by hand. The corner label sits at the top of the plot, so the annotation raises the top
+of the y axis enough for the brackets to fit beneath it:
 
 <Example name="comparisons" alt="Fuel economy by origin with an ANOVA label and post-hoc brackets" />
 
-## Pairwise tests and corrections
+## Pairwise tests
 
-Give a list of pairs; brackets stack automatically. `correction=` applies Holm or Bonferroni
-multiple-comparison adjustment.
+A pairwise test asks one question per pair of groups: *are these two different?* Give a list of
+pairs and each gets its own bracket, stacked automatically so they don't collide.
+
+`correction=` applies a multiple-comparison adjustment over the whole family - `"holm"` or
+`"bonferroni"` for family-wise error, `"fdr_bh"` or `"fdr_by"` for false-discovery control.
 
 <Example name="comparisons_pairwise" alt="Three pairwise Mann-Whitney brackets with Holm correction" />
 
-## Compare against a control
+### Every pair at once
+
+`pairs="all"` expands to every unique pair, in `categories` order. Besides being shorter than
+listing them, it keeps the correction honest: the family size defaults to the number of pairs, so
+hand-listing a subset of the comparisons you actually ran under-corrects them.
+
+<Example name="comparisons_all" alt="All three pairwise comparisons between car origins" />
+
+The bracket count grows as `n(n-1)/2`, but the *stack* grows faster - roughly `n²/4` rows, because
+what sets the height is the largest set of brackets that mutually overlap. That's 5 rows at four
+groups, 8 at five, 11 at six. Past four or five groups an omnibus test reports every comparison
+without drawing any of them, which is usually the better figure.
+
+### Compare against a control
 
 Pass `reference=` (a group name) to compare every other group against one control and draw the
 p-value **above each mark, with no brackets** - the clean many-vs-one layout that a fan of brackets
@@ -44,13 +60,51 @@ groups span roughly a tenfold range, and the gap is the same in all three:
 
 <Example name="comparisons_grouped_reference" alt="Three dose-response groups with an asterisk above each dose bar compared to a darker vehicle control" />
 
-For full control you can supply the statistics and positions yourself: `pvalues=` (a dict keyed by
-group) draws precomputed p-values instead of running the test, and `yPositions=` places labels - a
-single number for a flat row, a dict keyed by group for individual labels, or in grouped mode a
-dict keyed by **category** for one flat row per group. A flat row reads as "this whole group was
-compared against its control", where the automatic layout ties each mark to its own bar.
+## Omnibus tests
 
-## Label styles
+An omnibus test asks a single question of all the groups at once: *is anything different anywhere?*
+It costs one test instead of many, so there is no multiplicity to correct, and it is the honest
+opening move when you have three or more groups and no specific pair in mind.
+
+Set `test=` to one of `anova`, `kruskal`, `friedman` or `alexandergovern` and the result goes in a
+corner label rather than on a bracket. Add `pairs` and the brackets are filled by the matching
+**post-hoc** test, chosen for you: ANOVA → Tukey HSD, Kruskal-Wallis → Dunn, Friedman → Nemenyi,
+Alexander-Govern → Games-Howell. Override with `postHoc=`.
+
+`omnibusVerbose=True` adds the test statistic, degrees of freedom, and an effect size (η², ε², or
+Kendall's W depending on the test).
+
+<Example name="comparisons_kruskal" alt="Kruskal-Wallis omnibus label with Dunn post-hoc brackets" />
+
+Leaving `pairs` unset draws the corner label alone - but the report still covers **every** pairwise
+post-hoc comparison, so you get the full table in the metadata without putting a dozen brackets on
+the figure.
+
+## Styling
+
+### Bracket shape
+
+`bracketStyle` takes `"bracket"` (default - a bar with end ticks), `"line"` (bar only), or
+`"drop"`.
+
+`"drop"` reaches each end tick down toward the group that end sits over, stopping short of the data
+and of anything else it would cross, so ticks sharing a column stagger instead of colliding. It ties
+each bracket to its own groups unambiguously, which matters most when a bracket spans others:
+
+<Example name="comparisons_drop" alt="Comparison brackets whose end ticks reach down toward each group" />
+
+It suits a handful of brackets over groups of comparable height. Because a whole stack hangs from
+one shared height, a single tall group lifts every bracket above it and the ticks below get long.
+
+### Direction
+
+`reverse=` takes a list of pairs and hangs those brackets **below** their groups with the ticks
+pointing up, stacking downward. Useful when the space above the data is already spoken for, and it
+mixes freely with normal brackets in one chart.
+
+<Example name="comparisons_reverse" alt="Two comparison brackets hanging below the data with labels beneath" />
+
+### Label styles
 
 `labelStyle="asterisks"` renders `*` / `**` / `***` / `ns`; `bracketStyle="line"` drops the end
 ticks.
@@ -63,25 +117,33 @@ to a single number, which aligns every label in a flat row:
 
 <Example name="comparisons_value" alt="Reference comparison with bare-value labels in a flat row" />
 
-## Number notation
+### Number notation
 
 `notation=` controls the p-value format (`"scientific"`, `"e"`, `"power"`), and `sigFigs=` sets the
 precision.
 
 <Example name="comparisons_notation" alt="Comparison bracket with scientific-notation p-value" />
 
+### Per-pair control
+
 Both `bracketStyle` and `notation` also accept a **dict** for per-pair control (keys are pairs,
 matched regardless of order); `notation` additionally takes a `"test"` key for the omnibus label:
 
 <Example name="comparisons_perpair" alt="Two brackets with different per-pair styles and notation" />
 
-## Omnibus with post-hoc
+### Placement
 
-For an omnibus test, the corner label reports the omnibus result and the brackets are filled by the
-matching post-hoc (Kruskal-Wallis → Dunn here). `omnibusVerbose=True` adds the statistic, degrees of
-freedom, and effect size.
+Brackets place themselves: each sits above the data it spans, and overlapping ones are pushed apart
+by a constant pixel gap, so the spacing holds whatever the y range. Four parameters take that over
+when you need to.
 
-<Example name="comparisons_kruskal" alt="Kruskal-Wallis omnibus label with Dunn post-hoc brackets" />
+`yPositions=` sets exact heights - one number puts every label in a flat row, a list gives one per
+comparison. `yStart=` sets the base of the stack and `yStep=` the gap between rows, both in data
+units. `yPad=` adjusts the gap from the data without giving up automatic placement. Supplying any of
+them opts that chart out of pixel placement, so the gaps then follow the y domain.
+
+`pvalues=` skips the test entirely and draws numbers you supply - useful when the statistics come
+from somewhere else.
 
 ## Grouped (two-factor) comparisons
 
@@ -92,3 +154,8 @@ sitting above its own group's bars. Set `categories` and `xOffsetSort` to match 
 `xOffset` sort (it raises if they don't cover the data):
 
 <Example name="qpcr" alt="Grouped qPCR bars with a within-gene significance bracket per gene" />
+
+`reverse=` and `bracketStyle="drop"` work here too. In grouped mode `reverse` names xOffset **levels**,
+like `pairs`, and applies in every category:
+
+<Example name="comparisons_grouped_reverse" alt="Grouped comparisons with brackets hanging below each pair of conditions" />

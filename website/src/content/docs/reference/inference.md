@@ -22,7 +22,7 @@ def add_comparisons(
     df: pl.DataFrame | Any,
     xCol: str,
     yCol: str,
-    pairs: list[tuple[str, str]] | None = None,
+    pairs: list[tuple[str, str]] | str | None = None,
     *,
     test: str = 'mannwhitneyu',
     postHoc: str | None = None,
@@ -111,7 +111,7 @@ Combine with your chart using ``+``:  ``chart + add_comparisons(...)``.
 - **`df`** (`pl.DataFrame | Any`) - Polars DataFrame containing the data.
 - **`xCol`** (`str`) - Column name for the grouping variable (x-axis).
 - **`yCol`** (`str`) - Column name for the value variable (y-axis). Used to run tests and to auto-place the first bracket.
-- **`pairs`** (`list[tuple[str, str]] | None`) - List of ``(group1, group2)`` tuples identifying the comparisons to annotate with brackets. Required for pairwise ``test`` values. Optional for omnibus tests — pass ``None`` for an omnibus-only corner label, or a list to also draw post-hoc brackets.
+- **`pairs`** (`list[tuple[str, str]] | str | None`) - List of ``(group1, group2)`` tuples identifying the comparisons to annotate with brackets. Required for pairwise ``test`` values. Optional for omnibus tests — pass ``None`` for an omnibus-only corner label, or a list to also draw post-hoc brackets. ``"all"`` expands to every unique pair, in ``categories`` order (in grouped mode, every unique pair of ``xOffsetCol`` levels). Besides being shorter, it keeps ``correction`` honest: the family size defaults to ``len(pairs)``, so hand-listing a subset of the comparisons you actually ran under-corrects them. Note the bracket count grows as ``n(n-1)/2`` — 6 brackets at 4 groups, 10 at 5, 15 at 6 — so beyond 4 or 5 groups prefer an omnibus ``test`` with ``pairs=None`` (which already reports every post-hoc comparison) and bracket only the few pairs worth showing.
 - **`test`** (`str`) - Statistical test. **Pairwise:** ``'mannwhitneyu'`` (default), ``'ttest_ind'``, ``'ttest_rel'``, ``'wilcoxon'`` (run per pair), or ``'tukey_hsd'`` (one omnibus run, per-pair p-values from the matrix). **Omnibus:** ``'anova'`` (``f_oneway``), ``'kruskal'``, ``'friedman'``, ``'alexandergovern'``. Ignored when ``pvalues`` is provided.
 - **`postHoc`** (`str | None`) - Post-hoc test that fills the brackets when ``test`` is omnibus and ``pairs`` is given. ``None`` (default) picks a sensible default per omnibus test: ``anova → 'tukey_hsd'``, ``alexandergovern → 'games_howell'``, ``kruskal → 'dunn'``, ``friedman → 'nemenyi'``. May also be set to any pairwise test name. Dunn, Nemenyi, and Games-Howell are computed in-house (validated against scikit-posthocs / pingouin); ``correction`` adjusts them over all unique pairs. Ignored for pairwise ``test``.
 - **`pvalues`** (`list[float] | dict[Any, Any] | None`) - Pre-computed p-values - skips the test AND correction (they're final). **Pairwise:** a list, one per pair in the same order. **Reference mode:** a **dict** keyed by the non-reference **group** (single-factor) or ``(category, level)`` (grouped). **Grouped brackets:** a dict keyed by ``(category, (level1, level2))`` (order-insensitive). The dict must cover **every** comparison; missing or unknown keys raise.
@@ -126,12 +126,12 @@ Combine with your chart using ``+``:  ``chart + add_comparisons(...)``.
 - **`yPad`** (`float | None`) - Padding (data units) above the data maximum, when placement is in data units. Setting it opts out of the automatic pixel placement described above.
 - **`categories`** (`list[Any] | None`) - Ordered list of all x-axis categories. Inferred from ``df`` (sorted alphabetically) when not provided.
 - **`chartWidth`** (`int | None`) - Width of the chart in pixels, used to compute text x positions. Auto-detected from ``ds.theme()`` when not set.
-- **`bracketStyle`** (`str | dict[tuple[str, str], Any]`) - ``'bracket'`` (default; bar + end ticks) or ``'line'`` (horizontal bar only) applied to every bracket. Or a ``dict`` mapping a pair to its style for per-pair control, e.g. ``{("A", "B"): "line", ("A", "C"): "bracket"}`` — keys match either pair order; pairs absent from the dict fall back to ``'bracket'``.
+- **`bracketStyle`** (`str | dict[tuple[str, str], Any]`) - ``'bracket'`` (default; bar + end ticks), ``'line'`` (horizontal bar only) or ``'drop'`` (end ticks reaching down toward each group's own data) applied to every bracket. Or a ``dict`` mapping a pair to its style for per-pair control, e.g. ``{("A", "B"): "line", ("A", "C"): "bracket"}`` — keys match either pair order; pairs absent from the dict fall back to ``'bracket'``.
 - **`labelStyle`** (`str`) - ``'p'`` (default) renders ``P = 0.012`` / ``P < 0.001``. ``'asterisks'`` renders ``*`` / ``**`` / ``***`` / ``ns``. ``'value'`` renders the bare value to save room - the same as ``'p'`` but without the ``P`` symbol and the redundant ``= `` (``0.012``), keeping a meaningful operator (``< 0.001`` when floored, ``≈ 10⁻⁵`` for ``notation='power'``). ``notation`` still applies.
-- **`tickHeight`** (`float | None`) - Height of bracket end ticks in data units, used when placement is in data units. Under automatic placement the ticks are the theme's ``tickSize`` in **pixels**, so they match the axis ticks on any y range. Always positive, so it works with reverse (negative-``yStep``) brackets without an explicit override. Only used when ``bracketStyle='bracket'``.
+- **`tickHeight`** (`float | None`) - Height of bracket end ticks in data units, used when placement is in data units. Under automatic placement the ticks are a fixed 2 **pixels** on any y range. Always positive, so it works with reverse (negative-``yStep``) brackets without an explicit override. Only used when ``bracketStyle='bracket'``; raises with ``bracketStyle='drop'``, which computes a length per end.
 - **`strokeWidth`** (`float | None`) - Stroke width of bracket lines. Inherits ``axisWidth`` from ``ds.theme()`` when not set.
 - **`fontSize`** (`int | None`) - Font size of the p-value / corner labels. Defaults to the theme's primary ``fontSize`` (``7`` under the built-in defaults), matching the axis font.
-- **`reverse`** (`list[tuple[str, str]] | None`) - List of ``(group1, group2)`` tuples identifying brackets to flip — text moves below the bar and ticks point upward.
+- **`reverse`** (`list[tuple[str, str]] | None`) - List of ``(group1, group2)`` tuples identifying brackets to flip — text moves below the bar and ticks point upward, and the bracket hangs below its groups rather than above them. In grouped mode (``xOffsetCol``) the tuples name ``xOffsetCol`` levels, like ``pairs``, and apply in every category.
 - **`sigFigs`** (`int | None`) - Significant figures for p-value labels (and the correlation readout). Gives consistent visual precision across magnitudes — e.g. ``sigFigs=2`` renders both ``P = 4.3×10⁻¹⁴`` and ``P = 0.68`` at two figures. Trailing zeros are stripped. ``None`` (default) reads the theme's ``sigFigs`` (default ``3``). Plain notation floors at a fixed ``P < 0.001``; ``'power'`` is unaffected (integer exponent).
 - **`notation`** (`str | dict[str | tuple[str, str], Any] | None`) - Format style for p-value labels when ``labelStyle='p'``. ``None`` (default) uses ``P = 0.012`` / ``P < 0.001`` style. ``'scientific'`` uses ``P = 1.23×10⁻²``. ``'e'`` uses ``P = 1.23e-02``. ``'power'`` rounds to the nearest power of 10 giving ``P ≈ 10⁻²`` — note that values within the same decade (e.g. 0.04 and 0.06) map to the same label; best for p-values spanning multiple orders of magnitude. A single value applies to every label; or pass a ``dict`` for per-pair notation, e.g. ``{("A", "B"): "scientific", "test": "power"}`` — tuple keys are pairs (matched either order, unlisted → plain), and the special ``"test"`` key sets the omnibus label's notation.
 - **`testLabelPosition`** (`str | None`) - Corner preset (an ``add_text`` position, e.g. ``'topLeft'``, ``'bottomRight'``) for the single test label. Its content adapts: the omnibus **result** (``ANOVA P = 0.003``) for an omnibus ``test``, or the pairwise **test name** (``Mann-Whitney U``) for a pairwise ``test``. Default ``'auto'`` → shown at ``'topLeft'`` for omnibus, hidden for pairwise (opt-in). A preset draws it there; ``None`` hides it (the result is still computed for the report/metadata).
@@ -163,6 +163,15 @@ Multiple comparisons — brackets stacked automatically::
         df, "group", "value",
         pairs=[("A", "B"), ("A", "C"), ("B", "C")],
         test="mannwhitneyu",
+        categories=CATEGORIES,
+    )
+
+Every pair, corrected over the whole family::
+
+    chart + ds.add_comparisons(
+        df, "group", "value",
+        pairs="all",
+        correction="holm",
         categories=CATEGORIES,
     )
 
