@@ -2575,3 +2575,121 @@ class TestGroupedReverse:
             assert spanned_min < endpoints_min, "fixture must have a dipping middle group"
             ys = self._bracket_ys(spec, cat)
             assert ys and max(ys) <= spanned_min + 1e-9
+
+
+class TestPairsAll:
+    """pairs="all" - expand to every unique pair, so `correction` covers the real family."""
+
+    @pytest.fixture
+    def four_df(self):
+        # Four cleanly separated groups: every pairwise test is significant, so a missing
+        # comparison shows up as a missing bracket rather than a borderline p-value.
+        rng = np.random.default_rng(0)
+        rows = []
+        for i, g in enumerate(["A", "B", "C", "D"]):
+            rows += [{"g": g, "v": float(i * 10 + x)} for x in rng.normal(0, 1, 8)]
+        return pl.DataFrame(rows)
+
+    @pytest.fixture
+    def three_df(self, four_df):
+        return four_df.filter(pl.col("g") != "D")
+
+    def _record(self):
+        return next(iter(st._REPORTS.values()))
+
+    def test_expands_to_every_unique_pair(self, four_df):
+        add_comparisons(four_df, "g", "v", pairs="all", categories=["A", "B", "C", "D"])
+        pairs = [(p["group1"], p["group2"]) for p in self._record()["comparisons"]["pairs"]]
+        assert pairs == [
+            ("A", "B"),
+            ("A", "C"),
+            ("A", "D"),
+            ("B", "C"),
+            ("B", "D"),
+            ("C", "D"),
+        ]
+
+    def test_follows_categories_order_not_alphabetical(self, four_df):
+        add_comparisons(four_df, "g", "v", pairs="all", categories=["D", "B", "A", "C"])
+        pairs = [(p["group1"], p["group2"]) for p in self._record()["comparisons"]["pairs"]]
+        assert pairs[0] == ("D", "B")
+        assert pairs[-1] == ("A", "C")
+
+    def test_correction_family_is_every_pair(self, four_df):
+        # The whole point: m defaults to len(pairs), so "all" corrects over 6, not a subset.
+        add_comparisons(four_df, "g", "v", pairs="all", correction="bonferroni", categories=["A", "B", "C", "D"])
+        corrected = [p["pvalue"] for p in self._record()["comparisons"]["pairs"]]
+        st._REPORTS.clear()
+        add_comparisons(four_df, "g", "v", pairs="all", categories=["A", "B", "C", "D"])
+        raw = [p["pvalue"] for p in self._record()["comparisons"]["pairs"]]
+        assert len(raw) == 6
+        for r, c in zip(raw, corrected):
+            assert c == pytest.approx(min(1.0, r * 6))
+
+    def test_equivalent_to_listing_pairs_by_hand(self, three_df):
+        cats = ["A", "B", "C"]
+        by_hand = [("A", "B"), ("A", "C"), ("B", "C")]
+        add_comparisons(three_df, "g", "v", pairs=by_hand, categories=cats, correction="holm")
+        expected = self._record()
+        st._REPORTS.clear()
+        add_comparisons(three_df, "g", "v", pairs="all", categories=cats, correction="holm")
+        assert self._record() == expected
+
+    def test_draws_a_bracket_per_pair(self, three_df):
+        r = add_comparisons(three_df, "g", "v", pairs="all", categories=["A", "B", "C"])
+        assert isinstance(r, alt.LayerChart)
+        # One nested layer per pair (bar + two end ticks + label), so exactly one p-value
+        # label per pair - every comparison is drawn, not just the ones that fit.
+        spec = r.to_dict()
+        assert len(spec["layer"]) == 3
+
+        def _texts(layers):
+            return sum(
+                (1 if layer.get("mark", {}).get("type") == "text" else 0) + _texts(layer.get("layer", []))
+                for layer in layers
+            )
+
+        assert _texts(spec["layer"]) == 3
+
+    def test_works_with_omnibus_post_hoc(self, three_df):
+        add_comparisons(three_df, "g", "v", pairs="all", test="kruskal", categories=["A", "B", "C"])
+        rec = self._record()
+        assert rec["kind"] == "omnibus"
+        assert rec["comparisons"]["test"] == "dunn"
+        assert len(rec["comparisons"]["pairs"]) == 3
+
+    def test_grouped_expands_over_levels(self):
+        rows = []
+        for gene in ["G1", "G2"]:
+            for i, cond in enumerate(["Veh", "Low", "High"]):
+                noise = (0.0, 0.3, -0.2, 0.1, 0.2, -0.1)
+                rows += [{"gene": gene, "cond": cond, "expr": float(i * 5 + x)} for x in noise]
+        df = pl.DataFrame(rows)
+        add_comparisons(
+            df,
+            "gene",
+            "expr",
+            pairs="all",
+            xOffsetCol="cond",
+            categories=["G1", "G2"],
+            xOffsetSort=["Veh", "Low", "High"],
+        )
+        pairs = [(p["group1"], p["group2"]) for p in self._record()["comparisons"]["pairs"]]
+        # every level pair, within every category
+        assert len(pairs) == 6
+        assert ("G1 (Veh)", "G1 (Low)") in pairs
+        assert ("G2 (Veh)", "G2 (High)") in pairs
+
+    def test_rejects_other_strings(self, four_df):
+        two = four_df.filter(pl.col("g").is_in(["A", "B"]))
+        with pytest.raises(ValueError, match="pairs must be a list of tuples, 'all', or None"):
+            add_comparisons(two, "g", "v", pairs="ALL", categories=["A", "B"])
+
+    def test_rejects_with_reference(self, three_df):
+        with pytest.raises(ValueError, match="reference derives its own comparisons"):
+            add_comparisons(three_df, "g", "v", pairs="all", reference="A", categories=["A", "B", "C"])
+
+    def test_rejects_single_category(self, four_df):
+        one = four_df.filter(pl.col("g") == "A")
+        with pytest.raises(ValueError, match="at least two"):
+            add_comparisons(one, "g", "v", pairs="all", categories=["A"])
