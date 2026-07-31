@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 
 import altair as alt
 import numpy as np
@@ -2543,3 +2543,35 @@ class TestGroupedReverse:
         legs = [m for m in self._marks(spec, "rule") if "y2Offset" in m]
         assert legs
         assert len({m["y2Offset"] for m in legs}) > 1, "drop ticks should vary per end"
+
+    def test_non_adjacent_span_clears_the_groups_it_passes_over(self):
+        # A Veh-D3 bracket passes over D1 and D2 without touching them. It must anchor on every
+        # level it SPANS, not just its endpoints - otherwise a dipping middle group sits on the
+        # wrong side of a reverse bracket.
+        means = {"Veh": 5.0, "D1": 6.2, "D2": 3.0, "D3": 6.8}  # D2 dips below both endpoints
+        levels = ["Veh", "D1", "D2", "D3"]
+        rows = [
+            {"gene": g, "cond": lv, "expr": (means[lv] + o) * sc}
+            for g, sc in [("G1", 1.0), ("G2", 1.5)]
+            for lv in levels
+            for o in (0.0, 0.25, -0.15, 0.1)
+        ]
+        df = pl.DataFrame(rows)
+        spec = add_comparisons(
+            df,
+            "gene",
+            "expr",
+            pairs=[("Veh", "D3")],
+            xOffsetCol="cond",
+            categories=["G1", "G2"],
+            xOffsetSort=levels,
+            labelStyle="asterisks",
+            reverse=[("Veh", "D3")],
+        ).to_dict()
+        for cat in ("G1", "G2"):
+            sub = df.filter(pl.col("gene") == cat)
+            spanned_min = cast(float, sub["expr"].min())
+            endpoints_min = cast(float, sub.filter(pl.col("cond").is_in(["Veh", "D3"]))["expr"].min())
+            assert spanned_min < endpoints_min, "fixture must have a dipping middle group"
+            ys = self._bracket_ys(spec, cat)
+            assert ys and max(ys) <= spanned_min + 1e-9
