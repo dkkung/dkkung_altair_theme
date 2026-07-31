@@ -24,6 +24,9 @@ __all__ = ["add_comparisons", "add_correlation"]
 # Length of a p-value bracket's end ticks in pixels.
 _BRACKET_TICK_PX = 2.0
 
+# Clearance a bracketStyle="drop" tick leaves above the data and above any bracket it passes.
+_DROP_PAD_PX = 4.0
+
 # P-value annotations
 
 
@@ -115,15 +118,15 @@ def _resolve_notation(
 def _resolve_bracket_styles(bracket_style: str | dict[Any, Any], pairs: list[tuple[str, str]]) -> list[str]:
     """Per-pair bracket style: a string applies to all; a dict maps a pair (order-insensitive) to
     its style, with ``"bracket"`` as the fallback for unlisted pairs."""
-    valid = {"line", "bracket"}
+    valid = {"line", "bracket", "drop"}
     if isinstance(bracket_style, dict):
         bad = set(bracket_style.values()) - valid
         if bad:
-            raise ValueError(f"bracketStyle dict values must be 'line' or 'bracket', got {sorted(bad)}")
+            raise ValueError(f"bracketStyle dict values must be 'line', 'bracket', or 'drop', got {sorted(bad)}")
         style_map = {frozenset(k): v for k, v in bracket_style.items()}
         return [style_map.get(frozenset(p), "bracket") for p in pairs]
     if bracket_style not in valid:
-        raise ValueError(f"bracketStyle must be 'line', 'bracket', or a dict, got {bracket_style!r}")
+        raise ValueError(f"bracketStyle must be 'line', 'bracket', 'drop', or a dict, got {bracket_style!r}")
     return [bracket_style] * len(pairs)
 
 
@@ -289,6 +292,65 @@ def _bracket_offsets(
     return placed_out
 
 
+def _drop_tick_lengths(
+    bar_px: list[float],
+    spans: list[tuple[int, int]],
+    group_hi_px: list[float],
+    styles: list[str],
+    col_px: list[float],
+    label_edge: list[tuple[float, float, float]],
+    reverse_flags: list[bool] | None = None,
+    group_lo_px: list[float] | None = None,
+) -> list[tuple[float, float]]:
+    """Per-bracket ``(left, right)`` end-tick lengths in px, for ``bracketStyle='drop'``.
+
+    A drop tick reaches from its bar toward its OWN endpoint group's data, stopping
+    ``_DROP_PAD_PX`` short of it, and stops the same distance short of anything else it would
+    run through: another bracket's bar in that column, or another bracket's label, whose
+    ``(x_lo, x_hi, edge_px)`` box is given in ``label_edge``. The label matters because a bracket
+    stacked beyond a wider one still crosses that one's label, which sits off its bar.
+
+    Everything is measured as distance travelled along the tick's own direction, so an upward
+    ``reverse`` tick uses the same comparisons as a downward one. A downward tick approaches a
+    group's maximum (``group_hi_px``), an upward one its minimum (``group_lo_px``, defaulting to
+    ``group_hi_px`` when no bracket is reversed).
+
+    Falls back to ``_BRACKET_TICK_PX`` where there is no room to drop, and below that only when
+    even a fixed cap would touch. Non-drop brackets get the fixed length.
+    """
+    revs = reverse_flags or [False] * len(spans)
+    near = group_lo_px if group_lo_px is not None else group_hi_px
+    out: list[tuple[float, float]] = []
+    for i, (lo, hi) in enumerate(spans):
+        if styles[i] != "drop":
+            out.append((_BRACKET_TICK_PX, _BRACKET_TICK_PX))
+            continue
+        sign = -1.0 if revs[i] else 1.0  # +1 travels down the screen, -1 travels up
+        ends: list[float] = []
+        for col in (lo, hi):
+            x = col_px[col]
+
+            def _dist(p: float, _s: float = sign, _b: float = bar_px[i]) -> float:
+                return _s * (p - _b)
+
+            _edge = near[col] if revs[i] else group_hi_px[col]
+            padded, hard = _dist(_edge) - _DROP_PAD_PX, _dist(_edge)
+            for j, (j_lo, j_hi) in enumerate(spans):
+                if j == i or _dist(bar_px[j]) <= 0:  # only what lies ahead of the tick blocks it
+                    continue
+                if j_lo <= col <= j_hi:
+                    padded, hard = min(padded, _dist(bar_px[j]) - _DROP_PAD_PX), min(hard, _dist(bar_px[j]))
+                lx0, lx1, ledge = label_edge[j]
+                if lx0 <= x <= lx1:
+                    padded, hard = min(padded, _dist(ledge) - _DROP_PAD_PX), min(hard, _dist(ledge))
+            # The pad is a target for the DROP; the minimum cap only has to avoid touching, so it
+            # is held back by `hard` rather than `padded` - otherwise a label directly beneath
+            # deletes the tick instead of just stopping it from dropping.
+            ends.append(max(0.0, min(max(_BRACKET_TICK_PX, padded), hard)))
+        out.append((ends[0], ends[1]))
+    return out
+
+
 def _emit_report(record: dict[str, Any], report: bool, save: bool | str) -> str:
     """Register ``record`` for the export metadata and, if requested, print the rendered report
     and/or write it to a timestamped ``.txt``. Returns the marker name tagged onto the layer."""
@@ -334,7 +396,7 @@ def _pvalue_layer(
     sigFigs: int = 3,
     notation: str | None = None,
     offset_px: float = 0.0,
-    tick_px: float | None = None,
+    tick_px: float | tuple[float, float] | None = None,
     domain_max: float | None = None,
 ) -> alt.LayerChart:
     from scipy import stats as _stats
@@ -423,9 +485,12 @@ def _pvalue_layer(
     text_baseline = "top" if reverse else None
     # In pixel mode the end legs are a pixel offset off the same anchor; otherwise data units.
     tick_y2 = y if tick_px is not None else (y + tick_height if reverse else y - tick_height)
-    _tick_kwargs = dict(_rule_kwargs)
-    if tick_px is not None:
-        _tick_kwargs["y2Offset"] = _sign * offset_px - _sign * tick_px
+    # drop ticks differ per end, so each gets its own kwargs
+    _lens = (tick_px, tick_px) if isinstance(tick_px, (int, float)) else tick_px
+    _tick_kwargs_l, _tick_kwargs_r = dict(_rule_kwargs), dict(_rule_kwargs)
+    if _lens is not None:
+        _tick_kwargs_l["y2Offset"] = _sign * offset_px - _sign * _lens[0]
+        _tick_kwargs_r["y2Offset"] = _sign * offset_px - _sign * _lens[1]
 
     # `domain_max` raises ONLY the top of the shared y scale, leaving the lower bound, `zero`,
     # nice-rounding and any user setting on the other end intact. It is set on one bracket layer
@@ -458,10 +523,10 @@ def _pvalue_layer(
         )
     )
 
-    if bracket_style == "bracket":
+    if bracket_style in ("bracket", "drop"):
         left_tick = (
             alt.Chart(_internal_data([{"x": group1, "y": y, "y2": tick_y2}]))
-            .mark_rule(**_tick_kwargs)
+            .mark_rule(**_tick_kwargs_l)
             .encode(
                 x=alt.X("x:N"),
                 y=alt.Y("y:Q"),
@@ -470,7 +535,7 @@ def _pvalue_layer(
         )
         right_tick = (
             alt.Chart(_internal_data([{"x": group2, "y": y, "y2": tick_y2}]))
-            .mark_rule(**_tick_kwargs)
+            .mark_rule(**_tick_kwargs_r)
             .encode(
                 x=alt.X("x:N"),
                 y=alt.Y("y:Q"),
@@ -572,7 +637,7 @@ def _grouped_bracket_layer(
     strokeWidth: float,
     fontSize: int,
     offset_px: float = 0.0,
-    tick_px: float | None = None,
+    tick_px: float | tuple[float, float] | None = None,
 ) -> alt.LayerChart:
     """One within-category bracket for grouped comparisons.
 
@@ -607,26 +672,23 @@ def _grouped_bracket_layer(
         .mark_text(align="center", fontSize=fontSize, dy=dy)
         .encode(x=alt.X(f"{x_col}:N", sort=categories), y=alt.Y("__y:Q"), text="__label:N")
     )
-    if bracket_style == "bracket":
-        # In pixel mode both ends sit at the anchor and the leg length rides in y2Offset.
-        tk = dict(rk)
-        y2_val = y - tick_height
-        if tick_px is not None:
-            tk["y2Offset"] = -(offset_px - tick_px)
-            y2_val = y
-        ticks = (
-            alt.Chart(
-                _internal_data(
-                    [
-                        {x_col: category, xoffset_col: level1, "__y": y, "__y2": y2_val},
-                        {x_col: category, xoffset_col: level2, "__y": y, "__y2": y2_val},
-                    ]
-                )
+    if bracket_style in ("bracket", "drop"):
+        # In pixel mode both ends sit at the anchor and the leg length rides in y2Offset. Drop
+        # ticks differ per end, and y2Offset is a mark property, so each end needs its own layer.
+        _lens = (tick_px, tick_px) if isinstance(tick_px, (int, float)) else tick_px
+        legs = []
+        for level, tlen in zip((level1, level2), _lens if _lens is not None else (None, None)):
+            tk = dict(rk)
+            y2_val = y - tick_height
+            if tlen is not None:
+                tk["y2Offset"] = -(offset_px - tlen)
+                y2_val = y
+            legs.append(
+                alt.Chart(_internal_data([{x_col: category, xoffset_col: level, "__y": y, "__y2": y2_val}]))
+                .mark_rule(**tk)
+                .encode(x=xenc, xOffset=xoff, y=alt.Y("__y:Q"), y2="__y2:Q")
             )
-            .mark_rule(**tk)
-            .encode(x=xenc, xOffset=xoff, y=alt.Y("__y:Q"), y2="__y2:Q")
-        )
-        return cast(alt.LayerChart, alt.layer(top, ticks, text))
+        return cast(alt.LayerChart, alt.layer(top, *legs, text))
     return cast(alt.LayerChart, alt.layer(top, text))
 
 
@@ -789,8 +851,8 @@ def _add_grouped_comparisons(
         raise ValueError(f"grouped comparisons (xOffsetCol) support {sorted(_valid_tests)}, got {test!r}.")
     if labelStyle not in ("p", "asterisks", "value"):
         raise ValueError(f"labelStyle must be 'p', 'asterisks', or 'value', got {labelStyle!r}.")
-    if not isinstance(bracketStyle, str) or bracketStyle not in ("bracket", "line"):
-        raise ValueError(f"grouped comparisons take bracketStyle 'bracket' or 'line', got {bracketStyle!r}.")
+    if not isinstance(bracketStyle, str) or bracketStyle not in ("bracket", "line", "drop"):
+        raise ValueError(f"grouped comparisons take bracketStyle 'bracket', 'line', or 'drop', got {bracketStyle!r}.")
     notation_val = notation if not isinstance(notation, dict) else None
 
     chartWidth = chartWidth if chartWidth is not None else _opt("chartWidth")
@@ -801,10 +863,15 @@ def _add_grouped_comparisons(
 
     y_all = df[y_col].cast(pl.Float64)
     y_range = cast(float, y_all.max() or 0.0) - cast(float, y_all.min() or 0.0)
+    if tickHeight is not None and bracketStyle == "drop":
+        raise ValueError(
+            "tickHeight sets a fixed end-tick length, which bracketStyle='drop' computes per end. "
+            "Pass one or the other."
+        )
     # See the single-factor path: an auto leg height is pixels, not data units.
     _tick_arg = tickHeight
     yPad, tickHeight, yStep = _resolve_y_spacing(
-        bracketStyle == "bracket", y_range, chart_height, yPad, tickHeight, yStep
+        bracketStyle in ("bracket", "drop"), y_range, chart_height, yPad, tickHeight, yStep
     )
 
     parametric = test in ("ttest_ind", "ttest_rel")
@@ -924,6 +991,7 @@ def _add_grouped_comparisons(
         )
         cat_pair_anchor: list[float] = []
         cat_offsets: list[float] = []
+        cat_drop: list[tuple[float, float]] | None = None
         if grp_pixel_mode:
             cat_spans = [
                 (min(level_order.index(a), level_order.index(b)), max(level_order.index(a), level_order.index(b)))
@@ -954,6 +1022,94 @@ def _add_grouped_comparisons(
             )
             cat_pair_anchor = [a for a, _ in cat_placed]
             cat_offsets = [o for _, o in cat_placed]
+            if bracketStyle == "drop":
+                # The y scale is shared across categories, so drop lengths - unlike the ladder
+                # offsets above, which are relative - must be measured against the WHOLE frame's
+                # domain. A per-category domain sends the ticks straight through the data.
+                _dlo, _dhi = _nice_domain(
+                    min(0.0, cast(float, df[y_col].cast(pl.Float64).min() or 0.0)),
+                    cast(float, df[y_col].cast(pl.Float64).max() or 0.0),
+                )
+                _dspan = (_dhi - _dlo) or 1.0
+
+                def _cat_px(v: float, _lo: float = _dlo, _sp: float = _dspan, _h: float = _ch) -> float:
+                    return _h * (1.0 - (v - _lo) / _sp)
+
+                _cbars = [_cat_px(cat_pair_anchor[i]) - cat_offsets[i] for i in range(len(pairs))]
+                _clevel_px = [
+                    _cat_px(cast(float, cdf.filter(pl.col(xoffset_col) == lv)[y_col].cast(pl.Float64).max() or 0.0))
+                    for lv in level_order
+                ]
+                # Every label in a category centres on the same band, and the sub-bar pixel
+                # positions are Vega's, not band_geometry's - so a label is treated as covering
+                # the whole category. Conservative: it can only shorten a tick, never overlap one.
+                _cfs = float(fontSize or _opt("fontSize"))
+                _clabels = [
+                    _format_label(adj[k + i], labelStyle, effective_sigfigs, notation_val) for i in range(len(pairs))
+                ]
+                _cedges = [
+                    (
+                        float("-inf"),
+                        float("inf"),
+                        _cbars[i] - (2.0 if labelStyle == "asterisks" and lb != "ns" else 4.0) - _cfs,
+                    )
+                    for i, lb in enumerate(_clabels)
+                ]
+                cat_drop = _drop_tick_lengths(
+                    _cbars, cat_spans, _clevel_px, ["drop"] * len(pairs), [0.0] * len(level_order), _cedges
+                )
+        if not is_reference:
+            # Every bracket's y, resolved before emitting so drop ticks can be solved against it
+            # whichever placement mode is in use.
+            cat_y = []
+            for pi, (l1, l2) in enumerate(pairs):
+                _key = _grouped_key(cat, l1, l2, is_reference)
+                if ypos_flat is not None:
+                    cat_y.append(ypos_flat)
+                elif ypos_cat is not None and cat in ypos_cat:
+                    cat_y.append(ypos_cat[cat])
+                elif ypos_map is not None and _key in ypos_map:
+                    cat_y.append(float(ypos_map[_key]))
+                elif grp_pixel_mode:
+                    cat_y.append(cat_pair_anchor[pi])
+                else:
+                    cat_y.append(bracket_base + pair_level[pi] * yStep)
+            if bracketStyle == "drop" and cat_drop is None:
+                _elo, _ehi = _nice_domain(
+                    min(0.0, cast(float, df[y_col].cast(pl.Float64).min() or 0.0), min(cat_y)),
+                    max(cast(float, df[y_col].cast(pl.Float64).max() or 0.0), max(cat_y)),
+                )
+                _esp = (_ehi - _elo) or 1.0
+                _ech = float(_opt("chartHeight"))
+
+                def _epx(v: float, _lo: float = _elo, _sp: float = _esp, _h: float = _ech) -> float:
+                    return _h * (1.0 - (v - _lo) / _sp)
+
+                _espans = [
+                    (min(level_order.index(a), level_order.index(b)), max(level_order.index(a), level_order.index(b)))
+                    for a, b in pairs
+                ]
+                _ebars = [_epx(v) for v in cat_y]
+                _elvl = [
+                    _epx(cast(float, cdf.filter(pl.col(xoffset_col) == lv)[y_col].cast(pl.Float64).max() or 0.0))
+                    for lv in level_order
+                ]
+                _efs = float(fontSize or _opt("fontSize"))
+                _elabels = [
+                    _format_label(adj[k + i], labelStyle, effective_sigfigs, notation_val) for i in range(len(pairs))
+                ]
+                _eedges = [
+                    (
+                        float("-inf"),
+                        float("inf"),
+                        _ebars[i] - (2.0 if labelStyle == "asterisks" and lb != "ns" else 4.0) - _efs,
+                    )
+                    for i, lb in enumerate(_elabels)
+                ]
+                cat_drop = _drop_tick_lengths(
+                    _ebars, _espans, _elvl, ["drop"] * len(pairs), [0.0] * len(level_order), _eedges
+                )
+
         for pi, (l1, l2) in enumerate(pairs):
             p = adj[k]
             en, ev = effects[k]
@@ -989,17 +1145,7 @@ def _add_grouped_comparisons(
                     )
                 )
             else:
-                # yPositions flat > per-category > per-comparison > (yStart base OR cat max + yPad) + stack.
-                if ypos_flat is not None:
-                    y = ypos_flat
-                elif ypos_cat is not None and cat in ypos_cat:
-                    y = ypos_cat[cat]
-                elif ypos_map is not None and key in ypos_map:
-                    y = float(ypos_map[key])
-                elif grp_pixel_mode:
-                    y = cat_pair_anchor[pi]
-                else:
-                    y = bracket_base + pair_level[pi] * yStep
+                y = cat_y[pi]  # resolved above: yPositions flat > per-category > per-comparison > stack
                 layers.append(
                     _grouped_bracket_layer(
                         x_col,
@@ -1017,7 +1163,9 @@ def _add_grouped_comparisons(
                         strokeWidth=strokeWidth,
                         fontSize=fontSize,
                         offset_px=(cat_offsets[pi] if grp_pixel_mode else 0.0),
-                        tick_px=(_BRACKET_TICK_PX if _tick_arg is None else None),
+                        tick_px=(
+                            cat_drop[pi] if cat_drop is not None else (_BRACKET_TICK_PX if _tick_arg is None else None)
+                        ),
                     )
                 )
             comparisons.append(
@@ -1240,7 +1388,8 @@ def add_comparisons(
         Width of the chart in pixels, used to compute text x positions.
         Auto-detected from ``ds.theme()`` when not set.
     bracketStyle:
-        ``'bracket'`` (default; bar + end ticks) or ``'line'`` (horizontal bar only)
+        ``'bracket'`` (default; bar + end ticks), ``'line'`` (horizontal bar only)
+        or ``'drop'`` (end ticks reaching down toward each group's own data)
         applied to every bracket. Or a ``dict`` mapping a pair to its style for
         per-pair control, e.g. ``{("A", "B"): "line", ("A", "C"): "bracket"}`` —
         keys match either pair order; pairs absent from the dict fall back to
@@ -1256,7 +1405,8 @@ def add_comparisons(
         Under automatic placement the ticks are a fixed 2 **pixels** on any y range. Always
         positive, so it works with reverse
         (negative-``yStep``) brackets without an explicit override. Only used when
-        ``bracketStyle='bracket'``.
+        ``bracketStyle='bracket'``; raises with ``bracketStyle='drop'``, which computes a
+        length per end.
     strokeWidth:
         Stroke width of bracket lines. Inherits ``axisWidth`` from
         ``ds.theme()`` when not set.
@@ -1629,6 +1779,11 @@ def add_comparisons(
     # --- brackets ---
     elif pairs:
         pair_styles = _resolve_bracket_styles(bracketStyle, pairs)
+        if tickHeight is not None and "drop" in pair_styles:
+            raise ValueError(
+                "tickHeight sets a fixed end-tick length, which bracketStyle='drop' computes per end. "
+                "Pass one or the other."
+            )
 
         if pvalues is not None:
             if len(pvalues) != len(pairs):
@@ -1655,7 +1810,12 @@ def add_comparisons(
         # Data-unit fallbacks for that opted-out path. Tick height is the fixed cap length;
         # always positive so it survives a negative yStep (reverse).
         yPad, tickHeight, yStep = _resolve_y_spacing(
-            "bracket" in pair_styles, y_range, _opt("chartHeight"), yPad, tickHeight, yStep
+            any(s in ("bracket", "drop") for s in pair_styles),
+            y_range,
+            _opt("chartHeight"),
+            yPad,
+            tickHeight,
+            yStep,
         )
 
         # Pixel mode is the AUTO path only: anchor every bracket at the annotated groups' data
@@ -1668,7 +1828,32 @@ def add_comparisons(
         pixel_mode = yPositions is None and yStart is None and _y_step_arg is None and _y_pad_arg is None
         offsets_px = [0.0] * len(pairs)
         tick_px = _BRACKET_TICK_PX if _tick_arg is None else None
+        drop_px: list[tuple[float, float]] | None = None
         bracket_domain_max: float | None = None
+        idx_span = [
+            (min(categories.index(g1), categories.index(g2)), max(categories.index(g1), categories.index(g2)))
+            for g1, g2 in pairs
+        ]
+        _rev_pairs: list[tuple[str, str]] = reverse or []
+        rev_flags = [(g1, g2) in _rev_pairs for g1, g2 in pairs]
+
+        def _solve_drop(bars_px: list[float], to_px_fn: Any) -> list[tuple[float, float]]:
+            """Per-end drop lengths for bars already resolved to pixels."""
+            any_rev = any(rev_flags)
+            cols = [df.filter(pl.col(xCol) == c)[yCol].cast(pl.Float64) for c in categories]
+            hi_px = [to_px_fn(cast(float, s.max() or 0.0)) for s in cols]
+            lo_px = [to_px_fn(cast(float, s.min() or 0.0)) for s in cols] if any_rev else hi_px
+            centers = list(band_geometry(len(categories), chartWidth).centers)
+            fs = float(fontSize or _opt("fontSize"))
+            edges: list[tuple[float, float, float]] = []
+            for i, (lo, hi) in enumerate(idx_span):
+                lbl = _format_label(computed_pvalues[i], labelStyle, effective_sigfigs, pair_notations[i])
+                mid = (centers[lo] + centers[hi]) / 2
+                half = len(lbl) * fs * 0.6 / 2
+                dy = 2.0 if labelStyle == "asterisks" and lbl != "ns" else 4.0
+                sgn = -1.0 if rev_flags[i] else 1.0
+                edges.append((mid - half, mid + half, bars_px[i] - sgn * (dy + fs)))
+            return _drop_tick_lengths(bars_px, idx_span, hi_px, pair_styles, centers, edges, rev_flags, lo_px)
 
         if isinstance(yPositions, (int, float)) and not isinstance(yPositions, bool):
             final_y = [float(yPositions)] * len(pairs)  # a single number → every bracket at that y
@@ -1687,14 +1872,10 @@ def add_comparisons(
                 # annotated group, and the gap is exact at any y domain. Only the collision test
                 # between overlapping brackets needs pixel positions, and for that the rendered
                 # domain is estimated - a mis-estimate moves a bump slightly, never the gaps.
-                gap_px = 6.0 if "bracket" in pair_styles else 5.0
+                gap_px = 6.0 if any(s in ("bracket", "drop") for s in pair_styles) else 5.0
                 # A bracket occupies its bar plus the label above it - `fontSize` of glyph and the
                 # 4 px label dy, plus a margin. Less than this lets a label meet the bar above.
                 min_step_px = float(fontSize or _opt("fontSize")) + 6.0
-                idx_span = [
-                    (min(categories.index(g1), categories.index(g2)), max(categories.index(g1), categories.index(g2)))
-                    for g1, g2 in pairs
-                ]
                 # Anchor over every category the bracket SPANS, not just its two endpoints: a
                 # bracket from a to c passes over b, so a taller b would sit above the bar - on a
                 # bar chart the bracket would cross straight through it. (statannotations does the
@@ -1702,8 +1883,6 @@ def add_comparisons(
                 # A `reverse` bracket hangs BELOW its groups, so it anchors on their MINIMUM and
                 # its ladder descends. The two directions never collide with each other (opposite
                 # sides of the data), so each gets its own placement pass.
-                _rev_pairs: list[tuple[str, str]] = reverse or []
-                rev_flags = [(g1, g2) in _rev_pairs for g1, g2 in pairs]
                 pair_anchor = [
                     cast(
                         float,
@@ -1762,11 +1941,39 @@ def add_comparisons(
                     ):
                         final_y[slot], offsets_px[slot] = anch, off
 
+                if "drop" in pair_styles:
+                    # Solved after the ladder, which fixes every bar. A reverse bracket's offset
+                    # lifts it DOWN the screen (_pvalue_layer's _sign).
+                    drop_px = _solve_drop(
+                        [
+                            _to_px(final_y[i]) + (offsets_px[i] if rev_flags[i] else -offsets_px[i])
+                            for i in range(len(pairs))
+                        ],
+                        _to_px,
+                    )
+
             else:
                 # Data-unit path: the stack base is the caller's yStart, else the annotated
                 # groups' maximum plus yPad (the pre-pixel-mode behaviour, unchanged).
                 base = cast(float, yStart) if yStart is not None else anchor + yPad
                 final_y = [base + pair_levels[i] * yStep for i in range(len(pairs))]
+
+        if "drop" in pair_styles and drop_px is None:
+            # Explicit y positions opt out of pixel placement, so the bars are plain data values
+            # with no offset. The domain estimate has to include them: a caller can pin a bracket
+            # far above the data, and a domain taken from the data alone would send ticks through
+            # it. Reverse brackets need the low end for the same reason.
+            _dlo, _dhi = _nice_domain(
+                min(0.0, cast(float, y_all.min() or 0.0), min(final_y)),
+                max(cast(float, y_all.max() or 0.0), max(final_y)),
+            )
+            _dsp = (_dhi - _dlo) or 1.0
+            _dch = float(_opt("chartHeight"))
+
+            def _dpx(v: float, _lo: float = _dlo, _sp: float = _dsp, _h: float = _dch) -> float:
+                return _h * (1.0 - (v - _lo) / _sp)
+
+            drop_px = _solve_drop([_dpx(v) for v in final_y], _dpx)
 
         for i, ((g1, g2), pval) in enumerate(zip(pairs, computed_pvalues)):
             annotation_layers.append(
@@ -1786,7 +1993,7 @@ def add_comparisons(
                     sigFigs=effective_sigfigs,
                     notation=pair_notations[i],
                     offset_px=offsets_px[i],
-                    tick_px=tick_px,
+                    tick_px=(drop_px[i] if drop_px is not None else tick_px),
                     domain_max=bracket_domain_max if i == 0 else None,
                 )
             )

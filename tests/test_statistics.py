@@ -9,6 +9,7 @@ from dysonsphere.inference import (
     _BRACKET_TICK_PX,
     _bracket_offsets,
     _correlation_label,
+    _drop_tick_lengths,
     _format_asterisks,
     _format_pvalue,
     _resolve_y_spacing,
@@ -16,7 +17,7 @@ from dysonsphere.inference import (
     add_comparisons,
     add_correlation,
 )
-from dysonsphere.theme import theme
+from dysonsphere.theme import _opt, theme
 
 CATEGORIES = ["A", "B"]
 
@@ -2095,3 +2096,295 @@ class TestBracketOrder:
         for means in ([1.2, 2.2, 3.4, 4.6], [4.6, 1.2, 3.4, 2.2], [1.5, 5.5, 2.0, 1.8]):
             anchors = [max(means[a : b + 1]) for a, b in self.ALL4]
             assert max(self._levels(anchors, self.ALL4)) + 1 <= len(self.ALL4)
+
+
+class TestDropTicks:
+    """bracketStyle='drop' - end ticks reach toward each group's own data."""
+
+    PAD = 4.0
+
+    def test_reaches_toward_its_own_group_data(self):
+        # One bracket, nothing in the way: both ends stop PAD short of their own group's data.
+        lens = _drop_tick_lengths([0.0], [(0, 1)], [50.0, 30.0], ["drop"], [10.0, 20.0], [(0.0, 0.0, 0.0)])
+        assert lens == [(50.0 - self.PAD, 30.0 - self.PAD)]
+
+    def test_stops_above_a_lower_bracket_in_that_column(self):
+        # Bracket 0 sits above bracket 1, which spans column 1 - so bracket 0's right end
+        # stops above bracket 1's bar rather than continuing to the data.
+        lens = _drop_tick_lengths(
+            [0.0, 20.0],
+            [(0, 2), (1, 2)],
+            [90.0, 90.0, 90.0],
+            ["drop", "drop"],
+            [10.0, 20.0, 30.0],
+            [(0.0, 0.0, -99.0), (0.0, 0.0, -99.0)],
+        )
+        assert lens[0][1] == 20.0 - self.PAD
+
+    def test_stops_above_a_lower_bracket_label(self):
+        # The label of a lower bracket sits ABOVE its bar, so a tick crossing that column has to
+        # clear the label, not the bar - this is what a bar-only test misses.
+        lens = _drop_tick_lengths(
+            [0.0, 40.0],
+            [(0, 2), (1, 2)],
+            [90.0, 90.0, 90.0],
+            ["drop", "drop"],
+            [10.0, 20.0, 30.0],
+            [(0.0, 0.0, -99.0), (15.0, 35.0, 25.0)],
+        )
+        assert lens[0][1] == 25.0 - self.PAD  # label top at 25, not the bar at 40
+
+    def test_falls_back_to_a_fixed_cap_when_there_is_no_room(self):
+        # A label directly beneath leaves no room to drop. The tick must still be drawn - an
+        # earlier version deleted it, which read as a broken bracket.
+        lens = _drop_tick_lengths(
+            [0.0, 10.0],
+            [(0, 1), (0, 1)],
+            [90.0, 90.0],
+            ["drop", "drop"],
+            [10.0, 20.0],
+            [(0.0, 0.0, -99.0), (5.0, 25.0, 2.0)],
+        )
+        assert lens[0][0] == _BRACKET_TICK_PX
+        assert lens[0][1] == _BRACKET_TICK_PX
+
+    def test_never_pushes_through_the_obstacle_it_cleared(self):
+        # When even a fixed cap would touch, the tick shrinks below it rather than overshooting.
+        lens = _drop_tick_lengths(
+            [0.0, 1.0],
+            [(0, 1), (0, 1)],
+            [90.0, 90.0],
+            ["drop", "drop"],
+            [10.0, 20.0],
+            [(0.0, 0.0, -99.0), (5.0, 25.0, 1.0)],
+        )
+        assert lens[0][0] <= 1.0
+
+    def test_non_drop_styles_keep_the_fixed_length(self):
+        lens = _drop_tick_lengths([0.0], [(0, 1)], [50.0, 50.0], ["bracket"], [10.0, 20.0], [(0.0, 0.0, 0.0)])
+        assert lens == [(_BRACKET_TICK_PX, _BRACKET_TICK_PX)]
+
+    def test_renders_per_end_lengths(self):
+        rng = np.random.default_rng(0)
+        df = pl.DataFrame({"g": ["A"] * 10 + ["B"] * 10 + ["C"] * 10, "v": rng.normal(0, 1, 30)})
+        spec = add_comparisons(df, "g", "v", [("A", "B"), ("A", "C")], categories=MULTI, bracketStyle="drop").to_dict()
+        legs = [
+            sub["mark"]
+            for layer in spec["layer"]
+            for sub in layer.get("layer", [])
+            if isinstance(sub.get("mark"), dict) and "y2Offset" in sub.get("mark", {})
+        ]
+        assert legs, "drop brackets should still emit end legs"
+        lengths = {abs(m["y2Offset"] - m.get("yOffset", 0)) for m in legs}
+        assert len(lengths) > 1, "drop ticks should differ in length, not all be the fixed cap"
+
+    def test_reverse_ticks_travel_up_to_the_group_minimum(self):
+        # A reverse bracket hangs below the data with ticks pointing up, so it approaches each
+        # group's MINIMUM. Bar at 100, minima at 60/80 -> lengths 40-PAD and 20-PAD.
+        lens = _drop_tick_lengths(
+            [100.0],
+            [(0, 1)],
+            [10.0, 10.0],
+            ["drop"],
+            [10.0, 20.0],
+            [(0.0, 0.0, 999.0)],
+            [True],
+            [60.0, 80.0],
+        )
+        assert lens == [(40.0 - self.PAD, 20.0 - self.PAD)]
+
+    def test_reverse_is_blocked_by_what_lies_above_it(self):
+        # Bracket 0 hangs lowest; bracket 1 sits between it and the data, so bracket 0's tick
+        # stops below bracket 1's bar instead of reaching the minimum.
+        lens = _drop_tick_lengths(
+            [100.0, 70.0],
+            [(0, 1), (0, 1)],
+            [10.0, 10.0],
+            ["drop", "drop"],
+            [10.0, 20.0],
+            [(0.0, 0.0, 999.0), (0.0, 0.0, 999.0)],
+            [True, True],
+            [30.0, 30.0],
+        )
+        assert lens[0][0] == 30.0 - self.PAD  # 100 -> 70 is 30 px of travel
+
+    def test_mixed_directions_do_not_block_each_other(self):
+        # Up and down brackets sit on opposite sides of the data, so neither is an obstacle for
+        # the other - each still reaches its own side.
+        lens = _drop_tick_lengths(
+            [0.0, 100.0],
+            [(0, 1), (0, 1)],
+            [40.0, 40.0],
+            ["drop", "drop"],
+            [10.0, 20.0],
+            [(0.0, 0.0, -99.0), (0.0, 0.0, 999.0)],
+            [False, True],
+            [60.0, 60.0],
+        )
+        assert lens[0][0] == 40.0 - self.PAD  # down to the maximum
+        assert lens[1][0] == 40.0 - self.PAD  # up to the minimum
+
+    def test_grouped_mode_emits_per_end_lengths(self):
+        rows = []
+        for gene, scale in [("G1", 1.0), ("G2", 1.8)]:
+            for cond, m in {"Veh": 1.0, "Low": 2.2, "High": 3.6}.items():
+                rows += [
+                    {"gene": gene, "cond": cond, "expr": (m + o) * scale} for o in (0.0, 0.25, -0.15, 0.1, 0.3, -0.05)
+                ]
+        df = pl.DataFrame(rows)
+        spec = add_comparisons(
+            df,
+            "gene",
+            "expr",
+            pairs=[("Veh", "Low"), ("Veh", "High")],
+            xOffsetCol="cond",
+            categories=["G1", "G2"],
+            xOffsetSort=["Veh", "Low", "High"],
+            bracketStyle="drop",
+        ).to_dict()
+        legs = [
+            sub["mark"]
+            for layer in spec["layer"]
+            for sub in layer.get("layer", [])
+            if isinstance(sub.get("mark"), dict) and "y2Offset" in sub.get("mark", {})
+        ]
+        assert legs, "grouped drop brackets should emit end legs"
+        assert len({m["y2Offset"] for m in legs}) > 1, "grouped drop ticks should differ per end"
+
+    def test_grouped_mode_rejects_unknown_style(self):
+        rows = []
+        for gene in ("G1", "G2"):
+            for cond in ("Veh", "Low"):
+                rows += [{"gene": gene, "cond": cond, "expr": float(i)} for i in range(6)]
+        with pytest.raises(ValueError, match="'bracket', 'line', or 'drop'"):
+            add_comparisons(
+                pl.DataFrame(rows),
+                "gene",
+                "expr",
+                pairs=[("Veh", "Low")],
+                xOffsetCol="cond",
+                categories=["G1", "G2"],
+                xOffsetSort=["Veh", "Low"],
+                bracketStyle="nope",
+            )
+
+    def _leg_offsets(self, spec):
+        return [
+            m["y2Offset"]
+            for layer in spec["layer"]
+            for sub in layer.get("layer", [])
+            if isinstance((m := sub.get("mark")), dict) and "y2Offset" in m
+        ]
+
+    def test_explicit_ystart_still_gets_drop_ticks(self):
+        # Explicit y spacing opts out of pixel placement; drop must work there too, not fall
+        # back to fixed caps.
+        rng = np.random.default_rng(0)
+        df = pl.DataFrame({"g": ["A"] * 10 + ["B"] * 10 + ["C"] * 10, "v": rng.normal(0, 1, 30)})
+        spec = add_comparisons(
+            df,
+            "g",
+            "v",
+            [("A", "B"), ("B", "C")],
+            categories=MULTI,
+            bracketStyle="drop",
+            yStart=5.0,
+            yStep=1.0,
+        ).to_dict()
+        offsets = self._leg_offsets(spec)
+        assert offsets, "explicit placement should still emit end legs"
+        assert len(set(offsets)) > 1, "drop ticks should vary, not all be the fixed cap"
+
+    def test_pinned_positions_are_included_in_the_domain(self):
+        # A bracket pinned far above the data stretches the rendered domain. Estimating from the
+        # data alone would send its ticks straight through the marks.
+        rng = np.random.default_rng(0)
+        df = pl.DataFrame({"g": ["A"] * 10 + ["B"] * 10 + ["C"] * 10, "v": rng.normal(0, 1, 30)})
+        spec = add_comparisons(
+            df,
+            "g",
+            "v",
+            [("A", "B"), ("B", "C")],
+            categories=MULTI,
+            bracketStyle="drop",
+            yPositions=[40.0, 60.0],
+        ).to_dict()
+        offsets = self._leg_offsets(spec)
+        assert offsets
+        # every leg stays within the plot height - a data-only domain overshoots it wildly
+        assert all(abs(o) < float(_opt("chartHeight")) for o in offsets)
+
+    def test_grouped_explicit_placement_still_gets_drop_ticks(self):
+        # Grouped drop was solved only under automatic placement; an explicit yStart left it
+        # falling back to fixed caps.
+        rows = []
+        for gene, sc in [("G1", 1.0), ("G2", 1.8)]:
+            for cond, m in {"Veh": 1.0, "Low": 2.2, "High": 3.6}.items():
+                rows += [{"gene": gene, "cond": cond, "expr": (m + o) * sc} for o in (0.0, 0.25, -0.15, 0.1)]
+        spec = add_comparisons(
+            pl.DataFrame(rows),
+            "gene",
+            "expr",
+            pairs=[("Veh", "Low"), ("Veh", "High")],
+            xOffsetCol="cond",
+            categories=["G1", "G2"],
+            xOffsetSort=["Veh", "Low", "High"],
+            bracketStyle="drop",
+            yStart=9.0,
+            yStep=1.5,
+        ).to_dict()
+        offsets = self._leg_offsets(spec)
+        assert offsets
+        assert len(set(offsets)) > 1, "explicit grouped placement should still vary tick lengths"
+
+    def test_drop_counts_as_a_ticked_bracket_for_spacing(self):
+        # yPad/gap targets branch on whether any bracket carries ticks; "drop" does, so an
+        # all-drop chart must be spaced like "bracket", not like the bar-only "line".
+        rng = np.random.default_rng(0)
+        df = pl.DataFrame({"g": ["A"] * 10 + ["B"] * 10 + ["C"] * 10, "v": rng.normal(0, 1, 30)})
+        bars = {}
+        for style in ("bracket", "drop", "line"):
+            spec = add_comparisons(df, "g", "v", [("A", "B")], categories=MULTI, bracketStyle=style).to_dict()
+            bars[style] = [
+                s["mark"]["yOffset"]
+                for layer in spec["layer"]
+                for s in layer.get("layer", [])
+                if isinstance(s.get("mark"), dict) and "yOffset" in s.get("mark", {})
+            ]
+        assert bars["drop"] == bars["bracket"]
+        assert bars["drop"] != bars["line"]
+
+    def test_explicit_tick_height_with_drop_raises(self):
+        # tickHeight fixes a length, drop computes one per end - accepting both would silently
+        # ignore whichever lost.
+        rng = np.random.default_rng(0)
+        df = pl.DataFrame({"g": ["A"] * 10 + ["B"] * 10 + ["C"] * 10, "v": rng.normal(0, 1, 30)})
+        with pytest.raises(ValueError, match="Pass one or the other"):
+            add_comparisons(df, "g", "v", [("A", "B")], categories=MULTI, bracketStyle="drop", tickHeight=0.5)
+
+    def test_explicit_tick_height_with_drop_raises_in_grouped(self):
+        rows = []
+        for gene in ("G1", "G2"):
+            for cond in ("Veh", "Low"):
+                rows += [{"gene": gene, "cond": cond, "expr": float(i)} for i in range(6)]
+        with pytest.raises(ValueError, match="Pass one or the other"):
+            add_comparisons(
+                pl.DataFrame(rows),
+                "gene",
+                "expr",
+                pairs=[("Veh", "Low")],
+                xOffsetCol="cond",
+                categories=["G1", "G2"],
+                xOffsetSort=["Veh", "Low"],
+                bracketStyle="drop",
+                tickHeight=0.5,
+            )
+
+    def test_tick_height_still_works_with_other_styles(self):
+        rng = np.random.default_rng(0)
+        df = pl.DataFrame({"g": ["A"] * 10 + ["B"] * 10 + ["C"] * 10, "v": rng.normal(0, 1, 30)})
+        for style in ("bracket", "line"):
+            assert (
+                add_comparisons(df, "g", "v", [("A", "B")], categories=MULTI, bracketStyle=style, tickHeight=0.5)
+                is not None
+            )
