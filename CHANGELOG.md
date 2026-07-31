@@ -22,6 +22,8 @@
 
 ### Changes
 
+- p-value bracket end ticks are a fixed 2 px rather than following `theme(tickSize=)`, so they no longer move with the axis ticks. Override per call with `add_comparisons(tickHeight=)`.
+
 - **`add_comparisons` brackets stack in comparison order** (all of `1v2`, `1v3`, `1v4`, then `2v3`, `2v4`, ...) wherever that costs no extra height, so they read as one nested staircase rather than alternating left edges.
 
 - `ds.categorical()` now tops out at `members=6` instead of `members=10`. Its default palette changed to `ds_cat_3`, whose `cat3_greens` ramp has a shorter usable window than the `ds_cat_1` hues.

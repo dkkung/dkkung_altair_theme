@@ -21,6 +21,9 @@ from .utils import _SUP, _empty_layer, _internal_data, _nice_domain, _resolve_da
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
 __all__ = ["add_comparisons", "add_correlation"]
 
+# Length of a p-value bracket's end ticks in pixels.
+_BRACKET_TICK_PX = 2.0
+
 # P-value annotations
 
 
@@ -175,13 +178,13 @@ def _resolve_y_spacing(
     y_step: float | None,
 ) -> tuple[float, float, float]:
     """Resolve the auto ``(y_pad, tick_height, y_step)`` for bracket stacking, each only when
-    None. The gap targets ~10 px for brackets / ~8 px for lines and the tick height matches the
-    theme ``tickSize``, both converted from px to data units via ``chart_height``; ``y_step`` is
+    None. The gap targets ~10 px for brackets / ~8 px for lines and the tick height is
+    ``_BRACKET_TICK_PX``, both converted from px to data units via ``chart_height``; ``y_step`` is
     ``1.75 * y_pad``. All three guard ``chart_height == 0``."""
     if y_pad is None:
         y_pad = (10.0 if any_bracket else 8.0) * y_range / chart_height if chart_height else 0.0
     if tick_height is None:
-        tick_height = _opt("tickSize") * y_range / chart_height if chart_height else 0.0
+        tick_height = _BRACKET_TICK_PX * y_range / chart_height if chart_height else 0.0
     if y_step is None:
         y_step = y_pad * 1.75
     return y_pad, tick_height, y_step
@@ -1014,7 +1017,7 @@ def _add_grouped_comparisons(
                         strokeWidth=strokeWidth,
                         fontSize=fontSize,
                         offset_px=(cat_offsets[pi] if grp_pixel_mode else 0.0),
-                        tick_px=(float(_opt("tickSize")) if _tick_arg is None else None),
+                        tick_px=(_BRACKET_TICK_PX if _tick_arg is None else None),
                     )
                 )
             comparisons.append(
@@ -1250,8 +1253,8 @@ def add_comparisons(
         when floored, ``≈ 10⁻⁵`` for ``notation='power'``). ``notation`` still applies.
     tickHeight:
         Height of bracket end ticks in data units, used when placement is in data units.
-        Under automatic placement the ticks are the theme's ``tickSize`` in **pixels**, so they
-        match the axis ticks on any y range. Always positive, so it works with reverse
+        Under automatic placement the ticks are a fixed 2 **pixels** on any y range. Always
+        positive, so it works with reverse
         (negative-``yStep``) brackets without an explicit override. Only used when
         ``bracketStyle='bracket'``.
     strokeWidth:
@@ -1649,7 +1652,7 @@ def add_comparisons(
         # tickHeight rides in y2Offset whatever the placement mode. Converting it to data units
         # assumes a linear axis - on a log axis the legs collapse to a fraction of a pixel.
         _tick_arg = tickHeight
-        # Data-unit fallbacks for that opted-out path. Tick height matches the theme tickSize;
+        # Data-unit fallbacks for that opted-out path. Tick height is the fixed cap length;
         # always positive so it survives a negative yStep (reverse).
         yPad, tickHeight, yStep = _resolve_y_spacing(
             "bracket" in pair_styles, y_range, _opt("chartHeight"), yPad, tickHeight, yStep
@@ -1664,7 +1667,7 @@ def add_comparisons(
         # silently ignoring one would make a documented parameter a no-op.
         pixel_mode = yPositions is None and yStart is None and _y_step_arg is None and _y_pad_arg is None
         offsets_px = [0.0] * len(pairs)
-        tick_px = float(_opt("tickSize")) if _tick_arg is None else None
+        tick_px = _BRACKET_TICK_PX if _tick_arg is None else None
         bracket_domain_max: float | None = None
 
         if isinstance(yPositions, (int, float)) and not isinstance(yPositions, bool):

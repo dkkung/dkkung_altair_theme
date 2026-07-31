@@ -6,6 +6,7 @@ import polars as pl
 import pytest
 
 from dysonsphere.inference import (
+    _BRACKET_TICK_PX,
     _bracket_offsets,
     _correlation_label,
     _format_asterisks,
@@ -568,8 +569,8 @@ class TestTickHeight:
         rng = np.random.default_rng(0)
         return pl.DataFrame({"g": ["A"] * 12 + ["B"] * 12 + ["C"] * 12, "v": rng.normal(0, 1, 36)})
 
-    def test_tick_height_is_tick_size_in_pixels(self, tri_df):
-        # The end legs are now tickSize PIXELS off the bracket bar, not a data-unit conversion,
+    def test_tick_height_is_a_fixed_pixel_length(self, tri_df):
+        # The end legs are a fixed pixel length off the bracket bar, not a data-unit conversion,
         # so they are the same length whatever the y range. Both ends sit at the same anchor and
         # the leg length rides in y2Offset.
         theme(chartWidth=200, chartHeight=200, tickSize=3)
@@ -581,13 +582,14 @@ class TestTickHeight:
             if isinstance(sub.get("mark"), dict) and "y2Offset" in sub.get("mark", {})
         ]
         assert legs, "expected end-leg layers carrying a y2Offset"
-        # the leg spans tickSize px from the bar, whatever the y range
-        assert all(abs(m["y2Offset"] - m["yOffset"]) == pytest.approx(3.0) for m in legs)
+        # the leg spans _BRACKET_TICK_PX from the bar, whatever the y range - and does NOT
+        # follow tickSize, which is set to a different value here on purpose
+        assert all(abs(m["y2Offset"] - m["yOffset"]) == pytest.approx(_BRACKET_TICK_PX) for m in legs)
 
     def test_auto_tick_height_is_pixels_even_with_explicit_positions(self, tri_df):
-        # The legs are a pixel length by definition ("matching the axis ticks"). Deriving them in
-        # data units assumes a linear axis, and on a log axis they collapse to a fraction of a
-        # pixel - so an auto tickHeight rides in y2Offset whichever placement mode is in use.
+        # The legs are a pixel length by definition. Deriving them in data units assumes a linear
+        # axis, and on a log axis they collapse to a fraction of a pixel - so an auto tickHeight
+        # rides in y2Offset whichever placement mode is in use.
         theme(chartWidth=200, chartHeight=200, tickSize=3)
         spec = add_comparisons(
             tri_df, "g", "v", [("A", "B")], categories=MULTI, bracketStyle="bracket", yPositions=[99.0]
@@ -598,7 +600,7 @@ class TestTickHeight:
             if isinstance(sub.get("mark"), dict) and "y2Offset" in sub.get("mark", {})
         ]
         assert legs, "explicit positions should still get pixel end legs"
-        assert all(abs(m["y2Offset"] - m.get("yOffset", 0)) == pytest.approx(3.0) for m in legs)
+        assert all(abs(m["y2Offset"] - m.get("yOffset", 0)) == pytest.approx(_BRACKET_TICK_PX) for m in legs)
 
     def test_tick_height_explicit_stays_data_units(self, tri_df):
         # An explicit tickHeight is a data-unit number on the user's scale, unchanged.
