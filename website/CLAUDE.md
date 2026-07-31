@@ -1,8 +1,8 @@
 # Website (dysonsphere docs site)
 
 An Astro + Starlight docs site for dysonsphere, built by two Python generators plus Astro. Lives
-in `website/`; developed on the `website` branch (in the main repo - the dedicated worktree was
-dissolved 2026-07-06).
+in `website/` on `main` and is developed on ordinary feature branches like the rest of the repo
+(the dedicated worktree was dissolved 2026-07-06; the separate `website` branch is gone too).
 
 ## Layout
 
@@ -325,10 +325,10 @@ background to check them on light/dark. Do this in `/tmp` and delete the scratch
   Routes, specs, and HTML can be checked with `curl`, but the actual chart render, Pyodide boot, and
   light/dark toggle are BROWSER-ONLY - the user confirms those.
 - Regenerate specs/API when the underlying source changes.
-- Commit per coherent chunk. The site lives on the `website` branch and reaches `main` via PR.
-- **Multi-session safety.** The dedicated worktree was dissolved 2026-07-06 (site now develops on
-  the `website` branch in the main repo). If parallel sessions return, recreate one
-  (`git worktree add ../dysonsphere-website website`) - a second session once yanked HEAD.
+- Commit per coherent chunk, on a feature branch off `main`, and open a PR like any other change.
+- **Multi-session safety.** The dedicated worktree was dissolved 2026-07-06 (site work is now
+  ordinary feature branches off `main`). If parallel sessions return, give each its own worktree
+  (`git worktree add ../dysonsphere-website <branch>`) - a second session once yanked HEAD.
 
 ## Status (living)
 
