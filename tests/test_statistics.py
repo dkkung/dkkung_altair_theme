@@ -9,6 +9,7 @@ from dysonsphere.inference import (
     _BRACKET_TICK_PX,
     _bracket_offsets,
     _correlation_label,
+    _drop_tick_lengths,
     _format_asterisks,
     _format_pvalue,
     _resolve_y_spacing,
@@ -2095,3 +2096,84 @@ class TestBracketOrder:
         for means in ([1.2, 2.2, 3.4, 4.6], [4.6, 1.2, 3.4, 2.2], [1.5, 5.5, 2.0, 1.8]):
             anchors = [max(means[a : b + 1]) for a, b in self.ALL4]
             assert max(self._levels(anchors, self.ALL4)) + 1 <= len(self.ALL4)
+
+
+class TestDropTicks:
+    """bracketStyle='drop' - end ticks reach toward each group's own data."""
+
+    PAD = 4.0
+
+    def test_reaches_toward_its_own_group_data(self):
+        # One bracket, nothing in the way: both ends stop PAD short of their own group's data.
+        lens = _drop_tick_lengths([0.0], [(0, 1)], [50.0, 30.0], ["drop"], [10.0, 20.0], [(0.0, 0.0, 0.0)])
+        assert lens == [(50.0 - self.PAD, 30.0 - self.PAD)]
+
+    def test_stops_above_a_lower_bracket_in_that_column(self):
+        # Bracket 0 sits above bracket 1, which spans column 1 - so bracket 0's right end
+        # stops above bracket 1's bar rather than continuing to the data.
+        lens = _drop_tick_lengths(
+            [0.0, 20.0],
+            [(0, 2), (1, 2)],
+            [90.0, 90.0, 90.0],
+            ["drop", "drop"],
+            [10.0, 20.0, 30.0],
+            [(0.0, 0.0, -99.0), (0.0, 0.0, -99.0)],
+        )
+        assert lens[0][1] == 20.0 - self.PAD
+
+    def test_stops_above_a_lower_bracket_label(self):
+        # The label of a lower bracket sits ABOVE its bar, so a tick crossing that column has to
+        # clear the label, not the bar - this is what a bar-only test misses.
+        lens = _drop_tick_lengths(
+            [0.0, 40.0],
+            [(0, 2), (1, 2)],
+            [90.0, 90.0, 90.0],
+            ["drop", "drop"],
+            [10.0, 20.0, 30.0],
+            [(0.0, 0.0, -99.0), (15.0, 35.0, 25.0)],
+        )
+        assert lens[0][1] == 25.0 - self.PAD  # label top at 25, not the bar at 40
+
+    def test_falls_back_to_a_fixed_cap_when_there_is_no_room(self):
+        # A label directly beneath leaves no room to drop. The tick must still be drawn - an
+        # earlier version deleted it, which read as a broken bracket.
+        lens = _drop_tick_lengths(
+            [0.0, 10.0],
+            [(0, 1), (0, 1)],
+            [90.0, 90.0],
+            ["drop", "drop"],
+            [10.0, 20.0],
+            [(0.0, 0.0, -99.0), (5.0, 25.0, 2.0)],
+        )
+        assert lens[0][0] == _BRACKET_TICK_PX
+        assert lens[0][1] == _BRACKET_TICK_PX
+
+    def test_never_pushes_through_the_obstacle_it_cleared(self):
+        # When even a fixed cap would touch, the tick shrinks below it rather than overshooting.
+        lens = _drop_tick_lengths(
+            [0.0, 1.0],
+            [(0, 1), (0, 1)],
+            [90.0, 90.0],
+            ["drop", "drop"],
+            [10.0, 20.0],
+            [(0.0, 0.0, -99.0), (5.0, 25.0, 1.0)],
+        )
+        assert lens[0][0] <= 1.0
+
+    def test_non_drop_styles_keep_the_fixed_length(self):
+        lens = _drop_tick_lengths([0.0], [(0, 1)], [50.0, 50.0], ["bracket"], [10.0, 20.0], [(0.0, 0.0, 0.0)])
+        assert lens == [(_BRACKET_TICK_PX, _BRACKET_TICK_PX)]
+
+    def test_renders_per_end_lengths(self):
+        rng = np.random.default_rng(0)
+        df = pl.DataFrame({"g": ["A"] * 10 + ["B"] * 10 + ["C"] * 10, "v": rng.normal(0, 1, 30)})
+        spec = add_comparisons(df, "g", "v", [("A", "B"), ("A", "C")], categories=MULTI, bracketStyle="drop").to_dict()
+        legs = [
+            sub["mark"]
+            for layer in spec["layer"]
+            for sub in layer.get("layer", [])
+            if isinstance(sub.get("mark"), dict) and "y2Offset" in sub.get("mark", {})
+        ]
+        assert legs, "drop brackets should still emit end legs"
+        lengths = {abs(m["y2Offset"] - m.get("yOffset", 0)) for m in legs}
+        assert len(lengths) > 1, "drop ticks should differ in length, not all be the fixed cap"
