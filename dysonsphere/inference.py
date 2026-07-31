@@ -866,7 +866,7 @@ def _add_grouped_comparisons(
     # See the single-factor path: an auto leg height is pixels, not data units.
     _tick_arg = tickHeight
     yPad, tickHeight, yStep = _resolve_y_spacing(
-        bracketStyle == "bracket", y_range, chart_height, yPad, tickHeight, yStep
+        bracketStyle in ("bracket", "drop"), y_range, chart_height, yPad, tickHeight, yStep
     )
 
     parametric = test in ("ttest_ind", "ttest_rel")
@@ -1053,6 +1053,58 @@ def _add_grouped_comparisons(
                 cat_drop = _drop_tick_lengths(
                     _cbars, cat_spans, _clevel_px, ["drop"] * len(pairs), [0.0] * len(level_order), _cedges
                 )
+        if not is_reference:
+            # Every bracket's y, resolved before emitting so drop ticks can be solved against it
+            # whichever placement mode is in use.
+            cat_y = []
+            for pi, (l1, l2) in enumerate(pairs):
+                _key = _grouped_key(cat, l1, l2, is_reference)
+                if ypos_flat is not None:
+                    cat_y.append(ypos_flat)
+                elif ypos_cat is not None and cat in ypos_cat:
+                    cat_y.append(ypos_cat[cat])
+                elif ypos_map is not None and _key in ypos_map:
+                    cat_y.append(float(ypos_map[_key]))
+                elif grp_pixel_mode:
+                    cat_y.append(cat_pair_anchor[pi])
+                else:
+                    cat_y.append(bracket_base + pair_level[pi] * yStep)
+            if bracketStyle == "drop" and cat_drop is None:
+                _elo, _ehi = _nice_domain(
+                    min(0.0, cast(float, df[y_col].cast(pl.Float64).min() or 0.0), min(cat_y)),
+                    max(cast(float, df[y_col].cast(pl.Float64).max() or 0.0), max(cat_y)),
+                )
+                _esp = (_ehi - _elo) or 1.0
+                _ech = float(_opt("chartHeight"))
+
+                def _epx(v: float, _lo: float = _elo, _sp: float = _esp, _h: float = _ech) -> float:
+                    return _h * (1.0 - (v - _lo) / _sp)
+
+                _espans = [
+                    (min(level_order.index(a), level_order.index(b)), max(level_order.index(a), level_order.index(b)))
+                    for a, b in pairs
+                ]
+                _ebars = [_epx(v) for v in cat_y]
+                _elvl = [
+                    _epx(cast(float, cdf.filter(pl.col(xoffset_col) == lv)[y_col].cast(pl.Float64).max() or 0.0))
+                    for lv in level_order
+                ]
+                _efs = float(fontSize or _opt("fontSize"))
+                _elabels = [
+                    _format_label(adj[k + i], labelStyle, effective_sigfigs, notation_val) for i in range(len(pairs))
+                ]
+                _eedges = [
+                    (
+                        float("-inf"),
+                        float("inf"),
+                        _ebars[i] - (2.0 if labelStyle == "asterisks" and lb != "ns" else 4.0) - _efs,
+                    )
+                    for i, lb in enumerate(_elabels)
+                ]
+                cat_drop = _drop_tick_lengths(
+                    _ebars, _espans, _elvl, ["drop"] * len(pairs), [0.0] * len(level_order), _eedges
+                )
+
         for pi, (l1, l2) in enumerate(pairs):
             p = adj[k]
             en, ev = effects[k]
@@ -1088,17 +1140,7 @@ def _add_grouped_comparisons(
                     )
                 )
             else:
-                # yPositions flat > per-category > per-comparison > (yStart base OR cat max + yPad) + stack.
-                if ypos_flat is not None:
-                    y = ypos_flat
-                elif ypos_cat is not None and cat in ypos_cat:
-                    y = ypos_cat[cat]
-                elif ypos_map is not None and key in ypos_map:
-                    y = float(ypos_map[key])
-                elif grp_pixel_mode:
-                    y = cat_pair_anchor[pi]
-                else:
-                    y = bracket_base + pair_level[pi] * yStep
+                y = cat_y[pi]  # resolved above: yPositions flat > per-category > per-comparison > stack
                 layers.append(
                     _grouped_bracket_layer(
                         x_col,
@@ -1757,7 +1799,12 @@ def add_comparisons(
         # Data-unit fallbacks for that opted-out path. Tick height is the fixed cap length;
         # always positive so it survives a negative yStep (reverse).
         yPad, tickHeight, yStep = _resolve_y_spacing(
-            "bracket" in pair_styles, y_range, _opt("chartHeight"), yPad, tickHeight, yStep
+            any(s in ("bracket", "drop") for s in pair_styles),
+            y_range,
+            _opt("chartHeight"),
+            yPad,
+            tickHeight,
+            yStep,
         )
 
         # Pixel mode is the AUTO path only: anchor every bracket at the annotated groups' data
@@ -1814,7 +1861,7 @@ def add_comparisons(
                 # annotated group, and the gap is exact at any y domain. Only the collision test
                 # between overlapping brackets needs pixel positions, and for that the rendered
                 # domain is estimated - a mis-estimate moves a bump slightly, never the gaps.
-                gap_px = 6.0 if "bracket" in pair_styles else 5.0
+                gap_px = 6.0 if any(s in ("bracket", "drop") for s in pair_styles) else 5.0
                 # A bracket occupies its bar plus the label above it - `fontSize` of glyph and the
                 # 4 px label dy, plus a margin. Less than this lets a label meet the bar above.
                 min_step_px = float(fontSize or _opt("fontSize")) + 6.0

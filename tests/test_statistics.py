@@ -2313,3 +2313,43 @@ class TestDropTicks:
         assert offsets
         # every leg stays within the plot height - a data-only domain overshoots it wildly
         assert all(abs(o) < float(_opt("chartHeight")) for o in offsets)
+
+    def test_grouped_explicit_placement_still_gets_drop_ticks(self):
+        # Grouped drop was solved only under automatic placement; an explicit yStart left it
+        # falling back to fixed caps.
+        rows = []
+        for gene, sc in [("G1", 1.0), ("G2", 1.8)]:
+            for cond, m in {"Veh": 1.0, "Low": 2.2, "High": 3.6}.items():
+                rows += [{"gene": gene, "cond": cond, "expr": (m + o) * sc} for o in (0.0, 0.25, -0.15, 0.1)]
+        spec = add_comparisons(
+            pl.DataFrame(rows),
+            "gene",
+            "expr",
+            pairs=[("Veh", "Low"), ("Veh", "High")],
+            xOffsetCol="cond",
+            categories=["G1", "G2"],
+            xOffsetSort=["Veh", "Low", "High"],
+            bracketStyle="drop",
+            yStart=9.0,
+            yStep=1.5,
+        ).to_dict()
+        offsets = self._leg_offsets(spec)
+        assert offsets
+        assert len(set(offsets)) > 1, "explicit grouped placement should still vary tick lengths"
+
+    def test_drop_counts_as_a_ticked_bracket_for_spacing(self):
+        # yPad/gap targets branch on whether any bracket carries ticks; "drop" does, so an
+        # all-drop chart must be spaced like "bracket", not like the bar-only "line".
+        rng = np.random.default_rng(0)
+        df = pl.DataFrame({"g": ["A"] * 10 + ["B"] * 10 + ["C"] * 10, "v": rng.normal(0, 1, 30)})
+        bars = {}
+        for style in ("bracket", "drop", "line"):
+            spec = add_comparisons(df, "g", "v", [("A", "B")], categories=MULTI, bracketStyle=style).to_dict()
+            bars[style] = [
+                s["mark"]["yOffset"]
+                for layer in spec["layer"]
+                for s in layer.get("layer", [])
+                if isinstance(s.get("mark"), dict) and "yOffset" in s.get("mark", {})
+            ]
+        assert bars["drop"] == bars["bracket"]
+        assert bars["drop"] != bars["line"]
