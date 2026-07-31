@@ -138,6 +138,25 @@ def _resolve_bracket_styles(bracket_style: str | dict[Any, Any], pairs: list[tup
     return [bracket_style] * len(pairs)
 
 
+def _all_pairs(items: list[Any]) -> list[tuple[Any, Any]]:
+    """Every unique unordered pair of ``items``, in ``items`` order."""
+    return [(items[i], items[j]) for i in range(len(items)) for j in range(i + 1, len(items))]
+
+
+def _resolve_pairs(
+    pairs: list[tuple[str, str]] | str | None, items: list[Any], what: str
+) -> list[tuple[str, str]] | None:
+    """Expand the ``pairs="all"`` shorthand to every unique pair of ``items``; pass anything else
+    through untouched. ``what`` names the compared thing for the error messages."""
+    if not isinstance(pairs, str):
+        return pairs
+    if pairs != "all":
+        raise ValueError(f"pairs must be a list of tuples, 'all', or None, got {pairs!r}.")
+    if len(items) < 2:
+        raise ValueError(f"pairs='all' needs at least two {what} to compare, got {items}.")
+    return _all_pairs(items)
+
+
 def _check_coverage(
     df: pl.DataFrame, col: str, values: list[Any] | None, param_name: str, noun: str, tail: str
 ) -> None:
@@ -773,7 +792,7 @@ def _add_grouped_comparisons(
     x_col: str,
     y_col: str,
     xoffset_col: str,
-    pairs: list[tuple[str, str]] | None,
+    pairs: list[tuple[str, str]] | str | None,
     *,
     reference: Any,
     reverse: list[tuple[str, str]] | None,
@@ -835,6 +854,8 @@ def _add_grouped_comparisons(
     level_order = (
         list(xOffsetSort) if xOffsetSort is not None else df[xoffset_col].unique(maintain_order=True).to_list()
     )
+    # Resolved before the reference block so `reference` + pairs="all" hits its don't-also-pass raise.
+    pairs = _resolve_pairs(pairs, level_order, f"xOffsetCol {xoffset_col!r} levels")
 
     # Reference mode: compare every other level against `reference` WITHIN each category, drawing the
     # p-value above each non-reference sub-bar (no bracket). Derives its own level-pairs.
@@ -1247,7 +1268,7 @@ def add_comparisons(
     df: pl.DataFrame | Any,
     xCol: str,
     yCol: str,
-    pairs: list[tuple[str, str]] | None = None,
+    pairs: list[tuple[str, str]] | str | None = None,
     *,
     test: str = "mannwhitneyu",
     postHoc: str | None = None,
@@ -1344,6 +1365,16 @@ def add_comparisons(
         annotate with brackets. Required for pairwise ``test`` values. Optional
         for omnibus tests — pass ``None`` for an omnibus-only corner label, or a
         list to also draw post-hoc brackets.
+
+        ``"all"`` expands to every unique pair, in ``categories`` order (in
+        grouped mode, every unique pair of ``xOffsetCol`` levels). Besides being
+        shorter, it keeps ``correction`` honest: the family size defaults to
+        ``len(pairs)``, so hand-listing a subset of the comparisons you actually
+        ran under-corrects them. Note the bracket count grows as
+        ``n(n-1)/2`` — 6 brackets at 4 groups, 10 at 5, 15 at 6 — so beyond
+        4 or 5 groups prefer an omnibus ``test`` with ``pairs=None`` (which
+        already reports every post-hoc comparison) and bracket only the few
+        pairs worth showing.
     test:
         Statistical test. **Pairwise:** ``'mannwhitneyu'`` (default),
         ``'ttest_ind'``, ``'ttest_rel'``, ``'wilcoxon'`` (run per pair), or
@@ -1545,6 +1576,15 @@ def add_comparisons(
             categories=CATEGORIES,
         )
 
+    Every pair, corrected over the whole family::
+
+        chart + ds.add_comparisons(
+            df, "group", "value",
+            pairs="all",
+            correction="holm",
+            categories=CATEGORIES,
+        )
+
     Omnibus ANOVA in the corner + Tukey post-hoc brackets::
 
         chart + ds.add_comparisons(
@@ -1676,6 +1716,8 @@ def add_comparisons(
     )
     if categories is None:
         categories = sorted(df[xCol].unique().to_list())
+    # Resolved before the reference block so `reference` + pairs="all" hits its don't-also-pass raise.
+    pairs = _resolve_pairs(pairs, categories, f"{xCol!r} categories")
 
     is_omnibus = test in _OMNIBUS_TESTS
     groups = [df.filter(pl.col(xCol) == cat)[yCol].to_numpy() for cat in categories]
@@ -1778,9 +1820,7 @@ def add_comparisons(
     # Omnibus reports ALL pairwise post-hoc comparisons (the full picture), even when
     # only a subset is bracketed or none is. Pairwise reports exactly the requested pairs.
     if is_omnibus and method is not None:
-        report_pairs = [
-            (categories[i], categories[j]) for i in range(len(categories)) for j in range(i + 1, len(categories))
-        ]
+        report_pairs = _all_pairs(categories)
     else:
         report_pairs = list(pairs) if pairs else []
 
