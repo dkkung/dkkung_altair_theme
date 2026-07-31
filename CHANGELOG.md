@@ -16,6 +16,8 @@
 
 ### Fixes
 
+- **Grouped p-value labels centre on their own bracket** instead of on the x-axis tick. With three or more `xOffsetCol` levels, an asymmetric pair's label drifted toward the band centre - far enough at five levels to sit over a sub-bar the comparison does not involve, which made the annotation read as belonging to the wrong groups. Two-level charts were never affected, since their only pair spans the whole group.
+
 - `dataChecksum` is now prefixed `multiset-sha256:` rather than `sha256:`. It is a hash of the multiset of row digests, not of the file's bytes, so the old prefix implied it could be checked by re-hashing the file. `vegaliteChecksum` still reads `sha256:`, because that one can.
 
 - A saved `.json` writes `null` for missing numeric values instead of `NaN`, so the spec parses in browsers, `jq`, and other strict JSON readers. Column dtypes are unaffected.

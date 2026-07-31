@@ -1,10 +1,12 @@
 import polars as pl
 import pytest
 
+from dysonsphere.theme import theme
 from dysonsphere.utils import (
     _ROW_HASH_PREFIX,
     _canonicalize,
     _json_safe,
+    _nested_band_centers,
     _nice_domain,
     band_geometry,
     count_n,
@@ -237,3 +239,37 @@ class TestBandGeometry:
     def test_zero_categories_raises(self):
         with pytest.raises(ValueError, match="n must be"):
             band_geometry(0, 100)
+
+
+class TestNestedBandCenters:
+    """_nested_band_centers - sub-bar positions of a grouped (xOffset) chart."""
+
+    def test_shape_and_ordering(self):
+        theme()
+        got = _nested_band_centers(3, 4, 100.0)
+        assert len(got) == 3 and all(len(row) == 4 for row in got)
+        flat = [x for row in got for x in row]
+        assert flat == sorted(flat)
+        assert all(0.0 < x < 100.0 for x in flat)
+
+    def test_sub_bars_sit_inside_their_own_band(self):
+        # Each category's sub-bars must fall within that category's band, or a bracket would
+        # point at the neighbouring group.
+        theme()
+        outer = band_geometry(3, 100.0, scale="band", bandPadding=0.2)
+        for i, row in enumerate(_nested_band_centers(3, 3, 100.0)):
+            assert all(outer.starts[i] <= x <= outer.ends[i] for x in row)
+
+    def test_matches_vega_rendered_positions(self):
+        # Pinned against sub-bar centres measured from real rendered SVG (2 categories,
+        # 3 levels, 100px). band_geometry's own variants do NOT reproduce these - they
+        # resolve barPadding/outerPadding instead of the nested offset keys.
+        theme()
+        got = [round(x, 3) for row in _nested_band_centers(2, 3, 100.0) for x in row]
+        assert got == [15.152, 27.273, 39.394, 60.606, 72.727, 84.848]
+
+    def test_single_level_centres_on_the_band(self):
+        theme()
+        outer = band_geometry(4, 100.0, scale="band", bandPadding=0.2)
+        got = _nested_band_centers(4, 1, 100.0)
+        assert [row[0] for row in got] == pytest.approx(list(outer.centers))

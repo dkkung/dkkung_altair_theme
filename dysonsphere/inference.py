@@ -15,7 +15,15 @@ import polars as pl
 
 from .annotations import add_text
 from .theme import _opt
-from .utils import _SUP, _empty_layer, _internal_data, _nice_domain, _resolve_dash, band_geometry
+from .utils import (
+    _SUP,
+    _empty_layer,
+    _internal_data,
+    _nested_band_centers,
+    _nice_domain,
+    _resolve_dash,
+    band_geometry,
+)
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
@@ -636,6 +644,7 @@ def _grouped_bracket_layer(
     level_order: list[str],
     strokeWidth: float,
     fontSize: int,
+    chartWidth: float,
     offset_px: float = 0.0,
     tick_px: float | tuple[float, float] | None = None,
 ) -> alt.LayerChart:
@@ -667,10 +676,16 @@ def _grouped_bracket_layer(
     # Asterisk glyphs sit close to the baseline; alphanumeric labels ("ns", "P = …") need more.
     _dym = -(2 if label_style == "asterisks" and label != "ns" else 4)
     dy = _dym - offset_px
+    # Centred on the bracket's own midpoint in PIXELS. The label cannot ride the xOffset
+    # encoding (a subset domain there reorders the bars), and the band centre it used through
+    # 3.10.1 drifts a whole sub-bar away from an asymmetric pair - far enough to sit over a
+    # group the comparison does not involve.
+    _sub = _nested_band_centers(len(categories), len(level_order), chartWidth)[categories.index(category)]
+    _mid_px = (_sub[level_order.index(level1)] + _sub[level_order.index(level2)]) / 2
     text = (
-        alt.Chart(_internal_data([{x_col: category, "__y": y, "__label": label}]))
+        alt.Chart(_internal_data([{"__y": y, "__label": label}]))
         .mark_text(align="center", fontSize=fontSize, dy=dy)
-        .encode(x=alt.X(f"{x_col}:N", sort=categories), y=alt.Y("__y:Q"), text="__label:N")
+        .encode(x=alt.value(_mid_px), y=alt.Y("__y:Q"), text="__label:N")
     )
     if bracket_style in ("bracket", "drop"):
         # In pixel mode both ends sit at the anchor and the leg length rides in y2Offset. Drop
@@ -1162,6 +1177,7 @@ def _add_grouped_comparisons(
                         level_order=level_order,
                         strokeWidth=strokeWidth,
                         fontSize=fontSize,
+                        chartWidth=chartWidth,
                         offset_px=(cat_offsets[pi] if grp_pixel_mode else 0.0),
                         tick_px=(
                             cat_drop[pi] if cat_drop is not None else (_BRACKET_TICK_PX if _tick_arg is None else None)
