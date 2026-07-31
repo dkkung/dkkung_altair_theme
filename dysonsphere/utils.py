@@ -98,6 +98,27 @@ def band_geometry(
     return BandGeometry(step, centers, starts, ends)
 
 
+def _nested_band_centers(nCategories: int, nLevels: int, span: float | None = None) -> list[list[float]]:
+    """Pixel centres of every sub-bar in a grouped (``xOffset``) chart, as ``[category][level]``.
+
+    A nested offset scale uses its own padding keys, not the mark-specific ones: the outer band
+    takes ``groupPadding`` (Vega-Lite's ``bandWithNestedOffsetPadding``) and the offset scale
+    inside it takes ``subgroupPadding`` (``offsetBandPadding``). Composing ``band_geometry`` with
+    each reproduces Vega's rendered sub-bar positions exactly (verified against rendered SVG for
+    2-5 levels and 2-3 categories); ``band_geometry``'s own ``"band"``/``"offset"`` variants do
+    NOT, because they resolve ``barPadding``/``outerPadding`` instead.
+    """
+    span = float(_opt("chartWidth")) if span is None else span
+    outer = band_geometry(nCategories, span, scale="band", bandPadding=float(_opt("groupPadding")))
+    sub = float(_opt("subgroupPadding"))
+    out: list[list[float]] = []
+    for i in range(nCategories):
+        width = outer.ends[i] - outer.starts[i]
+        inner = band_geometry(nLevels, width, scale="band", bandPadding=sub)
+        out.append([outer.starts[i] + c for c in inner.centers])
+    return out
+
+
 def _nice_domain(lo: float, hi: float, count: int = 10) -> tuple[float, float]:
     """Round ``(lo, hi)`` outward to nice tick-increment multiples - d3's ``nice()`` algorithm.
 

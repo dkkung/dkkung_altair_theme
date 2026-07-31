@@ -18,6 +18,7 @@ from dysonsphere.inference import (
     add_correlation,
 )
 from dysonsphere.theme import _opt, theme
+from dysonsphere.utils import _nested_band_centers, band_geometry
 
 CATEGORIES = ["A", "B"]
 
@@ -2388,3 +2389,78 @@ class TestDropTicks:
                 add_comparisons(df, "g", "v", [("A", "B")], categories=MULTI, bracketStyle=style, tickHeight=0.5)
                 is not None
             )
+
+
+class TestGroupedLabelCentering:
+    """A grouped p-value label centres on its own bracket, not on the band."""
+
+    @staticmethod
+    def _frame(levels):
+        rows = []
+        for gene, sc in [("G1", 1.0), ("G2", 1.7)]:
+            for i, lv in enumerate(levels):
+                rows += [{"gene": gene, "cond": lv, "expr": (1.0 + 1.1 * i + o) * sc} for o in (0.0, 0.25, -0.15, 0.1)]
+        return pl.DataFrame(rows)
+
+    @staticmethod
+    def _label_xs(spec):
+        return [
+            sub["encoding"]["x"]["value"]
+            for layer in spec["layer"]
+            for sub in layer.get("layer", [])
+            if isinstance(sub.get("mark"), dict)
+            and sub["mark"].get("type") == "text"
+            and "value" in sub.get("encoding", {}).get("x", {})
+        ]
+
+    def test_asymmetric_pair_sits_on_its_bracket_not_the_band(self):
+        levels = ["Veh", "Low", "High"]
+        theme(chartWidth=100)
+        spec = add_comparisons(
+            self._frame(levels),
+            "gene",
+            "expr",
+            pairs=[("Veh", "Low")],
+            xOffsetCol="cond",
+            categories=["G1", "G2"],
+            xOffsetSort=levels,
+        ).to_dict()
+        subs = _nested_band_centers(2, 3, 100.0)
+        expected = [(row[0] + row[1]) / 2 for row in subs]
+        bands = list(band_geometry(2, 100.0, scale="band", bandPadding=0.2).centers)
+        assert self._label_xs(spec) == pytest.approx(expected)
+        # and is genuinely off the band centre, which is what it used to use
+        assert all(abs(a - b) > 1.0 for a, b in zip(expected, bands))
+
+    def test_symmetric_pair_still_lands_on_the_band_centre(self):
+        # A pair spanning the whole group has its midpoint AT the band centre - the old
+        # behaviour was correct here, which is why two-level charts never showed the bug.
+        levels = ["Veh", "Low", "High"]
+        theme(chartWidth=100)
+        spec = add_comparisons(
+            self._frame(levels),
+            "gene",
+            "expr",
+            pairs=[("Veh", "High")],
+            xOffsetCol="cond",
+            categories=["G1", "G2"],
+            xOffsetSort=levels,
+        ).to_dict()
+        bands = list(band_geometry(2, 100.0, scale="band", bandPadding=0.2).centers)
+        assert self._label_xs(spec) == pytest.approx(bands)
+
+    def test_label_tracks_the_pair_not_the_category(self):
+        # Two different pairs in the same category must get different label positions.
+        levels = ["Veh", "D1", "D2", "D3", "D4"]
+        theme(chartWidth=100)
+        spec = add_comparisons(
+            self._frame(levels),
+            "gene",
+            "expr",
+            pairs=[("Veh", "D1"), ("D3", "D4")],
+            xOffsetCol="cond",
+            categories=["G1", "G2"],
+            xOffsetSort=levels,
+        ).to_dict()
+        xs = self._label_xs(spec)
+        assert len(set(xs)) == 4, "each (category, pair) should get its own label position"
