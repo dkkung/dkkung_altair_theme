@@ -295,43 +295,58 @@ def _bracket_offsets(
 def _drop_tick_lengths(
     bar_px: list[float],
     spans: list[tuple[int, int]],
-    group_px: list[float],
+    group_hi_px: list[float],
     styles: list[str],
     col_px: list[float],
-    label_box: list[tuple[float, float, float]],
+    label_edge: list[tuple[float, float, float]],
+    reverse_flags: list[bool] | None = None,
+    group_lo_px: list[float] | None = None,
 ) -> list[tuple[float, float]]:
     """Per-bracket ``(left, right)`` end-tick lengths in px, for ``bracketStyle='drop'``.
 
-    A drop tick reaches from its bar down toward its OWN endpoint group's data, stopping
-    ``_DROP_PAD_PX`` short of it, and stops the same distance above anything it would otherwise
-    run through: a lower bracket's bar in that column, or a lower bracket's label, whose
-    ``(x_lo, x_hi, top_px)`` box is given in ``label_box``. The label matters because a bracket
-    stacked above a wider one still crosses that one's label, which sits above its bar.
+    A drop tick reaches from its bar toward its OWN endpoint group's data, stopping
+    ``_DROP_PAD_PX`` short of it, and stops the same distance short of anything else it would
+    run through: another bracket's bar in that column, or another bracket's label, whose
+    ``(x_lo, x_hi, edge_px)`` box is given in ``label_edge``. The label matters because a bracket
+    stacked beyond a wider one still crosses that one's label, which sits off its bar.
+
+    Everything is measured as distance travelled along the tick's own direction, so an upward
+    ``reverse`` tick uses the same comparisons as a downward one. A downward tick approaches a
+    group's maximum (``group_hi_px``), an upward one its minimum (``group_lo_px``, defaulting to
+    ``group_hi_px`` when no bracket is reversed).
 
     Falls back to ``_BRACKET_TICK_PX`` where there is no room to drop, and below that only when
     even a fixed cap would touch. Non-drop brackets get the fixed length.
     """
+    revs = reverse_flags or [False] * len(spans)
+    near = group_lo_px if group_lo_px is not None else group_hi_px
     out: list[tuple[float, float]] = []
     for i, (lo, hi) in enumerate(spans):
         if styles[i] != "drop":
             out.append((_BRACKET_TICK_PX, _BRACKET_TICK_PX))
             continue
+        sign = -1.0 if revs[i] else 1.0  # +1 travels down the screen, -1 travels up
         ends: list[float] = []
         for col in (lo, hi):
             x = col_px[col]
-            padded, hard = group_px[col] - _DROP_PAD_PX, group_px[col]
+
+            def _dist(p: float, _s: float = sign, _b: float = bar_px[i]) -> float:
+                return _s * (p - _b)
+
+            _edge = near[col] if revs[i] else group_hi_px[col]
+            padded, hard = _dist(_edge) - _DROP_PAD_PX, _dist(_edge)
             for j, (j_lo, j_hi) in enumerate(spans):
-                if j == i or bar_px[j] <= bar_px[i]:  # only brackets lower on screen block
+                if j == i or _dist(bar_px[j]) <= 0:  # only what lies ahead of the tick blocks it
                     continue
                 if j_lo <= col <= j_hi:
-                    padded, hard = min(padded, bar_px[j] - _DROP_PAD_PX), min(hard, bar_px[j])
-                lx0, lx1, ltop = label_box[j]
+                    padded, hard = min(padded, _dist(bar_px[j]) - _DROP_PAD_PX), min(hard, _dist(bar_px[j]))
+                lx0, lx1, ledge = label_edge[j]
                 if lx0 <= x <= lx1:
-                    padded, hard = min(padded, ltop - _DROP_PAD_PX), min(hard, ltop)
+                    padded, hard = min(padded, _dist(ledge) - _DROP_PAD_PX), min(hard, _dist(ledge))
             # The pad is a target for the DROP; the minimum cap only has to avoid touching, so it
             # is held back by `hard` rather than `padded` - otherwise a label directly beneath
             # deletes the tick instead of just stopping it from dropping.
-            ends.append(max(0.0, min(max(_BRACKET_TICK_PX, padded - bar_px[i]), hard - bar_px[i])))
+            ends.append(max(0.0, min(max(_BRACKET_TICK_PX, padded), hard)))
         out.append((ends[0], ends[1]))
     return out
 
@@ -1816,29 +1831,29 @@ def add_comparisons(
 
                 if "drop" in pair_styles:
                     # Drop ticks need every bracket's final bar position, so they are solved
-                    # after the ladder. Reverse brackets keep the fixed length (their ticks
-                    # point away from the data).
-                    _bars = [_to_px(final_y[i]) - offsets_px[i] for i in range(len(pairs))]
-                    _group_px = [
-                        _to_px(cast(float, df.filter(pl.col(xCol) == c)[yCol].cast(pl.Float64).max() or 0.0))
-                        for c in categories
+                    # after the ladder. A reverse bracket's ticks travel up, so they approach
+                    # each group's minimum and its label sits below its bar.
+                    # a reverse bracket's offset lifts it DOWN the screen (_pvalue_layer's _sign)
+                    _bars = [
+                        _to_px(final_y[i]) + (offsets_px[i] if rev_flags[i] else -offsets_px[i])
+                        for i in range(len(pairs))
                     ]
+                    _any_rev = any(rev_flags)
+                    _col = [df.filter(pl.col(xCol) == c)[yCol].cast(pl.Float64) for c in categories]
+                    _hi_px = [_to_px(cast(float, s.max() or 0.0)) for s in _col]
+                    _lo_px = [_to_px(cast(float, s.min() or 0.0)) for s in _col] if _any_rev else _hi_px
                     _centers = list(band_geometry(len(categories), chartWidth).centers)
                     _fs = float(fontSize or _opt("fontSize"))
-                    _boxes: list[tuple[float, float, float]] = []
+                    _edges: list[tuple[float, float, float]] = []
                     for i, (lo, hi) in enumerate(idx_span):
                         _lbl = _format_label(computed_pvalues[i], labelStyle, effective_sigfigs, pair_notations[i])
                         _mid = (_centers[lo] + _centers[hi]) / 2
                         _half = len(_lbl) * _fs * 0.6 / 2
                         _dy = 2.0 if labelStyle == "asterisks" and _lbl != "ns" else 4.0
-                        _boxes.append((_mid - _half, _mid + _half, _bars[i] - _dy - _fs))
+                        _s = -1.0 if rev_flags[i] else 1.0
+                        _edges.append((_mid - _half, _mid + _half, _bars[i] - _s * (_dy + _fs)))
                     drop_px = _drop_tick_lengths(
-                        _bars,
-                        idx_span,
-                        _group_px,
-                        ["drop" if (s == "drop" and not rev) else s for s, rev in zip(pair_styles, rev_flags)],
-                        _centers,
-                        _boxes,
+                        _bars, idx_span, _hi_px, pair_styles, _centers, _edges, rev_flags, _lo_px
                     )
 
             else:

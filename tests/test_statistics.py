@@ -2177,3 +2177,49 @@ class TestDropTicks:
         assert legs, "drop brackets should still emit end legs"
         lengths = {abs(m["y2Offset"] - m.get("yOffset", 0)) for m in legs}
         assert len(lengths) > 1, "drop ticks should differ in length, not all be the fixed cap"
+
+    def test_reverse_ticks_travel_up_to_the_group_minimum(self):
+        # A reverse bracket hangs below the data with ticks pointing up, so it approaches each
+        # group's MINIMUM. Bar at 100, minima at 60/80 -> lengths 40-PAD and 20-PAD.
+        lens = _drop_tick_lengths(
+            [100.0],
+            [(0, 1)],
+            [10.0, 10.0],
+            ["drop"],
+            [10.0, 20.0],
+            [(0.0, 0.0, 999.0)],
+            [True],
+            [60.0, 80.0],
+        )
+        assert lens == [(40.0 - self.PAD, 20.0 - self.PAD)]
+
+    def test_reverse_is_blocked_by_what_lies_above_it(self):
+        # Bracket 0 hangs lowest; bracket 1 sits between it and the data, so bracket 0's tick
+        # stops below bracket 1's bar instead of reaching the minimum.
+        lens = _drop_tick_lengths(
+            [100.0, 70.0],
+            [(0, 1), (0, 1)],
+            [10.0, 10.0],
+            ["drop", "drop"],
+            [10.0, 20.0],
+            [(0.0, 0.0, 999.0), (0.0, 0.0, 999.0)],
+            [True, True],
+            [30.0, 30.0],
+        )
+        assert lens[0][0] == 30.0 - self.PAD  # 100 -> 70 is 30 px of travel
+
+    def test_mixed_directions_do_not_block_each_other(self):
+        # Up and down brackets sit on opposite sides of the data, so neither is an obstacle for
+        # the other - each still reaches its own side.
+        lens = _drop_tick_lengths(
+            [0.0, 100.0],
+            [(0, 1), (0, 1)],
+            [40.0, 40.0],
+            ["drop", "drop"],
+            [10.0, 20.0],
+            [(0.0, 0.0, -99.0), (0.0, 0.0, 999.0)],
+            [False, True],
+            [60.0, 60.0],
+        )
+        assert lens[0][0] == 40.0 - self.PAD  # down to the maximum
+        assert lens[1][0] == 40.0 - self.PAD  # up to the minimum
