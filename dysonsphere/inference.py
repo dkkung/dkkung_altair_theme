@@ -637,7 +637,7 @@ def _grouped_bracket_layer(
     strokeWidth: float,
     fontSize: int,
     offset_px: float = 0.0,
-    tick_px: float | None = None,
+    tick_px: float | tuple[float, float] | None = None,
 ) -> alt.LayerChart:
     """One within-category bracket for grouped comparisons.
 
@@ -672,26 +672,23 @@ def _grouped_bracket_layer(
         .mark_text(align="center", fontSize=fontSize, dy=dy)
         .encode(x=alt.X(f"{x_col}:N", sort=categories), y=alt.Y("__y:Q"), text="__label:N")
     )
-    if bracket_style == "bracket":
-        # In pixel mode both ends sit at the anchor and the leg length rides in y2Offset.
-        tk = dict(rk)
-        y2_val = y - tick_height
-        if tick_px is not None:
-            tk["y2Offset"] = -(offset_px - tick_px)
-            y2_val = y
-        ticks = (
-            alt.Chart(
-                _internal_data(
-                    [
-                        {x_col: category, xoffset_col: level1, "__y": y, "__y2": y2_val},
-                        {x_col: category, xoffset_col: level2, "__y": y, "__y2": y2_val},
-                    ]
-                )
+    if bracket_style in ("bracket", "drop"):
+        # In pixel mode both ends sit at the anchor and the leg length rides in y2Offset. Drop
+        # ticks differ per end, and y2Offset is a mark property, so each end needs its own layer.
+        _lens = (tick_px, tick_px) if isinstance(tick_px, (int, float)) else tick_px
+        legs = []
+        for level, tlen in zip((level1, level2), _lens if _lens is not None else (None, None)):
+            tk = dict(rk)
+            y2_val = y - tick_height
+            if tlen is not None:
+                tk["y2Offset"] = -(offset_px - tlen)
+                y2_val = y
+            legs.append(
+                alt.Chart(_internal_data([{x_col: category, xoffset_col: level, "__y": y, "__y2": y2_val}]))
+                .mark_rule(**tk)
+                .encode(x=xenc, xOffset=xoff, y=alt.Y("__y:Q"), y2="__y2:Q")
             )
-            .mark_rule(**tk)
-            .encode(x=xenc, xOffset=xoff, y=alt.Y("__y:Q"), y2="__y2:Q")
-        )
-        return cast(alt.LayerChart, alt.layer(top, ticks, text))
+        return cast(alt.LayerChart, alt.layer(top, *legs, text))
     return cast(alt.LayerChart, alt.layer(top, text))
 
 
@@ -854,8 +851,8 @@ def _add_grouped_comparisons(
         raise ValueError(f"grouped comparisons (xOffsetCol) support {sorted(_valid_tests)}, got {test!r}.")
     if labelStyle not in ("p", "asterisks", "value"):
         raise ValueError(f"labelStyle must be 'p', 'asterisks', or 'value', got {labelStyle!r}.")
-    if not isinstance(bracketStyle, str) or bracketStyle not in ("bracket", "line"):
-        raise ValueError(f"grouped comparisons take bracketStyle 'bracket' or 'line', got {bracketStyle!r}.")
+    if not isinstance(bracketStyle, str) or bracketStyle not in ("bracket", "line", "drop"):
+        raise ValueError(f"grouped comparisons take bracketStyle 'bracket', 'line', or 'drop', got {bracketStyle!r}.")
     notation_val = notation if not isinstance(notation, dict) else None
 
     chartWidth = chartWidth if chartWidth is not None else _opt("chartWidth")
@@ -989,6 +986,7 @@ def _add_grouped_comparisons(
         )
         cat_pair_anchor: list[float] = []
         cat_offsets: list[float] = []
+        cat_drop: list[tuple[float, float]] | None = None
         if grp_pixel_mode:
             cat_spans = [
                 (min(level_order.index(a), level_order.index(b)), max(level_order.index(a), level_order.index(b)))
@@ -1019,6 +1017,42 @@ def _add_grouped_comparisons(
             )
             cat_pair_anchor = [a for a, _ in cat_placed]
             cat_offsets = [o for _, o in cat_placed]
+            if bracketStyle == "drop":
+                # The y scale is shared across categories, so drop lengths - unlike the ladder
+                # offsets above, which are relative - must be measured against the WHOLE frame's
+                # domain. A per-category domain sends the ticks straight through the data.
+                _dlo, _dhi = _nice_domain(
+                    min(0.0, cast(float, df[y_col].cast(pl.Float64).min() or 0.0)),
+                    cast(float, df[y_col].cast(pl.Float64).max() or 0.0),
+                )
+                _dspan = (_dhi - _dlo) or 1.0
+
+                def _cat_px(v: float, _lo: float = _dlo, _sp: float = _dspan, _h: float = _ch) -> float:
+                    return _h * (1.0 - (v - _lo) / _sp)
+
+                _cbars = [_cat_px(cat_pair_anchor[i]) - cat_offsets[i] for i in range(len(pairs))]
+                _clevel_px = [
+                    _cat_px(cast(float, cdf.filter(pl.col(xoffset_col) == lv)[y_col].cast(pl.Float64).max() or 0.0))
+                    for lv in level_order
+                ]
+                # Every label in a category centres on the same band, and the sub-bar pixel
+                # positions are Vega's, not band_geometry's - so a label is treated as covering
+                # the whole category. Conservative: it can only shorten a tick, never overlap one.
+                _cfs = float(fontSize or _opt("fontSize"))
+                _clabels = [
+                    _format_label(adj[k + i], labelStyle, effective_sigfigs, notation_val) for i in range(len(pairs))
+                ]
+                _cedges = [
+                    (
+                        float("-inf"),
+                        float("inf"),
+                        _cbars[i] - (2.0 if labelStyle == "asterisks" and lb != "ns" else 4.0) - _cfs,
+                    )
+                    for i, lb in enumerate(_clabels)
+                ]
+                cat_drop = _drop_tick_lengths(
+                    _cbars, cat_spans, _clevel_px, ["drop"] * len(pairs), [0.0] * len(level_order), _cedges
+                )
         for pi, (l1, l2) in enumerate(pairs):
             p = adj[k]
             en, ev = effects[k]
@@ -1082,7 +1116,9 @@ def _add_grouped_comparisons(
                         strokeWidth=strokeWidth,
                         fontSize=fontSize,
                         offset_px=(cat_offsets[pi] if grp_pixel_mode else 0.0),
-                        tick_px=(_BRACKET_TICK_PX if _tick_arg is None else None),
+                        tick_px=(
+                            cat_drop[pi] if cat_drop is not None else (_BRACKET_TICK_PX if _tick_arg is None else None)
+                        ),
                     )
                 )
             comparisons.append(

@@ -2223,3 +2223,47 @@ class TestDropTicks:
         )
         assert lens[0][0] == 40.0 - self.PAD  # down to the maximum
         assert lens[1][0] == 40.0 - self.PAD  # up to the minimum
+
+    def test_grouped_mode_emits_per_end_lengths(self):
+        rows = []
+        for gene, scale in [("G1", 1.0), ("G2", 1.8)]:
+            for cond, m in {"Veh": 1.0, "Low": 2.2, "High": 3.6}.items():
+                rows += [
+                    {"gene": gene, "cond": cond, "expr": (m + o) * scale} for o in (0.0, 0.25, -0.15, 0.1, 0.3, -0.05)
+                ]
+        df = pl.DataFrame(rows)
+        spec = add_comparisons(
+            df,
+            "gene",
+            "expr",
+            pairs=[("Veh", "Low"), ("Veh", "High")],
+            xOffsetCol="cond",
+            categories=["G1", "G2"],
+            xOffsetSort=["Veh", "Low", "High"],
+            bracketStyle="drop",
+        ).to_dict()
+        legs = [
+            sub["mark"]
+            for layer in spec["layer"]
+            for sub in layer.get("layer", [])
+            if isinstance(sub.get("mark"), dict) and "y2Offset" in sub.get("mark", {})
+        ]
+        assert legs, "grouped drop brackets should emit end legs"
+        assert len({m["y2Offset"] for m in legs}) > 1, "grouped drop ticks should differ per end"
+
+    def test_grouped_mode_rejects_unknown_style(self):
+        rows = []
+        for gene in ("G1", "G2"):
+            for cond in ("Veh", "Low"):
+                rows += [{"gene": gene, "cond": cond, "expr": float(i)} for i in range(6)]
+        with pytest.raises(ValueError, match="'bracket', 'line', or 'drop'"):
+            add_comparisons(
+                pl.DataFrame(rows),
+                "gene",
+                "expr",
+                pairs=[("Veh", "Low")],
+                xOffsetCol="cond",
+                categories=["G1", "G2"],
+                xOffsetSort=["Veh", "Low"],
+                bracketStyle="nope",
+            )
