@@ -140,9 +140,17 @@ def _check_coverage(
 
 def _stack_levels(spans: list[tuple[int, int]]) -> list[int]:
     """Assign a stacking level to each ``(lo, hi)`` index span via greedy interval scheduling:
-    shorter spans first (so narrow brackets sit lower), each placed on the lowest level whose
-    occupants it doesn't overlap. Returns the level per span, in input order."""
-    order = sorted(range(len(spans)), key=lambda i: abs(spans[i][1] - spans[i][0]))
+    left endpoint first, ties by right endpoint, each placed on the lowest level whose occupants
+    it doesn't overlap. Returns the level per span, in input order.
+
+    Lexicographic order groups every comparison sharing a left group into one nested staircase
+    (all of 1v2, 1v3, 1v4, then 2v3, 2v4, ...), which reads far better than interleaved anchors.
+    It is also provably level-minimal: the overlap graph of intervals is perfect, so greedy
+    coloring in left-endpoint order uses exactly the maximum clique. (Ordering by span length
+    instead - narrow brackets lowest, through 3.10.1 - reads worse AND overflows by a level on
+    ~12% of pair subsets.) Brackets sharing an endpoint count as overlapping, since two on one
+    level would render as a single continuous line."""
+    order = sorted(range(len(spans)), key=lambda i: (min(spans[i]), max(spans[i])))
     levels: list[list[tuple[int, int]]] = []
     result = [0] * len(spans)
     for i in order:
@@ -198,6 +206,14 @@ def _bracket_offsets(
     common are never tied to each other - two comparisons at opposite ends of a chart each hug
     their own groups instead of the shorter one floating up to meet the taller.
 
+    Rung ORDER within a component is chosen per component from two candidates, scored as
+    ``(rungs used, total pixels the brackets float above their own data)`` with ties going to the
+    first: **lexicographic** by span, which reads as a fan (every comparison sharing a left group
+    runs consecutively - 1v2, 1v3, 1v4, then 2v3, 2v4), and **by data demand**, which puts the
+    bracket nearest the data on the first rung and so keeps the ladder tight. On ordered groups
+    the two cost the same and the fan is free; on unordered groups the fan would drag brackets
+    far above the data they compare, and demand order wins.
+
     The rungs are CONSTANT pixel offsets off a datum anchor, so they are exact at any y domain
     without the scale being consulted - which is what makes this survive facets, concats and
     ``add_multilabel``, where Vega renames the y scale. Only the ladder arithmetic needs pixel
@@ -221,24 +237,46 @@ def _bracket_offsets(
                 old, keep = comp[j], comp[i]
                 comp = [keep if c == old else c for c in comp]
 
-    placed_out: list[tuple[float, float]] = [(anchors[i], 0.0) for i in range(n)]
-    for root in set(comp):
-        members = [i for i in range(n) if comp[i] == root]
-        # First rung to the bracket nearest the data (largest pixel y going up, smallest going
-        # down). Putting the most demanding one on the last rung is what lets the ladder sit
-        # tight. Ties go to the order the caller listed the pairs - the most predictable rule,
-        # and it keeps comparisons sharing an endpoint adjacent (1-2, 1-3, 1-4, 2-4).
-        members.sort(key=lambda i: (_dir * required[i], i))
+    pick = max if downward else min
+
+    def _assign(order: list[int]) -> dict[int, int]:
+        """Greedy rung per bracket, in the given order: lowest rung it doesn't collide on."""
         level: dict[int, int] = {}
-        for i in members:
+        for i in order:
             taken = {level[j] for j in level if _overlap(i, j)}
             lvl = 0
             while lvl in taken:
                 lvl += 1
             level[i] = lvl
-        # The tightest base that still clears every bracket in the component.
-        pick = max if downward else min
-        base = pick(required[i] - _dir * level[i] * step_px for i in members)
+        return level
+
+    placed_out: list[tuple[float, float]] = [(anchors[i], 0.0) for i in range(n)]
+    for root in set(comp):
+        members = [i for i in range(n) if comp[i] == root]
+        # Two candidate rung orders, scored and the better one taken. LEXICOGRAPHIC reads as a
+        # fan - every comparison sharing a left group runs consecutively (1v2, 1v3, 1v4, then
+        # 2v3, 2v4) instead of alternating anchors. BY DATA DEMAND puts the bracket nearest the
+        # data on the first rung, which is what lets the ladder sit tight against its groups.
+        # Neither wins outright: on ordered groups (a dose response) they cost the same, so the
+        # fan is free; on unordered groups the fan drags brackets far above the data they
+        # compare, and demand order stays tight. Score = (rungs used, total pixels the brackets
+        # float above their own data), lower better, ties to lexicographic.
+        candidates = (
+            sorted(members, key=lambda i: (spans[i][0], spans[i][1])),
+            sorted(members, key=lambda i: (_dir * required[i], i)),
+        )
+        best: tuple[tuple[int, float], dict[int, int], float] | None = None
+        for order in candidates:
+            level = _assign(order)
+            base = pick(required[i] - _dir * level[i] * step_px for i in members)
+            float_px = sum(_dir * ((base + _dir * level[i] * step_px) - required[i]) for i in members)
+            # Rounded: the two orders often tie mathematically and differ only in summation order,
+            # by ~1e-14 px - without this that noise, not the tie-break, picks the layout.
+            score = (max(level.values()), round(float_px, 6))
+            if best is None or score < best[0]:
+                best = (score, level, base)
+        assert best is not None
+        _, level, base = best
         # One anchor for the whole ladder - the member furthest into the margin, so the rungs are
         # measured from a single data value and their spacing is pure arithmetic.
         shared = (min if downward else max)(anchors[i] for i in members)

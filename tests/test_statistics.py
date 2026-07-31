@@ -6,6 +6,7 @@ import polars as pl
 import pytest
 
 from dysonsphere.inference import (
+    _bracket_offsets,
     _correlation_label,
     _format_asterisks,
     _format_pvalue,
@@ -1632,9 +1633,9 @@ class TestStackLevels:
         # (0,2) and (1,3) overlap → the second must climb a level.
         assert _stack_levels([(0, 2), (1, 3)]) == [0, 1]
 
-    def test_shorter_span_sits_lower(self):
-        # The wide (0,3) span is placed after the narrow (0,1) despite input order, so the
-        # narrow one takes level 0 and the wide one is bumped up.
+    def test_ties_on_left_endpoint_break_by_right(self):
+        # Same left endpoint → the narrower span is placed first and takes level 0,
+        # regardless of input order.
         assert _stack_levels([(0, 3), (0, 1)]) == [1, 0]
 
     def test_orientation_agnostic(self):
@@ -1643,7 +1644,29 @@ class TestStackLevels:
 
     def test_nested_span_overlaps(self):
         # A span fully containing another still counts as overlapping → separate levels.
-        assert _stack_levels([(0, 4), (1, 2)]) == [1, 0]
+        # The outer span leads on left endpoint, so it takes level 0.
+        assert _stack_levels([(0, 4), (1, 2)]) == [0, 1]
+
+    def test_lexicographic_groups_comparisons_by_left_group(self):
+        # Every comparison against group 1 forms one nested staircase before group 2 starts,
+        # rather than interleaving anchors. Disjoint pairs still share a level (1v2 + 3v4).
+        spans = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]  # 1v2 1v3 1v4 2v3 2v4 3v4
+        assert _stack_levels(spans) == [0, 1, 2, 3, 4, 0]
+
+    def test_level_count_is_minimal(self):
+        # The overlap graph of intervals is perfect, so greedy coloring in left-endpoint order
+        # uses exactly the maximum clique - the fewest levels any layout could use.
+        def max_clique(spans):
+            points = {c for s in spans for c in s}
+            return max(sum(1 for s in spans if min(s) <= p <= max(s)) for p in points)
+
+        cases = [
+            [(0, 1), (0, 2), (2, 4), (3, 4)],  # span-length order needs 3 here; 2 suffice
+            [(0, 1), (1, 2), (2, 3), (0, 2), (1, 3)],
+            [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)],
+        ]
+        for spans in cases:
+            assert max(_stack_levels(spans)) + 1 == max_clique(spans)
 
 
 class TestResolveYSpacing:
@@ -2008,3 +2031,65 @@ class TestGroupedManualOverrides:
         df = pl.DataFrame({"g": ["A"] * 8 + ["B"] * 8, "v": np.random.default_rng(0).normal(0, 1, 16)})
         with pytest.raises(ValueError, match="for grouped mode"):
             add_comparisons(df, "g", "v", pairs=[("A", "B")], categories=["A", "B"], pvalues={("A", "B"): 0.1})
+
+
+class TestBracketOrder:
+    """_bracket_offsets picks the rung order per component: a readable fan when it is free,
+    a tight ladder against the data when it is not."""
+
+    STEP = 13.0
+    GAP = 6.0
+
+    def _levels(self, anchors, spans, hi=6.0):
+        """Rung index per bracket, recovered from the returned (anchor, offset) pairs."""
+
+        def to_px(v, _hi=hi):
+            return 100.0 * (1.0 - v / _hi)
+
+        placed = _bracket_offsets(anchors, spans, self.GAP, self.STEP, to_px)
+        # offsets are constant pixel lifts off one shared anchor, so rung = offset / step
+        offs = [off for _, off in placed]
+        lowest = min(offs)
+        return [round((o - lowest) / self.STEP) for o in offs]
+
+    ALL4 = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]  # 1v2 1v3 1v4 2v3 2v4 3v4
+
+    def test_ordered_groups_get_the_lexicographic_fan(self):
+        # A dose response: the fan costs nothing, so comparisons against group 1 run
+        # consecutively (rungs 0,1,2) before group 2 starts (rungs 3,4).
+        means = [1.2, 2.2, 3.4, 4.6]
+        anchors = [max(means[a : b + 1]) for a, b in self.ALL4]
+        assert self._levels(anchors, self.ALL4) == [0, 1, 2, 3, 4, 0]
+
+    def test_unordered_groups_keep_the_tight_ladder(self):
+        # Group 1 is the tallest, so the fan would strand 2v3/2v4 far above their own data.
+        # Demand order wins instead, and 2v3 - lowest data - takes rung 0.
+        means = [4.6, 1.2, 3.4, 2.2]
+        anchors = [max(means[a : b + 1]) for a, b in self.ALL4]
+        levels = self._levels(anchors, self.ALL4)
+        assert levels != [0, 1, 2, 3, 4, 0]
+        assert levels[3] == 0  # 2v3 on the first rung
+
+    def test_tie_is_broken_by_order_not_float_noise(self):
+        # The two candidate orders often tie mathematically and differ only by ~1e-14 px of
+        # summation error. Unrounded, that noise picks the layout and the fan never appears.
+        # These are the exact values a rendered 4-group dose response produces (data max 5.2,
+        # nice-rounded to a [0, 5.5] domain) - the tie does not arise at other domains.
+        means = [1.6, 2.7, 3.9, 5.2]
+        anchors = [max(means[a : b + 1]) for a, b in self.ALL4]
+        assert self._levels(anchors, self.ALL4, hi=5.5) == [0, 1, 2, 3, 4, 0]
+
+    def test_disjoint_components_are_decided_independently(self):
+        # Two clusters that share no groups each get their own ladder from rung 0.
+        spans = [(0, 1), (1, 2), (3, 4), (4, 5)]
+        means = [1.2, 2.0, 1.6, 4.6, 5.2, 4.9]
+        anchors = [max(means[a : b + 1]) for a, b in spans]
+        levels = self._levels(anchors, spans)
+        assert {levels[0], levels[1]} == {0, 1}
+        assert {levels[2], levels[3]} == {0, 1}
+
+    def test_never_uses_more_rungs_than_the_tight_ladder(self):
+        # Whatever order wins, it is scored on rung count first - so the fan can never cost height.
+        for means in ([1.2, 2.2, 3.4, 4.6], [4.6, 1.2, 3.4, 2.2], [1.5, 5.5, 2.0, 1.8]):
+            anchors = [max(means[a : b + 1]) for a, b in self.ALL4]
+            assert max(self._levels(anchors, self.ALL4)) + 1 <= len(self.ALL4)
