@@ -1772,6 +1772,30 @@ def add_comparisons(
         tick_px = _BRACKET_TICK_PX if _tick_arg is None else None
         drop_px: list[tuple[float, float]] | None = None
         bracket_domain_max: float | None = None
+        idx_span = [
+            (min(categories.index(g1), categories.index(g2)), max(categories.index(g1), categories.index(g2)))
+            for g1, g2 in pairs
+        ]
+        _rev_pairs: list[tuple[str, str]] = reverse or []
+        rev_flags = [(g1, g2) in _rev_pairs for g1, g2 in pairs]
+
+        def _solve_drop(bars_px: list[float], to_px_fn: Any) -> list[tuple[float, float]]:
+            """Per-end drop lengths for bars already resolved to pixels."""
+            any_rev = any(rev_flags)
+            cols = [df.filter(pl.col(xCol) == c)[yCol].cast(pl.Float64) for c in categories]
+            hi_px = [to_px_fn(cast(float, s.max() or 0.0)) for s in cols]
+            lo_px = [to_px_fn(cast(float, s.min() or 0.0)) for s in cols] if any_rev else hi_px
+            centers = list(band_geometry(len(categories), chartWidth).centers)
+            fs = float(fontSize or _opt("fontSize"))
+            edges: list[tuple[float, float, float]] = []
+            for i, (lo, hi) in enumerate(idx_span):
+                lbl = _format_label(computed_pvalues[i], labelStyle, effective_sigfigs, pair_notations[i])
+                mid = (centers[lo] + centers[hi]) / 2
+                half = len(lbl) * fs * 0.6 / 2
+                dy = 2.0 if labelStyle == "asterisks" and lbl != "ns" else 4.0
+                sgn = -1.0 if rev_flags[i] else 1.0
+                edges.append((mid - half, mid + half, bars_px[i] - sgn * (dy + fs)))
+            return _drop_tick_lengths(bars_px, idx_span, hi_px, pair_styles, centers, edges, rev_flags, lo_px)
 
         if isinstance(yPositions, (int, float)) and not isinstance(yPositions, bool):
             final_y = [float(yPositions)] * len(pairs)  # a single number → every bracket at that y
@@ -1794,10 +1818,6 @@ def add_comparisons(
                 # A bracket occupies its bar plus the label above it - `fontSize` of glyph and the
                 # 4 px label dy, plus a margin. Less than this lets a label meet the bar above.
                 min_step_px = float(fontSize or _opt("fontSize")) + 6.0
-                idx_span = [
-                    (min(categories.index(g1), categories.index(g2)), max(categories.index(g1), categories.index(g2)))
-                    for g1, g2 in pairs
-                ]
                 # Anchor over every category the bracket SPANS, not just its two endpoints: a
                 # bracket from a to c passes over b, so a taller b would sit above the bar - on a
                 # bar chart the bracket would cross straight through it. (statannotations does the
@@ -1805,8 +1825,6 @@ def add_comparisons(
                 # A `reverse` bracket hangs BELOW its groups, so it anchors on their MINIMUM and
                 # its ladder descends. The two directions never collide with each other (opposite
                 # sides of the data), so each gets its own placement pass.
-                _rev_pairs: list[tuple[str, str]] = reverse or []
-                rev_flags = [(g1, g2) in _rev_pairs for g1, g2 in pairs]
                 pair_anchor = [
                     cast(
                         float,
@@ -1866,30 +1884,14 @@ def add_comparisons(
                         final_y[slot], offsets_px[slot] = anch, off
 
                 if "drop" in pair_styles:
-                    # Drop ticks need every bracket's final bar position, so they are solved
-                    # after the ladder. A reverse bracket's ticks travel up, so they approach
-                    # each group's minimum and its label sits below its bar.
-                    # a reverse bracket's offset lifts it DOWN the screen (_pvalue_layer's _sign)
-                    _bars = [
-                        _to_px(final_y[i]) + (offsets_px[i] if rev_flags[i] else -offsets_px[i])
-                        for i in range(len(pairs))
-                    ]
-                    _any_rev = any(rev_flags)
-                    _col = [df.filter(pl.col(xCol) == c)[yCol].cast(pl.Float64) for c in categories]
-                    _hi_px = [_to_px(cast(float, s.max() or 0.0)) for s in _col]
-                    _lo_px = [_to_px(cast(float, s.min() or 0.0)) for s in _col] if _any_rev else _hi_px
-                    _centers = list(band_geometry(len(categories), chartWidth).centers)
-                    _fs = float(fontSize or _opt("fontSize"))
-                    _edges: list[tuple[float, float, float]] = []
-                    for i, (lo, hi) in enumerate(idx_span):
-                        _lbl = _format_label(computed_pvalues[i], labelStyle, effective_sigfigs, pair_notations[i])
-                        _mid = (_centers[lo] + _centers[hi]) / 2
-                        _half = len(_lbl) * _fs * 0.6 / 2
-                        _dy = 2.0 if labelStyle == "asterisks" and _lbl != "ns" else 4.0
-                        _s = -1.0 if rev_flags[i] else 1.0
-                        _edges.append((_mid - _half, _mid + _half, _bars[i] - _s * (_dy + _fs)))
-                    drop_px = _drop_tick_lengths(
-                        _bars, idx_span, _hi_px, pair_styles, _centers, _edges, rev_flags, _lo_px
+                    # Solved after the ladder, which fixes every bar. A reverse bracket's offset
+                    # lifts it DOWN the screen (_pvalue_layer's _sign).
+                    drop_px = _solve_drop(
+                        [
+                            _to_px(final_y[i]) + (offsets_px[i] if rev_flags[i] else -offsets_px[i])
+                            for i in range(len(pairs))
+                        ],
+                        _to_px,
                     )
 
             else:
@@ -1897,6 +1899,23 @@ def add_comparisons(
                 # groups' maximum plus yPad (the pre-pixel-mode behaviour, unchanged).
                 base = cast(float, yStart) if yStart is not None else anchor + yPad
                 final_y = [base + pair_levels[i] * yStep for i in range(len(pairs))]
+
+        if "drop" in pair_styles and drop_px is None:
+            # Explicit y positions opt out of pixel placement, so the bars are plain data values
+            # with no offset. The domain estimate has to include them: a caller can pin a bracket
+            # far above the data, and a domain taken from the data alone would send ticks through
+            # it. Reverse brackets need the low end for the same reason.
+            _dlo, _dhi = _nice_domain(
+                min(0.0, cast(float, y_all.min() or 0.0), min(final_y)),
+                max(cast(float, y_all.max() or 0.0), max(final_y)),
+            )
+            _dsp = (_dhi - _dlo) or 1.0
+            _dch = float(_opt("chartHeight"))
+
+            def _dpx(v: float, _lo: float = _dlo, _sp: float = _dsp, _h: float = _dch) -> float:
+                return _h * (1.0 - (v - _lo) / _sp)
+
+            drop_px = _solve_drop([_dpx(v) for v in final_y], _dpx)
 
         for i, ((g1, g2), pval) in enumerate(zip(pairs, computed_pvalues)):
             annotation_layers.append(

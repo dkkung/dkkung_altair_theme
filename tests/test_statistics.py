@@ -17,7 +17,7 @@ from dysonsphere.inference import (
     add_comparisons,
     add_correlation,
 )
-from dysonsphere.theme import theme
+from dysonsphere.theme import _opt, theme
 
 CATEGORIES = ["A", "B"]
 
@@ -2267,3 +2267,49 @@ class TestDropTicks:
                 xOffsetSort=["Veh", "Low"],
                 bracketStyle="nope",
             )
+
+    def _leg_offsets(self, spec):
+        return [
+            m["y2Offset"]
+            for layer in spec["layer"]
+            for sub in layer.get("layer", [])
+            if isinstance((m := sub.get("mark")), dict) and "y2Offset" in m
+        ]
+
+    def test_explicit_ystart_still_gets_drop_ticks(self):
+        # Explicit y spacing opts out of pixel placement; drop must work there too, not fall
+        # back to fixed caps.
+        rng = np.random.default_rng(0)
+        df = pl.DataFrame({"g": ["A"] * 10 + ["B"] * 10 + ["C"] * 10, "v": rng.normal(0, 1, 30)})
+        spec = add_comparisons(
+            df,
+            "g",
+            "v",
+            [("A", "B"), ("B", "C")],
+            categories=MULTI,
+            bracketStyle="drop",
+            yStart=5.0,
+            yStep=1.0,
+        ).to_dict()
+        offsets = self._leg_offsets(spec)
+        assert offsets, "explicit placement should still emit end legs"
+        assert len(set(offsets)) > 1, "drop ticks should vary, not all be the fixed cap"
+
+    def test_pinned_positions_are_included_in_the_domain(self):
+        # A bracket pinned far above the data stretches the rendered domain. Estimating from the
+        # data alone would send its ticks straight through the marks.
+        rng = np.random.default_rng(0)
+        df = pl.DataFrame({"g": ["A"] * 10 + ["B"] * 10 + ["C"] * 10, "v": rng.normal(0, 1, 30)})
+        spec = add_comparisons(
+            df,
+            "g",
+            "v",
+            [("A", "B"), ("B", "C")],
+            categories=MULTI,
+            bracketStyle="drop",
+            yPositions=[40.0, 60.0],
+        ).to_dict()
+        offsets = self._leg_offsets(spec)
+        assert offsets
+        # every leg stays within the plot height - a data-only domain overshoots it wildly
+        assert all(abs(o) < float(_opt("chartHeight")) for o in offsets)
