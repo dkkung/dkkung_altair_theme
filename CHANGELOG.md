@@ -19,6 +19,8 @@
 
 ### Fixes
 
+- **A comparison bracket layered onto `mark_violin` no longer draws a phantom x axis.** `mark_violin` resolves its x axis independently (so its internal geometry does not fight the category axis), which left the bracket's own nominal encoding unable to merge - it drew a second axis titled from internal field names, with the compared groups as extra category labels. Brackets now position in pixels on the band centres, contributing no scale at all. Rendered geometry is unchanged.
+
 - **Grouped p-value labels centre on their own bracket** instead of on the x-axis tick. With three or more `xOffsetCol` levels, an asymmetric pair's label drifted toward the band centre - far enough at five levels to sit over a sub-bar the comparison does not involve, which made the annotation read as belonging to the wrong groups. Two-level charts were never affected, since their only pair spans the whole group.
 
 - `dataChecksum` is now prefixed `multiset-sha256:` rather than `sha256:`. It is a hash of the multiset of row digests, not of the file's bytes, so the old prefix implied it could be checked by re-hashing the file. `vegaliteChecksum` still reads `sha256:`, because that one can.

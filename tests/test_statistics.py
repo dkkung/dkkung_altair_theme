@@ -17,6 +17,7 @@ from dysonsphere.inference import (
     add_comparisons,
     add_correlation,
 )
+from dysonsphere.marks import mark_violin
 from dysonsphere.theme import _opt, theme
 from dysonsphere.utils import _nested_band_centers, band_geometry
 
@@ -2693,3 +2694,61 @@ class TestPairsAll:
         one = four_df.filter(pl.col("g") == "A")
         with pytest.raises(ValueError, match="at least two"):
             add_comparisons(one, "g", "v", pairs="all", categories=["A"])
+
+
+class TestBracketNoPhantomAxis:
+    """A bracket must not contribute an x scale - it cannot merge with a base that resolves x
+    independently (mark_violin does), and would draw its own axis titled from internal fields."""
+
+    @staticmethod
+    def _x_encodings(spec, out=None):
+        out = [] if out is None else out
+        if isinstance(spec, dict):
+            enc = spec.get("encoding", {})
+            for ch in ("x", "x2"):
+                if ch in enc:
+                    out.append(enc[ch])
+            for v in spec.values():
+                TestBracketNoPhantomAxis._x_encodings(v, out)
+        elif isinstance(spec, list):
+            for v in spec:
+                TestBracketNoPhantomAxis._x_encodings(v, out)
+        return out
+
+    def _bracket_spec(self, **kw):
+        rng = np.random.default_rng(0)
+        df = pl.DataFrame({"g": ["A"] * 12 + ["B"] * 12 + ["C"] * 12, "v": rng.normal(0, 1, 36)})
+        return add_comparisons(df, "g", "v", [("A", "B")], categories=MULTI, **kw).to_dict()
+
+    def test_bracket_positions_in_pixels_not_a_nominal_field(self):
+        encs = self._x_encodings(self._bracket_spec())
+        assert encs, "bracket should encode x"
+        assert all("value" in e for e in encs), f"bracket x must be pixel values, got {encs}"
+        assert not any("field" in e for e in encs), "a field on x contributes a scale that can strand"
+
+    def test_holds_for_every_bracket_style(self):
+        for style in ("bracket", "line", "drop"):
+            encs = self._x_encodings(self._bracket_spec(bracketStyle=style))
+            assert all("value" in e for e in encs), f"{style}: {encs}"
+
+    def test_pair_identity_is_still_recorded_in_the_data(self):
+        # Position moved to pixels, but the spec must still say which groups each bracket spans.
+        spec = self._bracket_spec()
+        vals = [
+            v
+            for layer in spec["layer"]
+            for sub in layer.get("layer", [])
+            for v in sub.get("data", {}).get("values", [])
+        ]
+        assert any(v.get("x") == "A" and v.get("x2") == "B" for v in vals)
+
+    def test_violin_base_draws_no_extra_category_labels(self):
+        # The regression: mark_violin resolves x independently, so an encoded bracket drew its own
+        # axis - three real category labels became five.
+        rng = np.random.default_rng(0)
+        df = pl.DataFrame({"g": ["A"] * 12 + ["B"] * 12 + ["C"] * 12, "v": rng.normal(0, 1, 36)})
+        spec = (
+            mark_violin(df, "g", "v", MULTI) + add_comparisons(df, "g", "v", [("A", "B")], categories=MULTI)
+        ).to_dict()
+        fields = [e["field"] for e in self._x_encodings(spec) if "field" in e]
+        assert "x" not in fields and "x2" not in fields, f"bracket fields leaked onto x: {fields}"
