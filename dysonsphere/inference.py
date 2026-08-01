@@ -524,18 +524,11 @@ def _pvalue_layer(
     # (an explicit bound wins the scale merge) to make room for a top-preset test label above the
     # stack; without it the label would sit flush at the plot edge, on top of the brackets.
     _y_enc = alt.Y("y:Q") if domain_max is None else alt.Y("y:Q", scale=alt.Scale(domainMax=domain_max))
-    # Band centres in PIXELS (xOffset charts lower to the offset band-scale variant - see
-    # utils.band_geometry). The bar, ticks and label all ride these rather than an x:N encoding:
-    # a nominal encoding here contributes a scale that has to merge with the base chart's, and it
-    # cannot when the base resolves x independently - `mark_violin` does, so the bracket was left
-    # drawing its own phantom axis labelled from its internal field names. Pixels contribute no
-    # scale, so there is nothing to merge, strand or suppress. Verified to land byte-identically
-    # on the band centres the encoding produced.
+    # Pixels, not x:N - an encoding contributes a scale that cannot merge when the base
+    # resolves x independently (mark_violin), stranding it as its own axis.
     geo = band_geometry(len(categories), chartWidth)
     x1_px, x2_px = geo.centers[g1_idx], geo.centers[g2_idx]
     x_mid_px = (x1_px + x2_px) / 2
-    # the group names stay in the data (unencoded) so the spec still records which pair each
-    # bracket compares; only the POSITION comes from pixels
     bar = (
         alt.Chart(_internal_data([{"x": group1, "x2": group2, "y": y}]))
         .mark_rule(**_rule_kwargs)
