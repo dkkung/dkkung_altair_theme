@@ -524,20 +524,20 @@ def _pvalue_layer(
     # (an explicit bound wins the scale merge) to make room for a top-preset test label above the
     # stack; without it the label would sit flush at the plot edge, on top of the brackets.
     _y_enc = alt.Y("y:Q") if domain_max is None else alt.Y("y:Q", scale=alt.Scale(domainMax=domain_max))
+    # Pixels, not x:N - an encoding contributes a scale that cannot merge when the base
+    # resolves x independently (mark_violin), stranding it as its own axis.
+    geo = band_geometry(len(categories), chartWidth)
+    x1_px, x2_px = geo.centers[g1_idx], geo.centers[g2_idx]
+    x_mid_px = (x1_px + x2_px) / 2
     bar = (
         alt.Chart(_internal_data([{"x": group1, "x2": group2, "y": y}]))
         .mark_rule(**_rule_kwargs)
         .encode(
-            x=alt.X("x:N"),
-            x2="x2:N",
+            x=alt.value(x1_px),
+            x2=alt.value(x2_px),
             y=_y_enc,
         )
     )
-
-    # Bracket label sits midway between the two bands' centres (xOffset charts lower to
-    # the offset band-scale variant - see utils.band_geometry).
-    geo = band_geometry(len(categories), chartWidth)
-    x_mid_px = (geo.centers[g1_idx] + geo.centers[g2_idx]) / 2
     text = (
         alt.Chart(_internal_data([{"y": y, "label": label}]))
         .mark_text(
@@ -555,7 +555,7 @@ def _pvalue_layer(
             alt.Chart(_internal_data([{"x": group1, "y": y, "y2": tick_y2}]))
             .mark_rule(**_tick_kwargs_l)
             .encode(
-                x=alt.X("x:N"),
+                x=alt.value(x1_px),
                 y=alt.Y("y:Q"),
                 y2="y2:Q",
             )
@@ -564,7 +564,7 @@ def _pvalue_layer(
             alt.Chart(_internal_data([{"x": group2, "y": y, "y2": tick_y2}]))
             .mark_rule(**_tick_kwargs_r)
             .encode(
-                x=alt.X("x:N"),
+                x=alt.value(x2_px),
                 y=alt.Y("y:Q"),
                 y2="y2:Q",
             )
