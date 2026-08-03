@@ -1,3 +1,5 @@
+from typing import Any
+
 import altair as alt
 import numpy as np
 import polars as pl
@@ -287,3 +289,119 @@ class TestRowStylesListWithSampleSize:
 
     def test_sample_size_row_still_forced_to_text(self):
         assert self._styles(self._with_n(style="symbol", rowStyles=["symbol", "symbol"]))["n ="] == "flat"
+class TestRowAngle:
+    """Per-row text rotation and the per-row heights it needs."""
+
+    TEXT_GROUPS = {"r1": ["1", "2", "3"], "r2": ["10", "20", "30"]}
+
+    def _text_marks(self, layer) -> list[dict[str, Any]]:
+        """Every content-text datum in the layer, with its __y and __angle."""
+        spec = layer.to_dict()
+        out: list[dict[str, Any]] = []
+        for ds_ in spec.get("datasets", {}).values():
+            for row in ds_:
+                if "__angle" in row:
+                    out.append(row)
+        for sub in spec.get("layer", []):
+            data = sub.get("data", {})
+            for row in data.get("values", []) or []:
+                if "__angle" in row:
+                    out.append(row)
+        return out
+
+    def _row_y(self, layer, label: str) -> float:
+        ys = {r["__y"] for r in self._text_marks(layer) if r["__label"] == label}
+        assert len(ys) == 1, f"row {label!r} has non-unique y: {ys}"
+        return ys.pop()
+
+    def test_default_is_unrotated(self):
+        layer = _multilabel_layer(self.TEXT_GROUPS, ML_CATS)
+        assert {r["__angle"] for r in self._text_marks(layer)} == {0.0}
+
+    def test_scalar_applies_to_every_row(self):
+        layer = _multilabel_layer(self.TEXT_GROUPS, ML_CATS, rowAngle=-90)
+        assert {r["__angle"] for r in self._text_marks(layer)} == {270.0}
+
+    def test_dict_applies_per_row(self):
+        layer = _multilabel_layer(self.TEXT_GROUPS, ML_CATS, rowAngle={"r2": -90})
+        by_row = {r["__label"]: r["__angle"] for r in self._text_marks(layer)}
+        assert by_row == {"r1": 0.0, "r2": 270.0}
+
+    def test_list_applies_in_row_order(self):
+        layer = _multilabel_layer(self.TEXT_GROUPS, ML_CATS, rowAngle=[0, 90])
+        by_row = {r["__label"]: r["__angle"] for r in self._text_marks(layer)}
+        assert by_row == {"r1": 0.0, "r2": 90.0}
+
+    def test_rotated_row_grows_taller(self):
+        groups = {"r1": ["1", "2", "3"], "r2": ["1.98", "6.67", "4.44"]}
+        flat = _multilabel_layer(groups, ML_CATS)
+        rotated = _multilabel_layer(groups, ML_CATS, rowAngle={"r2": -90})
+        assert rotated._kwds["height"] > flat._kwds["height"]
+        # Only the rotated row grew, so the flat row above it keeps its center.
+        assert self._row_y(rotated, "r1") == self._row_y(flat, "r1")
+
+    def test_short_rotated_values_keep_the_default_row_height(self):
+        # Auto-sizing floors at the 10px default, so a 1-2 char rotated row never shrinks
+        # the table or grows it needlessly.
+        flat = _multilabel_layer(self.TEXT_GROUPS, ML_CATS)
+        rotated = _multilabel_layer(self.TEXT_GROUPS, ML_CATS, rowAngle=-90)
+        assert rotated._kwds["height"] == flat._kwds["height"]
+
+    def test_rotated_row_height_scales_with_longest_value(self):
+        short = _multilabel_layer({"r": ["1", "2", "3"]}, ML_CATS, rowAngle=-90)
+        long = _multilabel_layer({"r": ["1", "2", "3000000"]}, ML_CATS, rowAngle=-90)
+        assert long._kwds["height"] > short._kwds["height"]
+
+    def test_explicit_row_height_pins_a_rotated_row(self):
+        auto = _multilabel_layer({"r": ["1000000", "2", "3"]}, ML_CATS, rowAngle=-90)
+        pinned = _multilabel_layer({"r": ["1000000", "2", "3"]}, ML_CATS, rowAngle=-90, rowHeight=10)
+        assert auto._kwds["height"] > 10
+        assert pinned._kwds["height"] == 10
+
+    def test_row_height_dict_is_partial_and_stacks(self):
+        layer = _multilabel_layer(self.TEXT_GROUPS, ML_CATS, rowHeight={"r1": 30})
+        # r1 occupies [0, 30), r2 auto-sizes to the 10px default below it.
+        assert self._row_y(layer, "r1") == 15.0
+        assert self._row_y(layer, "r2") == 35.0
+        assert layer._kwds["height"] == 40.0
+
+    def test_row_height_list_applies_in_row_order(self):
+        layer = _multilabel_layer(self.TEXT_GROUPS, ML_CATS, rowHeight=[20, 40])
+        assert self._row_y(layer, "r1") == 10.0
+        assert self._row_y(layer, "r2") == 40.0
+
+    def test_uniform_rows_keep_the_classic_centers(self):
+        # Regression: rows used to ride an ordinal point scale, which placed them at
+        # rowHeight*(i+0.5). The pixel layout that replaced it must not shift them.
+        layer = _multilabel_layer(self.TEXT_GROUPS, ML_CATS)
+        assert self._row_y(layer, "r1") == 5.0
+        assert self._row_y(layer, "r2") == 15.0
+
+    def test_category_label_top_offsets_every_row(self):
+        layer = _multilabel_layer(self.TEXT_GROUPS, ML_CATS, categoryLabel=True, categoryLabelPosition="top")
+        head = layer._kwds["height"] - 20.0  # the reserved category-label row
+        assert head > 0
+        assert self._row_y(layer, "r1") == head + 5.0
+        assert self._row_y(layer, "r2") == head + 15.0
+
+    def test_rotation_reaches_the_rendered_svg(self):
+        import vl_convert as vlc
+
+        svg = vlc.vegalite_to_svg(_multilabel_layer({"r": ["12", "34", "56"]}, ML_CATS, rowAngle=-90).to_dict())
+        assert svg.count("rotate(270)") == 3
+
+    def test_unknown_row_label_raises(self):
+        with pytest.raises(ValueError, match="rowAngle has unknown row label"):
+            _multilabel_layer(self.TEXT_GROUPS, ML_CATS, rowAngle={"nope": 90})
+        with pytest.raises(ValueError, match="rowHeight has unknown row label"):
+            _multilabel_layer(self.TEXT_GROUPS, ML_CATS, rowHeight={"nope": 20})
+
+    def test_wrong_list_length_raises(self):
+        with pytest.raises(ValueError, match="rowAngle list has 3 entries"):
+            _multilabel_layer(self.TEXT_GROUPS, ML_CATS, rowAngle=[0, 90, 180])
+
+    def test_symbol_rows_are_unaffected(self):
+        # Symbol marks carry no text to rotate; rowAngle must not resize their row.
+        flat = _multilabel_layer(ML_GROUPS, ML_CATS, style="symbol")
+        rotated = _multilabel_layer(ML_GROUPS, ML_CATS, style="symbol", rowAngle=-90)
+        assert rotated._kwds["height"] == flat._kwds["height"]

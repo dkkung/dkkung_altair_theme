@@ -4,6 +4,8 @@
 
 ### New features
 
+- **`add_multilabel(rowAngle=)`** rotates a condition-table row's text - `rowAngle={"dose": -90}` stands a row of numeric values on end so long values fit under narrow categories. Takes a single angle for every row, a dict keyed by row label, or a list in row order. Text rotates about its own center, so it stays centered on its category, and a rotated row grows to fit its rotated text automatically. `rowHeight` now accepts a dict or list too, to pin heights per row.
+
 - **`ds.assemble()`** composes several charts into one figure, each built at its own `chartWidth` / `chartHeight`. Members are `(builder, width, height)` tuples (or dicts, `{"chart": ..., "width": ...}`), nested lists make rows, and `spacing` takes a number or `{"row": n, "column": n}`. A fourth tuple element - or a `label` key - adds a figure label at the top-left of that chart's whole area, styled by `labelFontSize` / `labelFontWeight` / `labelColor` / `labelPadding`; labels sharing a column are aligned exactly in SVG and PNG exports, whatever each chart's axis margin is. `None` as the chart reserves an empty slot of that size - filled and outlined to match the axes, so it reserves space for other content during later composition.
 
 - **`add_comparisons(reverse=)` now works in grouped mode** (`xOffsetCol`), where it was previously ignored. The tuples name `xOffsetCol` levels, like `pairs`, and apply in every category; reversed brackets hang below their sub-bars with the ticks pointing up, and combine with `bracketStyle="drop"` (reaching up to each sub-bar's minimum) and with normal brackets in the same chart.
@@ -22,6 +24,9 @@
 ### Fixes
 
 - `add_multilabel(rowStyles=[...], showSampleSize=True)` assigns styles to the right rows. The list was matched against the order rows were defined in rather than the order they are displayed in, so an explicit `order=` gave each row the style meant for another.
+- Condition-table rows sit at the same height whatever marks a row contains. `add_multilabel` rows rode an ordinal scale whose padding changed when a connecting rule joined the layer, so a `style="symbol"` table with `orientation="horizontal"` placed its rows a fraction of a row height off every other table's. Rows are now positioned in pixel space; all other tables are unchanged.
+
+- `add_multilabel(yPadding=)` is documented as inert. It set a band-scale property that the annotation's scale type never used, so it has never had an effect; use `rowHeight` to space rows.
 
 - A comparison bracket layered onto `mark_violin` no longer draws a stray second x axis.
 
