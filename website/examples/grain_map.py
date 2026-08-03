@@ -1,4 +1,4 @@
-"""Polycrystalline grain map - Voronoi grains colored by crystal orientation (australis)."""
+"""Polycrystalline grain map - Voronoi grains colored by crystal orientation (viridis)."""
 
 import altair as alt
 import numpy as np
