@@ -47,6 +47,8 @@
 
 ### Changes
 
+- **`add_multilabel()` names every parameter it accepts.** The table options were previously collected by `**kwargs` and forwarded to a private function, so editors offered no completions for them and the API reference documented only the nine named arguments. All 27 are now part of the signature, and the reference lists them. Passing an unknown argument still raises, one call earlier.
+
 - p-value bracket end ticks are a fixed 2 px rather than following `theme(tickSize=)`, so they no longer move with the axis ticks. Override per call with `add_comparisons(tickHeight=)`.
 
 - **`add_comparisons` brackets stack in comparison order** (all of `1v2`, `1v3`, `1v4`, then `2v3`, `2v4`, ...) wherever that costs no extra height, so they read as one nested staircase rather than alternating left edges.

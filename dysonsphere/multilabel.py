@@ -51,146 +51,8 @@ def _multilabel_layer(
     arbitrary strings/numbers), one per category. Combine with the main chart using
     ``alt.vconcat(chart, _multilabel_layer(...)).resolve_scale(x="shared")``.
 
-    Parameters
-    ----------
-    groups:
-        Mapping of row-label → list of values, one per category. Values may be:
-
-        - **bool** — ``True`` renders a positive mark; ``False`` renders a negative
-          mark. The ``style`` parameter controls how positive/negative are displayed
-          (``"plusminus"`` or ``"dots"``).
-        - **str, int, or float** — any non-bool value triggers automatic ``style="text"``
-          regardless of the ``style`` parameter, and each value is rendered verbatim as
-          a string.
-
-        Length of each list must equal ``len(categories)``.
-    categories:
-        Ordered list of x-axis categories — the same list passed to ``mark_strip``
-        or ``mark_violin``.
-    order:
-        Row display order (top to bottom). Defaults to ``dict`` insertion order.
-        Every label must be a key of ``groups``; listing only some of them displays
-        only those rows.
-    style:
-        Global default style for all rows. ``"plusminus"`` renders ``True`` as ``+``
-        and ``False`` as ``−``. ``"symbol"`` renders ``True`` as a filled mark and
-        ``False`` as an unfilled mark, with a connecting rule between consecutive
-        ``True`` values (direction set by ``orientation``). The mark shape is
-        controlled by ``symbol``. ``"text"`` renders raw group values as
-        center-aligned strings and is forced automatically per row when any value in
-        that row is non-bool. Override per row with ``rowStyles``.
-    rowStyles:
-        Per-row style overrides. Accepts either a ``dict`` mapping row labels to
-        style strings (``{"Row A": "symbol", "Row B": "text"}``) or a ``list`` of
-        style strings in row-display order (``["symbol", "text"]``). Accepts the
-        same values as ``style``. Non-bool rows always render as ``"text"``
-        regardless of this setting. Connecting rules only span between ``"symbol"``
-        rows; rows of other styles between symbol rows are skipped in run detection.
-    labelAlign:
-        ``"left"`` (default) places row labels to the left of the grid with
-        right-aligned text. ``"right"`` places them to the right with left-aligned text.
-    labelPadding:
-        Gap in pixels between the plot boundary and the label text. Vega-Lite's
-        default is 2. Negative values pull the labels into the plot area.
-    symbol:
-        Vega-Lite shape name for ``"symbol"`` style marks (e.g. ``"circle"``,
-        ``"square"``, ``"diamond"``, ``"triangle-up"``). Defaults to ``"circle"``.
-    symbolSize:
-        Area (in square pixels) of each symbol. Defaults to ``markSize * 4``
-        from ``ds.theme()``.
-    palette:
-        List of colors used to fill annotation marks in ``"symbol"`` style.
-        ``palette[0]`` overrides the ``False`` mark color and ``palette[-1]`` the
-        ``True`` mark color. Overrides darkmode defaults when provided. Pass the
-        result of ``ds.palette()`` directly.
-    strokeWidth:
-        Stroke width applied to dot marks and the connecting rule. Defaults
-        to ``markStrokeWidth`` from ``ds.theme()``.
-    connectingLine:
-        When ``True`` (default), draws a rule spanning each consecutive run of
-        ``True`` values (``"symbol"`` style only). Set to ``False`` to show
-        symbols only. Direction is controlled by ``orientation``.
-    orientation:
-        Direction of the connecting rule. ``"vertical"`` (default) draws a rule
-        down each column spanning consecutive ``True`` rows. ``"horizontal"``
-        draws a rule across each row spanning consecutive ``True`` columns.
-    yPadding:
-        Accepted but inert. Rows are positioned in pixel space, so there is no band
-        step to pad; use ``rowHeight`` to space rows apart.
-    chartWidth:
-        Width of the annotation chart in pixels. Inherits ``chartWidth`` from
-        ``ds.theme()`` when not set.
-    fontSize:
-        Font size for ``"text"`` style symbols and row labels. Inherits ``fontSize``
-        from ``ds.theme()`` when not set.
-    rowHeight:
-        Height in pixels per annotation row. Accepts a single number applied to every
-        row, a ``dict`` mapping row labels to heights, or a ``list`` of heights in
-        row-display order. A ``dict`` may be partial; unlisted rows are auto-sized.
-        Auto-sizing gives an unrotated row ``10`` px and a rotated row the height of
-        its rotated text bounding box (never less than ``10``).
-    rowValueAngle:
-        Rotation of the row's values in degrees, in every style — the text of a
-        ``"text"`` or ``"plusminus"`` row, and the marks of a ``"symbol"`` row.
-        Accepts a single number applied to every row, a ``dict`` mapping row labels to
-        angles, or a ``list`` of angles in row-display order. Defaults to ``0``
-        (horizontal). Use ``-90`` to read bottom-to-top and ``90`` to read
-        top-to-bottom. Values rotate about their own center, so they stay centered on
-        the category, and rotated rows grow to fit their tallest rotated cell unless
-        ``rowHeight`` pins them. Row labels are never rotated. Rotating the default
-        ``"circle"`` symbol has no visible effect; use a shape with orientation, such
-        as ``symbol="triangle-up"``.
-
-        A single row's angle may itself be a ``list`` — one angle per x-axis category —
-        to rotate only some cells, e.g. standing dose values on end while leaving the
-        ``-`` placeholders of the untreated controls upright::
-
-            rowValueAngle={"dose": [0, 0, -90, -90, -90]}
-    categoryLabel:
-        When ``True``, renders the x-axis category names as angled text in a
-        dedicated row, replacing the main chart's stripped axis labels within the
-        annotation. Defaults to ``False``.
-    categoryLabelPosition:
-        Where to place the category label row relative to the data rows.
-        ``"bottom"`` (default) places labels below all rows; ``"top"`` places
-        them above.
-    categoryLabelAngle:
-        Rotation angle of the category name text in degrees. Defaults to ``-45``.
-    categoryLabelHeight:
-        Height in pixels reserved for the x-label row. Auto-computed from
-        ``fontSize``, ``categoryLabelAngle``, and the longest category name when ``None``
-        (default): ``ceil(fontSize × 0.6 × max_len × |sin(angle)| + fontSize ×
-        |cos(angle)|)``.
-    labelMap:
-        ``{raw_value: label}`` mapping applied to the category-label row (plain lookup;
-        the data and band positions keep the raw values). List labels are space-joined
-        here - use the mark constructors' ``labelMap`` for true multi-line axis labels.
-    span:
-        Dict mapping span label → list of categories, or a list of such
-        single-entry dicts (one per span). The span extends from the lowest
-        to the highest index in ``categories`` found in the list. Use ``""``
-        as a key (or ``None``) to draw a rule/bracket with no label; the list
-        form allows multiple unlabeled spans without key collisions::
-
-            span={"Group 1": ["Cat A", "Cat B"], "Group 2": ["Cat C", "Cat D"]}
-
-            span=[{None: ["Cat A", "Cat B"]}, {None: ["Cat C", "Cat D"]}]
-    spanBracketStyle:
-        ``"line"`` (default) draws a plain horizontal rule. ``"bracket"`` adds
-        vertical end ticks at the left and right edges of the span.
-    spanLabelPosition:
-        Where to place the span label relative to the rule. ``"bottom"``
-        (default) places it below; ``"top"`` places it above.
-    spanBracketReverse:
-        When ``True`` (default), bracket end ticks point toward the annotation
-        rows. When ``False``, they point away. No effect when
-        ``spanBracketStyle="line"``.
-    spanTickHeight:
-        Height in pixels of the bracket end ticks. Defaults to the active
-        theme ``tickSize``. Only used when ``spanBracketStyle="bracket"``.
-    spanGap:
-        Vertical gap in pixels between the last annotation row and the span
-        rule. Defaults to ``rowHeight × 0.3``.
+    Every parameter except ``groups`` and ``categories`` is documented on the public
+    :func:`add_multilabel`, which forwards them here; this is the private implementation.
 
     Notes
     -----
@@ -777,7 +639,33 @@ def add_multilabel(
     xCol: str | None = None,
     sampleSizeIndex: int = 0,
     sampleSizeLabel: str = "n =",
-    **kwargs,
+    order: list[str] | None = None,
+    style: str = "plusminus",
+    rowStyles: dict[str, str] | list[str] | None = None,
+    labelAlign: str = "left",
+    labelPadding: int = 0,
+    symbol: str = "circle",
+    symbolSize: int | None = None,
+    palette: list[str] | None = None,
+    strokeWidth: float | None = None,
+    connectingLine: bool = True,
+    orientation: str = "vertical",
+    yPadding: float | None = None,
+    chartWidth: int | None = None,
+    fontSize: int | None = None,
+    rowHeight: int | float | dict[str, int | float] | list[int | float] | None = None,
+    rowValueAngle: int | float | dict[str, Any] | list[Any] | None = None,
+    categoryLabel: bool = False,
+    categoryLabelPosition: str = "bottom",
+    labelMap: dict[str, Any] | None = None,
+    categoryLabelAngle: int = -45,
+    categoryLabelHeight: int | None = None,
+    span: dict[str | None, list[str]] | list[dict[str | None, list[str]]] | None = None,
+    spanBracketStyle: str = "line",
+    spanLabelPosition: str = "bottom",
+    spanBracketReverse: bool = True,
+    spanTickHeight: float | None = None,
+    spanGap: float | None = None,
 ) -> alt.VConcatChart:
     """
     Compose a chart with a grid annotation table, replacing its x-axis labels.
@@ -794,12 +682,6 @@ def add_multilabel(
     Both ``groups`` and ``categories`` are optional. Omit ``groups`` (or pass
     ``{}``) when you only need sample sizes or category labels.
 
-    All keyword arguments beyond the named parameters are forwarded to
-    :func:`_multilabel_layer` — see its docstring for the full parameter list,
-    including ``style``, ``rowStyles``, ``rowHeight``, ``rowValueAngle``, ``categoryLabel``,
-    ``categoryLabelPosition``, ``categoryLabelAngle``, ``categoryLabelHeight``,
-    ``span``, ``spanBracketStyle``, ``spanLabelPosition``, ``spanBracketReverse``,
-    ``spanTickHeight``, and ``spanGap``.
 
     Parameters
     ----------
@@ -835,6 +717,130 @@ def add_multilabel(
     sampleSizeLabel:
         Row label for the sample size row. Defaults to ``"n ="``. Name it in
         ``order`` to place the row yourself.
+    order:
+        Row display order (top to bottom). Defaults to ``dict`` insertion order.
+        Every label must be a key of ``groups``; listing only some of them displays
+        only those rows.
+    style:
+        Global default style for all rows. ``"plusminus"`` renders ``True`` as ``+``
+        and ``False`` as ``−``. ``"symbol"`` renders ``True`` as a filled mark and
+        ``False`` as an unfilled mark, with a connecting rule between consecutive
+        ``True`` values (direction set by ``orientation``). The mark shape is
+        controlled by ``symbol``. ``"text"`` renders raw group values as
+        center-aligned strings and is forced automatically per row when any value in
+        that row is non-bool. Override per row with ``rowStyles``.
+    rowStyles:
+        Per-row style overrides. Accepts either a ``dict`` mapping row labels to
+        style strings (``{"Row A": "symbol", "Row B": "text"}``) or a ``list`` of
+        style strings in row-display order (``["symbol", "text"]``). Accepts the
+        same values as ``style``. Non-bool rows always render as ``"text"``
+        regardless of this setting. Connecting rules only span between ``"symbol"``
+        rows; rows of other styles between symbol rows are skipped in run detection.
+    labelAlign:
+        ``"left"`` (default) places row labels to the left of the grid with
+        right-aligned text. ``"right"`` places them to the right with left-aligned text.
+    labelPadding:
+        Gap in pixels between the plot boundary and the label text. Vega-Lite's
+        default is 2. Negative values pull the labels into the plot area.
+    symbol:
+        Vega-Lite shape name for ``"symbol"`` style marks (e.g. ``"circle"``,
+        ``"square"``, ``"diamond"``, ``"triangle-up"``). Defaults to ``"circle"``.
+    symbolSize:
+        Area (in square pixels) of each symbol. Defaults to ``markSize * 4``
+        from ``ds.theme()``.
+    palette:
+        List of colors used to fill annotation marks in ``"symbol"`` style.
+        ``palette[0]`` overrides the ``False`` mark color and ``palette[-1]`` the
+        ``True`` mark color. Overrides darkmode defaults when provided. Pass the
+        result of ``ds.palette()`` directly.
+    strokeWidth:
+        Stroke width applied to dot marks and the connecting rule. Defaults
+        to ``markStrokeWidth`` from ``ds.theme()``.
+    connectingLine:
+        When ``True`` (default), draws a rule spanning each consecutive run of
+        ``True`` values (``"symbol"`` style only). Set to ``False`` to show
+        symbols only. Direction is controlled by ``orientation``.
+    orientation:
+        Direction of the connecting rule. ``"vertical"`` (default) draws a rule
+        down each column spanning consecutive ``True`` rows. ``"horizontal"``
+        draws a rule across each row spanning consecutive ``True`` columns.
+    yPadding:
+        Accepted but inert. Rows are positioned in pixel space, so there is no band
+        step to pad; use ``rowHeight`` to space rows apart.
+    chartWidth:
+        Width of the annotation chart in pixels. Inherits ``chartWidth`` from
+        ``ds.theme()`` when not set.
+    fontSize:
+        Font size for ``"text"`` style symbols and row labels. Inherits ``fontSize``
+        from ``ds.theme()`` when not set.
+    rowHeight:
+        Height in pixels per annotation row. Accepts a single number applied to every
+        row, a ``dict`` mapping row labels to heights, or a ``list`` of heights in
+        row-display order. A ``dict`` may be partial; unlisted rows are auto-sized.
+        Auto-sizing gives an unrotated row ``10`` px and a rotated row the height of
+        its rotated text bounding box (never less than ``10``).
+    rowValueAngle:
+        Rotation of the row's values in degrees, in every style — the text of a
+        ``"text"`` or ``"plusminus"`` row, and the marks of a ``"symbol"`` row.
+        Accepts a single number applied to every row, a ``dict`` mapping row labels to
+        angles, or a ``list`` of angles in row-display order. Defaults to ``0``
+        (horizontal). Use ``-90`` to read bottom-to-top and ``90`` to read
+        top-to-bottom. Values rotate about their own center, so they stay centered on
+        the category, and rotated rows grow to fit their tallest rotated cell unless
+        ``rowHeight`` pins them. Row labels are never rotated. Rotating the default
+        ``"circle"`` symbol has no visible effect; use a shape with orientation, such
+        as ``symbol="triangle-up"``.
+
+        A single row's angle may itself be a ``list`` — one angle per x-axis category —
+        to rotate only some cells, e.g. standing dose values on end while leaving the
+        ``-`` placeholders of the untreated controls upright::
+
+            rowValueAngle={"dose": [0, 0, -90, -90, -90]}
+    categoryLabel:
+        When ``True``, renders the x-axis category names as angled text in a
+        dedicated row, replacing the main chart's stripped axis labels within the
+        annotation. Defaults to ``False``.
+    categoryLabelPosition:
+        Where to place the category label row relative to the data rows.
+        ``"bottom"`` (default) places labels below all rows; ``"top"`` places
+        them above.
+    categoryLabelAngle:
+        Rotation angle of the category name text in degrees. Defaults to ``-45``.
+    categoryLabelHeight:
+        Height in pixels reserved for the x-label row. Auto-computed from
+        ``fontSize``, ``categoryLabelAngle``, and the longest category name when ``None``
+        (default): ``ceil(fontSize × 0.6 × max_len × |sin(angle)| + fontSize ×
+        |cos(angle)|)``.
+    labelMap:
+        ``{raw_value: label}`` mapping applied to the category-label row (plain lookup;
+        the data and band positions keep the raw values). List labels are space-joined
+        here - use the mark constructors' ``labelMap`` for true multi-line axis labels.
+    span:
+        Dict mapping span label → list of categories, or a list of such
+        single-entry dicts (one per span). The span extends from the lowest
+        to the highest index in ``categories`` found in the list. Use ``""``
+        as a key (or ``None``) to draw a rule/bracket with no label; the list
+        form allows multiple unlabeled spans without key collisions::
+
+            span={"Group 1": ["Cat A", "Cat B"], "Group 2": ["Cat C", "Cat D"]}
+
+            span=[{None: ["Cat A", "Cat B"]}, {None: ["Cat C", "Cat D"]}]
+    spanBracketStyle:
+        ``"line"`` (default) draws a plain horizontal rule. ``"bracket"`` adds
+        vertical end ticks at the left and right edges of the span.
+    spanLabelPosition:
+        Where to place the span label relative to the rule. ``"bottom"``
+        (default) places it below; ``"top"`` places it above.
+    spanBracketReverse:
+        When ``True`` (default), bracket end ticks point toward the annotation
+        rows. When ``False``, they point away. No effect when
+        ``spanBracketStyle="line"``.
+    spanTickHeight:
+        Height in pixels of the bracket end ticks. Defaults to the active
+        theme ``tickSize``. Only used when ``spanBracketStyle="bracket"``.
+    spanGap:
+        Vertical gap in pixels between the last annotation row and the span
+        rule. Defaults to ``rowHeight × 0.3``.
 
     Examples
     --------
@@ -880,21 +886,24 @@ def add_multilabel(
         # Pin each list to its row labels before the n-row joins groups, or the entries
         # shift by one. The basis is the DISPLAY order, matching how _multilabel_layer
         # zips a list, and the length is checked here because that check sees a dict.
-        list_order = kwargs.get("order") or list(groups.keys())
-        for key in ("rowStyles", "rowValueAngle", "rowHeight"):
-            raw = kwargs.get(key)
-            if isinstance(raw, list):
-                if len(raw) != len(list_order):
-                    raise ValueError(f"{key} list has {len(raw)} entries but there are {len(list_order)} rows.")
-                kwargs[key] = dict(zip(list_order, raw))
+        list_order = order or list(groups.keys())
+
+        def _pin(value: Any, name: str) -> Any:
+            if not isinstance(value, list):
+                return value
+            if len(value) != len(list_order):
+                raise ValueError(f"{name} list has {len(value)} entries but there are {len(list_order)} rows.")
+            return dict(zip(list_order, value))
+
+        rowValueAngle = _pin(rowValueAngle, "rowValueAngle")
+        rowHeight = _pin(rowHeight, "rowHeight")
         # Explicitly force the n-row to text style regardless of the global
         # style setting (e.g. "symbol") — counts always render as plain text.
-        kwargs["rowStyles"] = {**(kwargs.get("rowStyles") or {}), sampleSizeLabel: "text"}
+        rowStyles = {**(_pin(rowStyles, "rowStyles") or {}), sampleSizeLabel: "text"}
         # An explicit order omits the injected row, so seat it at sampleSizeIndex - after the
         # list normalization above, whose lengths count the caller's own rows.
-        explicit_order = kwargs.get("order")
-        if explicit_order and sampleSizeLabel not in explicit_order:
-            kwargs["order"] = [*explicit_order[:sampleSizeIndex], sampleSizeLabel, *explicit_order[sampleSizeIndex:]]
+        if order and sampleSizeLabel not in order:
+            order = [*order[:sampleSizeIndex], sampleSizeLabel, *order[sampleSizeIndex:]]
         items = list(groups.items())
         items.insert(sampleSizeIndex, (sampleSizeLabel, counts))
         groups = dict(items)
@@ -929,5 +938,35 @@ def add_multilabel(
                 _strip_x_labels(sub)
 
     _strip_x_labels(modified)
-    ann = _multilabel_layer(groups, categories, **kwargs)
+    ann = _multilabel_layer(
+        groups,
+        categories,
+        order=order,
+        style=style,
+        rowStyles=rowStyles,
+        labelAlign=labelAlign,
+        labelPadding=labelPadding,
+        symbol=symbol,
+        symbolSize=symbolSize,
+        palette=palette,
+        strokeWidth=strokeWidth,
+        connectingLine=connectingLine,
+        orientation=orientation,
+        yPadding=yPadding,
+        chartWidth=chartWidth,
+        fontSize=fontSize,
+        rowHeight=rowHeight,
+        rowValueAngle=rowValueAngle,
+        categoryLabel=categoryLabel,
+        categoryLabelPosition=categoryLabelPosition,
+        labelMap=labelMap,
+        categoryLabelAngle=categoryLabelAngle,
+        categoryLabelHeight=categoryLabelHeight,
+        span=span,
+        spanBracketStyle=spanBracketStyle,
+        spanLabelPosition=spanLabelPosition,
+        spanBracketReverse=spanBracketReverse,
+        spanTickHeight=spanTickHeight,
+        spanGap=spanGap,
+    )
     return alt.vconcat(modified, ann, spacing=spacing).resolve_scale(x="shared")
