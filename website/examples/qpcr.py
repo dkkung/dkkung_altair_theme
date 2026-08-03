@@ -33,7 +33,7 @@ err = base.mark_errorbar(extent="stderr").encode(y=alt.Y("expr:Q", title=""))
 sig = ds.add_comparisons(
     df, "gene", "expr", xOffsetCol="condition",
     categories=genes, xOffsetSort=["Vehicle", "LPS"],
-    test="ttest_ind", labelStyle="asterisks",
+    test="ttest_ind", labelStyle="asterisks", bracketStyle="drop",
 )
 
 chart = bars + err + sig

@@ -1,4 +1,4 @@
-"""Ramachandran plot - protein backbone dihedral density (φ vs ψ), australis."""
+"""Ramachandran plot - protein backbone dihedral density (φ vs ψ)."""
 
 import altair as alt
 import numpy as np

@@ -1,4 +1,4 @@
-"""Confusion matrix - a classifier's predictions, cell counts labeled per cell (australis)."""
+"""Confusion matrix - a classifier's predictions, cell counts labeled per cell."""
 
 import altair as alt
 import numpy as np
