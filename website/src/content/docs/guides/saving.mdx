@@ -204,10 +204,43 @@ ds.verify("figure.png", df=df)             # did this figure come from this data
 ds.verify("figure.json", df=[counts, meta]) # multi-frame chart
 ```
 
-It returns a `VerifyResult` with `specValid`, `dataMatches`, and `.ok`. Both checks are tri-state:
-`None` means the check could not run, which is not a failure - SVG and PNG carry the checksums but
-not the spec, so `specValid` is `None` there while `dataMatches` still works. Neither row order nor
-the order dataframes are passed in affects the result.
+It returns a `VerifyResult`:
+
+```python
+VerifyResult(
+    path='figure.json',
+    specValid=True,
+    dataMatches=True,
+    storedDataChecksums=['multiset-sha256:57ae424f2a1d3887eaed57bd8733b7a256d1f6f7370a55cc3458bd14a19f928b'],
+    computedDataChecksums=['multiset-sha256:57ae424f2a1d3887eaed57bd8733b7a256d1f6f7370a55cc3458bd14a19f928b'],
+    exportIdentifier='0513f023-4667-4367-8883-e8762571811d',
+    timestamp='2026-08-03T23:56:06Z',
+)
+```
+
+| field | |
+| --- | --- |
+| `specValid` | the spec still hashes to the recorded `vegaliteChecksum` - the file has not been edited |
+| `dataMatches` | the frames you passed hash to the recorded `dataChecksum` |
+| `storedDataChecksums` | what the file recorded |
+| `computedDataChecksums` | what your frames hash to now - the two differ only when `dataMatches` is `False` |
+| `exportIdentifier` | the `ds.save()` call that produced the file; every format and background of one save shares it |
+| `timestamp` | when that save ran |
+| `.ok` | every check that actually ran passed |
+
+Both checks are tri-state: `None` means the check could not run, which is not a failure - SVG and
+PNG carry the checksums but not the spec, so `specValid` is `None` there while `dataMatches` still
+works. `.ok` reads `None` as "not a failure" for that reason. Neither row order nor the order
+dataframes are passed in affects the result.
+
+When a check fails, the two checksum fields are what tell you which frame diverged:
+
+```python
+r = ds.verify("figure.json", df=edited)
+r.ok           # False
+r.specValid    # True  - the file itself is intact
+r.dataMatches  # False - but it did not come from this data
+```
 
 A file whose metadata is gone - screenshotted, or re-saved by a tool that drops it - cannot be
 checked at all; `ds.verify()` raises, because there is nothing left to compare against. What
