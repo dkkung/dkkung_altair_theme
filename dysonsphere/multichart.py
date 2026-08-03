@@ -3,12 +3,17 @@ from typing import Any
 import altair as alt
 
 from .export import _AltairChart
-from .theme import _active_args, theme
+from .theme import _active_args, _opt, theme
 from .utils import _internal_data
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
 __all__ = ["multichart"]
+
+# Marker on a labelled member's wrapper - Vega puts a view name into the SVG group class, so
+# export._align_figure_labels can find figure labels and leave charts' own titles alone.
+_LABEL_NAME = "__dysonsphere_label_"
+_label_counter = 0
 
 # A member is a builder, a builder with its size, or an already-built chart.
 _Member = Any
@@ -31,8 +36,11 @@ def _label(chart: _AltairChart, text: str, style: dict[str, Any]) -> _AltairChar
     pad = style["padding"]
     dx, dy = pad if isinstance(pad, tuple) else (pad, pad)
     color = {"color": style["color"]} if style["color"] is not None else {}
+    global _label_counter
+    _label_counter += 1
     return alt.vconcat(
         chart,
+        name=f"{_LABEL_NAME}{_label_counter}",
         title=alt.TitleParams(
             text=text,
             anchor="start",
@@ -68,12 +76,23 @@ def _unpack(member: _Member) -> tuple[Any, Any, Any, str | None]:
 
 
 def _blank() -> _AltairChart:
-    """An empty view that draws nothing but occupies its size.
+    """An empty view that draws nothing but its own outline, and occupies its size.
 
-    Its row is tagged internal, so the reserved slot stays out of read(what="data") and the
-    provenance checksums - an empty panel is not part of the figure's data of record.
+    The outline rides ``view.stroke`` rather than a rect mark, so it traces the reserved
+    area exactly with no encodings, at ``axisWidth`` to match the axes around it. Its color
+    is read at build time like ``add_shade``'s, so a ``save()`` across both backgrounds
+    needs a callable to re-resolve it.
+
+    The one data row is tagged internal, so a reserved slot stays out of
+    ``read(what="data")`` and the provenance checksums - an empty panel is not part of the
+    figure's data of record.
     """
-    return alt.Chart(_internal_data([{}])).mark_point(opacity=0)
+    outline = alt.ViewBackground(
+        stroke="white" if _opt("darkmode") else "black",
+        strokeWidth=_opt("axisWidth"),
+        strokeDash=[0, 0],  # solid - config.rule's dash must not reach it
+    )
+    return alt.Chart(_internal_data([{}])).mark_point(opacity=0).properties(view=outline)
 
 
 def _build(member: _Member, style: dict[str, Any]) -> _AltairChart:

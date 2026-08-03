@@ -6,6 +6,14 @@ from dysonsphere import multichart
 from dysonsphere.theme import _opt, theme
 
 
+def _no_marker(spec):
+    """Drop the label marker so two equivalent member forms compare equal."""
+    if isinstance(spec, dict):
+        marker = "__dysonsphere_label_"
+        return {k: _no_marker(v) for k, v in spec.items() if not (k == "name" and str(v).startswith(marker))}
+    return [_no_marker(v) for v in spec] if isinstance(spec, list) else spec
+
+
 def _chart():
     df = pl.DataFrame({"g": ["A"] * 6 + ["B"] * 6, "v": [1.0 + i * 0.1 for i in range(12)]})
     return alt.Chart(df).mark_point().encode(x="g:N", y="v:Q")
@@ -192,7 +200,7 @@ class TestDictMembers:
         theme()
         as_tuple = multichart([(_chart, 60, 40, "a")]).to_dict()
         as_dict = multichart([{"chart": _chart, "width": 60, "height": 40, "label": "a"}]).to_dict()
-        assert as_dict == as_tuple
+        assert _no_marker(as_dict) == _no_marker(as_tuple)
 
     def test_only_chart_is_required(self):
         theme(chartWidth=123)
@@ -228,6 +236,52 @@ class TestDictMembers:
             multichart([(_chart, 60)])
 
 
+class TestLabelAlignment:
+    """Labels in a column line up exactly, whatever each member's axis margin is."""
+
+    @staticmethod
+    def _label_x(chart, tmp_path):
+        import re
+        import xml.etree.ElementTree as ET
+
+        from dysonsphere.export import _render_fixed_svg
+
+        svg = _render_fixed_svg(chart, str(tmp_path / "f.svg"))
+        root = ET.fromstring(svg.split("\n", 1)[1])
+        found = {}
+
+        def walk(node, x, y):
+            m = re.search(r"translate\(([-\d.]+)[, ]+([-\d.]+)\)", node.get("transform") or "")
+            if m:
+                x, y = x + float(m.group(1)), y + float(m.group(2))
+            if node.tag == "{http://www.w3.org/2000/svg}text" and (node.text or "").strip() in ("a", "c"):
+                found[node.text.strip()] = round(x + float(node.get("x") or 0), 2)
+            for child in node:
+                walk(child, x, y)
+
+        walk(root, 0.0, 0.0)
+        return found
+
+    @staticmethod
+    def _wide():
+        df = pl.DataFrame({"x": [1, 2, 3], "y": [100000, 300000, 200000]})
+        return alt.Chart(df).mark_line().encode(x=alt.X("x:Q"), y=alt.Y("y:Q", title="A long y axis title"))
+
+    def test_differing_axis_margins_align(self, tmp_path):
+        # Vega aligns members by PLOT area, but a label anchors to its member's bounding box -
+        # so without the fixer the narrower-margin member's label is indented (26.6 vs 5.2).
+        theme()
+        figure = multichart([[(_chart, 100, 60, "a")], [(self._wide, 100, 60, "c")]], spacing={"row": 20})
+        found = self._label_x(figure, tmp_path)
+        assert found["a"] == found["c"]
+
+    def test_blank_aligns_with_a_real_chart(self, tmp_path):
+        theme()
+        figure = multichart([[(None, 100, 60, "a")], [(self._wide, 100, 60, "c")]], spacing={"row": 20})
+        found = self._label_x(figure, tmp_path)
+        assert found["a"] == found["c"]
+
+
 class TestBlankSlots:
     def test_none_reserves_space(self):
         theme()
@@ -235,6 +289,18 @@ class TestBlankSlots:
         blank = spec["hconcat"][0]
         assert (blank["width"], blank["height"]) == (120, 80)
         assert blank["mark"]["opacity"] == 0
+
+    def test_outline_matches_the_axes(self):
+        theme()
+        view = multichart([(None, 120, 80)]).to_dict()["view"]
+        assert view["strokeWidth"] == _opt("axisWidth")
+        assert view["strokeDash"] == [0, 0], "solid - config.rule's dash must not reach it"
+        assert view["stroke"] == "black"
+
+    def test_outline_follows_darkmode(self):
+        theme(darkmode=True)
+        assert multichart([(None, 120, 80)]).to_dict()["view"]["stroke"] == "white"
+        theme()
 
     def test_blank_can_be_labelled(self):
         theme()
@@ -245,7 +311,7 @@ class TestBlankSlots:
         theme()
         as_tuple = multichart([(None, 120, 80, "a")]).to_dict()
         as_dict = multichart([{"chart": None, "width": 120, "height": 80, "label": "a"}]).to_dict()
-        assert as_dict == as_tuple
+        assert _no_marker(as_dict) == _no_marker(as_tuple)
 
     def test_blank_data_is_internal(self, tmp_path):
         # a reserved slot is not part of the figure's data of record

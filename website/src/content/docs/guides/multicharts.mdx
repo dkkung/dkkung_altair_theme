@@ -39,9 +39,9 @@ the same shape Altair's own `hconcat` takes.
 
 <Example name="multichart" alt="Four charts of different sizes composed into one figure" />
 
-Rows pack independently, so columns do not line up across rows. That is what keeps the heatmap and
-the scatter close together above; if you want aligned columns, give the members in a column matching
-widths.
+Rows are sized independently, so a wide chart in one row does not stretch the column beneath it -
+that is what keeps the heatmap and the scatter close together above. Vega still aligns the charts'
+plot areas down each column, so their axes line up even when the rows differ in width.
 
 ## Figure labels
 
@@ -61,6 +61,10 @@ Four keyword arguments style every label in the figure: `labelFontSize` (default
 `darkmode` at render), and `labelPadding` (default `(-5, 0)`, holding the label off the chart the
 way `axisOffset` detaches the axes). `font` and `fontStyle` are not exposed - they come from
 `ds.theme()`, so the labels move with the rest of your type.
+
+Labels in the same column line up exactly, whatever each chart's axis margin is. That alignment is
+applied on export (`ds.save()` / `ds.show()`), because it needs the rendered margins - a live chart
+in a notebook or on this page shows each label at its own chart's edge instead.
 
 Because the label already sits at the figure's leftmost point, a negative `labelPadding` x cannot
 push it further left; it widens the canvas and indents the chart instead. The effect reads the
@@ -88,6 +92,25 @@ one row of three, which a fixed column count could not express:
 Matching that track's width to the row beneath it is arithmetic you do once: the row renders 421 px
 wide, a lone chart carries 50 px of axis chrome, so the track is built at 371. Sizes are pixels, so
 nothing is guessed.
+
+## Reserving an empty slot
+
+`None` as the chart holds space to fill in later - a panel you will composite in during final
+assembly. It takes a label like any other member, so your lettering stays in sequence:
+
+```python
+ds.multichart([
+    [(None, 180, 95, "a"), (phenotype_strip, 85, 95, "b")],
+    [(dose_curve, 95, 95, "c"), (motility_fit, 95, 95, "d")],
+])
+```
+
+The slot is outlined to match the axes around it, so you can see the space you have reserved. It
+carries no axis chrome, so it occupies exactly its width where a real chart of the same width also
+takes its axis margin - size the slot by what you are placing in it, not by its neighbour's number.
+
+Its one internal row is excluded from `read(what="data")` and from the provenance checksums: an
+empty panel is not part of the figure's data of record.
 
 ## Why a builder
 

@@ -85,6 +85,7 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
         _align_grid_to_content(root, axis_offset)
     if _opt("inwardTicks"):
         _flip_ticks_inward(root)
+    _align_figure_labels(root)  # before _simplify_svg, which flattens the transforms it reads
     _layer_axes_below_marks(root)
     _simplify_svg(root)
     _typeset_scripts(root)
@@ -575,6 +576,85 @@ def _flip_ticks_inward(root: ET.Element) -> None:
                 v = line.get(attr)
                 if v is not None and float(v) != 0.0:
                     line.set(attr, v[1:] if v.startswith("-") else "-" + v)
+
+
+_FIGURE_LABEL_PREFIX = "__dysonsphere_label_"
+_TRANSLATE = re.compile(r"translate\(\s*([-\d.eE]+)\s*[,\s]\s*([-\d.eE]+)\s*\)")
+
+
+def _label_wrapper_parts(node: ET.Element, tx: float, ty: float) -> tuple[ET.Element | None, float, float | None]:
+    """Within one labelled member, find its label text and its plot area's x.
+
+    Nested labelled members are not descended into, so an outer figure label is measured
+    against its own panel rather than a child's.
+    """
+    text: ET.Element | None = None
+    label_x = plot_x = None
+
+    def walk(el: ET.Element, x: float, y: float, top: bool, in_title: bool) -> None:
+        nonlocal text, label_x, plot_x
+        cls = el.get("class") or ""
+        if not top and _FIGURE_LABEL_PREFIX in cls:
+            return
+        in_title = in_title or "role-title" in cls
+        m = _TRANSLATE.search(el.get("transform") or "")
+        if m:
+            x, y = x + float(m.group(1)), y + float(m.group(2))
+        # only the title's text - a chart's axis labels come first in document order
+        if in_title and text is None and el.tag == f"{{{_SVG_NS}}}text" and (el.text or "").strip():
+            text, label_x = el, x + float(el.get("x") or 0)
+        # the view rectangle - the first background path carrying real geometry
+        if plot_x is None and el.tag == f"{{{_SVG_NS}}}path" and el.get("class") == "background":
+            if (el.get("d") or "M0,0") != "M0,0":
+                plot_x = x
+        for child in el:
+            walk(child, x, y, False, in_title)
+
+    walk(node, tx, ty, True, False)
+    return text, label_x or 0.0, plot_x
+
+
+def _align_figure_labels(root: ET.Element) -> None:
+    """Seat every figure label at the leftmost panel edge in its column.
+
+    Vega aligns concat members by their PLOT area, but a label anchors to its member's
+    bounding box - and those two differ by that member's own axis margin, so the labels go
+    ragged while the plots stay aligned (worst against a blank member, whose margin is zero;
+    measured 26.6 px vs 5.2 px for two real charts with different y-axis widths). Members
+    sharing a column render at an identical plot-area x, so grouping on that and taking the
+    smallest label x per column lines them up exactly, with no text measurement.
+
+    Must run BEFORE ``_simplify_svg``, which flattens the group transforms this reads, and
+    the shift is baked into each label's own transform for the same reason.
+    """
+    found: list[tuple[ET.Element, float, float]] = []
+
+    def collect(el: ET.Element, x: float, y: float) -> None:
+        m = _TRANSLATE.search(el.get("transform") or "")
+        if m:
+            x, y = x + float(m.group(1)), y + float(m.group(2))
+        if _FIGURE_LABEL_PREFIX in (el.get("class") or ""):
+            text, label_x, plot_x = _label_wrapper_parts(el, x, y)
+            if text is not None and plot_x is not None:
+                found.append((text, label_x, plot_x))
+        for child in el:
+            collect(child, x, y)
+
+    collect(root, 0.0, 0.0)
+    columns: dict[float, list[tuple[ET.Element, float]]] = {}
+    for text, label_x, plot_x in found:
+        columns.setdefault(round(plot_x, 3), []).append((text, label_x))
+    for column in columns.values():
+        target = min(x for _, x in column)
+        for text, label_x in column:
+            shift = target - label_x
+            if abs(shift) < 1e-6:
+                continue
+            m = _TRANSLATE.search(text.get("transform") or "")
+            if m:
+                text.set("transform", f"translate({float(m.group(1)) + shift},{m.group(2)})")
+            else:
+                text.set("x", str(float(text.get("x") or 0) + shift))
 
 
 def _layer_axes_below_marks(root: ET.Element) -> None:
