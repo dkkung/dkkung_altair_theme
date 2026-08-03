@@ -41,7 +41,7 @@ Both ``groups`` and ``categories`` are optional. Omit ``groups`` (or pass
 
 All keyword arguments beyond the named parameters are forwarded to
 :func:`_multilabel_layer` — see its docstring for the full parameter list,
-including ``style``, ``rowStyles``, ``categoryLabel``,
+including ``style``, ``rowStyles``, ``rowHeight``, ``rowValueAngle``, ``categoryLabel``,
 ``categoryLabelPosition``, ``categoryLabelAngle``, ``categoryLabelHeight``,
 ``span``, ``spanBracketStyle``, ``spanLabelPosition``, ``spanBracketReverse``,
 ``spanTickHeight``, and ``spanGap``.
