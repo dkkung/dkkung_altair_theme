@@ -209,9 +209,11 @@ It returns a `VerifyResult` with `specValid`, `dataMatches`, and `.ok`. Both che
 not the spec, so `specValid` is `None` there while `dataMatches` still works. Neither row order nor
 the order dataframes are passed in affects the result.
 
-Because the checksums are derived from content rather than stored alongside it, a figure that has
-lost its metadata entirely - screenshotted, or re-saved by another tool - can still be identified:
-verify an intact sibling export, or compare `ds.frame_checksum(df)` against a recorded value.
+A file whose metadata is gone - screenshotted, or re-saved by a tool that drops it - cannot be
+checked at all; `ds.verify()` raises, because there is nothing left to compare against. What
+survives is the trail for the *data*: these checksums are recomputed from content rather than
+minted per file, so `ds.frame_checksum(df)` returns the same value for the same rows forever, and a
+dataframe can still be matched against an intact sibling export or a checksum recorded elsewhere.
 
 ## Rebuilding the chart
 

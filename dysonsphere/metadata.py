@@ -666,9 +666,11 @@ def verify(path: str, df: Any = None) -> VerifyResult:
       the checksums travel in the metadata block, and it is order-independent in both senses:
       row order within a frame does not matter, nor does the order frames are passed in.
 
-    Because the checksums are content-derived, a figure that has lost its metadata entirely
-    (screenshotted, re-saved by another tool) can still be identified: verify an intact sibling
-    export, or compare ``frame_checksum(df)`` against a recorded value directly.
+    A file whose metadata is gone - screenshotted, or re-saved by a tool that drops it - cannot
+    be checked at all: there is nothing to compare against, and this raises.  What survives is the
+    trail for the DATA, because these checksums are recomputed from content rather than minted per
+    file.  ``frame_checksum(df)`` returns the same value for the same rows forever, so a dataframe
+    can still be matched against an intact sibling export or a checksum recorded elsewhere.
 
     Parameters
     ----------
