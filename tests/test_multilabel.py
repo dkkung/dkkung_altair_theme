@@ -222,3 +222,68 @@ class TestMultilabelXOrder:
         assert domains, "no resolved x domain found"
         for dom in domains:
             assert dom == cats, f"x domain {dom} did not preserve categories order {cats}"
+
+
+class TestRowStylesListWithSampleSize:
+    """A rowStyles LIST must survive the sample-size row that add_multilabel injects."""
+
+    C = ["A", "B", "C"]
+    GROUPS = {"a": [True, True, True], "b": [True, False, True]}
+
+    def _df(self):
+        return pl.DataFrame({"g": [c for c in self.C for _ in range(4)], "v": [float(i) for i in range(12)]})
+
+    def _styles(self, spec_owner) -> dict[str, str]:
+        """Map each row label to the mark type it rendered as (point == symbol style)."""
+        spec = spec_owner.to_dict()
+        panel = spec.get("vconcat", [spec])[-1]
+        out: dict[str, str] = {}
+        for layer in panel.get("layer", []):
+            mark = layer.get("mark")
+            mtype = mark.get("type") if isinstance(mark, dict) else mark
+            src = layer.get("data", {}).get("name")
+            for name, rows in spec.get("datasets", {}).items():
+                if name != src:
+                    continue
+                for row in rows:
+                    if "__value" in row:
+                        out[row["__label"]] = "symbol" if mtype == "point" else "flat"
+        return out
+
+    def _with_n(self, **kwargs):
+        df = self._df()
+        return add_multilabel(
+            mark_strip(df, "g", "v", self.C),
+            self.GROUPS,
+            categories=self.C,
+            showSampleSize=True,
+            df=df,
+            xCol="g",
+            **kwargs,
+        )
+
+    def test_list_follows_display_order_not_insertion_order(self):
+        # Regression: the list was zipped against groups.keys() (insertion order) while
+        # _multilabel_layer zips against row_order, so an explicit `order` inverted the styles.
+        plain = _multilabel_layer(self.GROUPS, self.C, order=["b", "a"], rowStyles=["symbol", "plusminus"])
+        with_n = self._with_n(order=["b", "a"], rowStyles=["symbol", "plusminus"])
+        assert self._styles(plain) == {"b": "symbol", "a": "flat"}
+        assert {k: v for k, v in self._styles(with_n).items() if k != "n ="} == self._styles(plain)
+
+    def test_list_length_is_validated(self):
+        # zip() truncated silently, so the check _multilabel_layer applies never fired.
+        with pytest.raises(ValueError, match="rowStyles list has 1 entries but there are 2 rows"):
+            self._with_n(rowStyles=["symbol"])
+        with pytest.raises(ValueError, match="rowStyles list has 4 entries but there are 2 rows"):
+            self._with_n(rowStyles=["symbol", "plusminus", "text", "text"])
+
+    def test_list_without_order_is_unchanged(self):
+        got = self._styles(self._with_n(rowStyles=["symbol", "plusminus"]))
+        assert got["a"] == "symbol" and got["b"] == "flat"
+
+    def test_dict_is_unchanged(self):
+        got = self._styles(self._with_n(order=["b", "a"], rowStyles={"b": "symbol", "a": "plusminus"}))
+        assert got["b"] == "symbol" and got["a"] == "flat"
+
+    def test_sample_size_row_still_forced_to_text(self):
+        assert self._styles(self._with_n(style="symbol", rowStyles=["symbol", "symbol"]))["n ="] == "flat"
