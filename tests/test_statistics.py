@@ -2244,14 +2244,46 @@ class TestDropTicks:
             xOffsetSort=["Veh", "Low", "High"],
             bracketStyle="drop",
         ).to_dict()
-        legs = [
-            sub["mark"]
+        ends = self._grouped_leg_ends(spec)
+        assert ends, "grouped drop brackets should emit end legs"
+        assert len(set(ends)) > 1, "grouped drop ticks should differ per end"
+
+    def test_grouped_drop_ends_above_its_group_under_a_pinned_domain(self):
+        # Regression: the tick length used to be a pixel distance measured against a y domain
+        # the library guessed from the data. A chart that pins its own wider domain made every
+        # drop overshoot - through the bar it should stop above, and off the bottom of the plot.
+        rows = []
+        for gene, lps in [("G1", 1.0), ("G2", 21.0)]:
+            for cond, m in {"Veh": 1.0, "LPS": lps}.items():
+                rows += [{"gene": gene, "cond": cond, "expr": m + o} for o in (0.0, 0.1, -0.1)]
+        df = pl.DataFrame(rows)
+        spec = add_comparisons(
+            df,
+            "gene",
+            "expr",
+            pairs=[("Veh", "LPS")],
+            xOffsetCol="cond",
+            categories=["G1", "G2"],
+            xOffsetSort=["Veh", "LPS"],
+            bracketStyle="drop",
+        ).to_dict()
+        tops: dict[tuple[str, str], float] = {}
+        for r in rows:
+            key = (r["gene"], r["cond"])
+            tops[key] = max(tops.get(key, float("-inf")), r["expr"])
+        ends = [
+            (row["gene"], row["cond"], row["__y2"])
             for layer in spec["layer"]
             for sub in layer.get("layer", [])
-            if isinstance(sub.get("mark"), dict) and "y2Offset" in sub.get("mark", {})
+            for row in (sub.get("data", {}).get("values") or [])
+            if "__y2" in row and row["__y2"] != row.get("__y")
         ]
-        assert legs, "grouped drop brackets should emit end legs"
-        assert len({m["y2Offset"] for m in legs}) > 1, "grouped drop ticks should differ per end"
+        assert ends, "grouped drop brackets should emit end legs"
+        for gene, cond, end in ends:
+            # The endpoint is in data units, so it must land at or above that group's own top -
+            # never below it, and never below the axis floor.
+            assert end >= tops[(gene, cond)] - 1e-9, f"{gene}/{cond} drop ran through its own data"
+            assert end > 0, f"{gene}/{cond} drop ran past the axis"
 
     def test_grouped_mode_rejects_unknown_style(self):
         rows = []
@@ -2276,6 +2308,16 @@ class TestDropTicks:
             for layer in spec["layer"]
             for sub in layer.get("layer", [])
             if isinstance((m := sub.get("mark")), dict) and "y2Offset" in m
+        ]
+
+    def _grouped_leg_ends(self, spec):
+        """Grouped drop ticks end at a DATA position (__y2), not a pixel y2Offset."""
+        return [
+            row["__y2"]
+            for layer in spec["layer"]
+            for sub in layer.get("layer", [])
+            for row in (sub.get("data", {}).get("values") or [])
+            if "__y2" in row and row["__y2"] != row.get("__y")
         ]
 
     def test_explicit_ystart_still_gets_drop_ticks(self):
@@ -2335,9 +2377,9 @@ class TestDropTicks:
             yStart=9.0,
             yStep=1.5,
         ).to_dict()
-        offsets = self._leg_offsets(spec)
-        assert offsets
-        assert len(set(offsets)) > 1, "explicit grouped placement should still vary tick lengths"
+        ends = self._grouped_leg_ends(spec)
+        assert ends
+        assert len(set(ends)) > 1, "explicit grouped placement should still vary tick lengths"
 
     def test_drop_counts_as_a_ticked_bracket_for_spacing(self):
         # yPad/gap targets branch on whether any bracket carries ticks; "drop" does, so an
@@ -2541,9 +2583,16 @@ class TestGroupedReverse:
 
     def test_reverse_works_with_drop_ticks(self):
         spec = self._spec(reverse=self.PAIRS, bracketStyle="drop")
-        legs = [m for m in self._marks(spec, "rule") if "y2Offset" in m]
-        assert legs
-        assert len({m["y2Offset"] for m in legs}) > 1, "drop ticks should vary per end"
+        # Grouped drop ticks end at a DATA position (__y2), not a pixel y2Offset.
+        ends = [
+            row["__y2"]
+            for layer in spec["layer"]
+            for sub in layer.get("layer", [])
+            for row in (sub.get("data", {}).get("values") or [])
+            if "__y2" in row and row["__y2"] != row.get("__y")
+        ]
+        assert ends
+        assert len(set(ends)) > 1, "drop ticks should vary per end"
 
     def test_non_adjacent_span_clears_the_groups_it_passes_over(self):
         # A Veh-D3 bracket passes over D1 and D2 without touching them. It must anchor on every

@@ -666,6 +666,7 @@ def _grouped_bracket_layer(
     chartWidth: float,
     offset_px: float = 0.0,
     tick_px: float | tuple[float, float] | None = None,
+    tick_data: tuple[float, float] | None = None,
     reverse: bool = False,
 ) -> alt.LayerChart:
     """One within-category bracket for grouped comparisons.
@@ -713,10 +714,17 @@ def _grouped_bracket_layer(
         # ticks differ per end, and y2Offset is a mark property, so each end needs its own layer.
         _lens = (tick_px, tick_px) if isinstance(tick_px, (int, float)) else tick_px
         legs = []
-        for level, tlen in zip((level1, level2), _lens if _lens is not None else (None, None)):
+        _ends = tick_data if tick_data is not None else (None, None)
+        for level, tlen, tend in zip((level1, level2), _lens if _lens is not None else (None, None), _ends):
             tk = dict(rk)
             y2_val = y + tick_height if reverse else y - tick_height
-            if tlen is not None:
+            if tend is not None:
+                # A drop tick ends at a DATA position, not a pixel distance. add_comparisons
+                # cannot see the base chart's y domain - an explicit scale=alt.Scale(domain=...)
+                # is invisible to it - so a pixel length measured against a guessed domain runs
+                # straight through the data it should stop above.
+                y2_val = tend
+            elif tlen is not None:
                 tk["y2Offset"] = _sign * offset_px - _sign * tlen
                 y2_val = y
             legs.append(
@@ -1034,6 +1042,7 @@ def _add_grouped_comparisons(
         cat_pair_anchor: list[float] = []
         cat_offsets: list[float] = []
         cat_drop: list[tuple[float, float]] | None = None
+        cat_drop_data: list[tuple[float, float]] | None = None
         if grp_pixel_mode:
             cat_spans = [
                 (min(level_order.index(a), level_order.index(b)), max(level_order.index(a), level_order.index(b)))
@@ -1130,6 +1139,12 @@ def _add_grouped_comparisons(
                     rev_flags,
                     _clevel_lo,
                 )
+
+                def _cat_data(i: int, length: float) -> float:
+                    end = _cbars[i] + (-1.0 if rev_flags[i] else 1.0) * length
+                    return _dlo + (1.0 - end / _ch) * _dspan
+
+                cat_drop_data = [(_cat_data(i, a), _cat_data(i, b)) for i, (a, b) in enumerate(cat_drop)]
         if not is_reference:
             # Every bracket's y, resolved before emitting so drop ticks can be solved against it
             # whichever placement mode is in use.
@@ -1181,6 +1196,11 @@ def _add_grouped_comparisons(
                 cat_drop = _drop_tick_lengths(
                     _ebars, _espans, _elvl, ["drop"] * len(pairs), [0.0] * len(level_order), _eedges
                 )
+
+                def _ext_data(i: int, length: float) -> float:
+                    return _elo + (1.0 - (_ebars[i] + length) / _ech) * _esp
+
+                cat_drop_data = [(_ext_data(i, a), _ext_data(i, b)) for i, (a, b) in enumerate(cat_drop)]
 
         for pi, (l1, l2) in enumerate(pairs):
             p = adj[k]
@@ -1240,6 +1260,7 @@ def _add_grouped_comparisons(
                         tick_px=(
                             cat_drop[pi] if cat_drop is not None else (_BRACKET_TICK_PX if _tick_arg is None else None)
                         ),
+                        tick_data=(cat_drop_data[pi] if cat_drop_data is not None else None),
                     )
                 )
             comparisons.append(
