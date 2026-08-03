@@ -24,6 +24,9 @@
 ### Fixes
 
 - `add_multilabel(showSampleSize=True, order=[...])` shows the sample size row. An explicit `order` lists the caller's own rows, so the injected one was absent from it and silently dropped, which also left `sampleSizeIndex` with nothing to do. It is now placed at `sampleSizeIndex`, or wherever `order` names it.
+- `add_multilabel(order=[...])` naming a row that is not in `groups` raises an error naming it, and the rows that do exist, instead of a bare `KeyError`.
+
+- `add_multilabel(showSampleSize=True)` raises when `groups` already has a row labelled `n =`. The two rows collapsed into one, which kept the injected row's position but the caller's values - so the table published a row labelled `n =` holding numbers that were not the sample sizes. Pass `sampleSizeLabel=` to keep both rows. Calls that previously rendered this way now raise.
 
 - `add_multilabel(rowStyles=[...], showSampleSize=True)` assigns styles to the right rows. The list was matched against the order rows were defined in rather than the order they are displayed in, so an explicit `order=` gave each row the style meant for another.
 - A lone `-` in an `add_multilabel` text row renders as the typographic minus `−`, matching what a `plusminus` row draws for `False`.
