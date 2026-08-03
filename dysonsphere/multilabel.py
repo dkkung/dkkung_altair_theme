@@ -31,7 +31,7 @@ def _multilabel_layer(
     chartWidth: int | None = None,
     fontSize: int | None = None,
     rowHeight: int | float | dict[str, int | float] | list[int | float] | None = None,
-    rowAngle: int | float | dict[str, int | float] | list[int | float] | None = None,
+    rowAngle: int | float | dict[str, Any] | list[Any] | None = None,
     categoryLabel: bool = False,
     categoryLabelPosition: str = "bottom",
     labelMap: dict[str, Any] | None = None,
@@ -133,8 +133,15 @@ def _multilabel_layer(
         ``dict`` mapping row labels to angles, or a ``list`` of angles in row-display
         order. Defaults to ``0`` (horizontal). Use ``-90`` to read bottom-to-top and
         ``90`` to read top-to-bottom. Text rotates about its own center, so it stays
-        centered on the category. Rotated rows grow taller automatically unless
-        ``rowHeight`` pins them. Row labels and ``"symbol"`` rows are never rotated.
+        centered on the category. Rotated rows grow to fit their tallest rotated cell
+        unless ``rowHeight`` pins them. Row labels and ``"symbol"`` rows are never
+        rotated.
+
+        A single row's angle may itself be a ``list`` — one angle per x-axis category —
+        to rotate only some cells, e.g. standing dose values on end while leaving the
+        ``-`` placeholders of the untreated controls upright::
+
+            rowAngle={"dose": [0, 0, -90, -90, -90]}
     categoryLabel:
         When ``True``, renders the x-axis category names as angled text in a
         dedicated row, replacing the main chart's stripped axis labels within the
@@ -286,7 +293,10 @@ def _multilabel_layer(
     def _norm(v: object) -> str:
         if isinstance(v, bool):
             return "+" if v else "−"
-        return str(v)
+        s = str(v)
+        # A lone ASCII hyphen is a "not applicable" placeholder - render it as the same
+        # typographic minus a plusminus row uses, so the two match within one table.
+        return "−" if s == "-" else s
 
     def _per_row(value: object, name: str) -> dict[str, Any]:
         """Normalize a scalar / list / dict per-row override to {row label: value}."""
@@ -306,19 +316,36 @@ def _multilabel_layer(
         return {label: value for label in row_order}
 
     angle_map = _per_row(rowAngle, "rowAngle")
-    row_angles = {label: float(angle_map.get(label) or 0.0) for label in row_order}
+
+    def _cell_angles(label: str) -> list[float]:
+        """One angle per category - a row's entry may be a scalar or a per-cell list."""
+        entry = angle_map.get(label)
+        if isinstance(entry, (list, tuple)):
+            seq = cast(list[Any], entry)
+            if len(seq) != len(categories):
+                raise ValueError(
+                    f"rowAngle[{label!r}] has {len(seq)} entries but categories has {len(categories)}. "
+                    f"A per-cell angle list needs one angle per x-axis category."
+                )
+            return [float(a or 0.0) for a in seq]
+        return [float(entry or 0.0)] * len(categories)
+
+    row_angles = {label: _cell_angles(label) for label in row_order}
 
     # A scalar rowHeight also supplies the floor auto-sizing never drops below.
     default_row_height = float(rowHeight) if isinstance(rowHeight, (int, float)) else 10.0
     height_map = _per_row(rowHeight, "rowHeight")
 
     def _auto_row_height(label: str) -> float:
-        # Rotated text needs the height of its rotated bounding box - the same estimate
-        # the category-label row uses, with 0.6 em as the mean glyph advance.
-        rad = math.radians(row_angles[label])
-        longest = max((len(_norm(v)) for v in groups[label]), default=1)
-        tight = fontSize * 0.6 * longest * abs(math.sin(rad)) + fontSize * abs(math.cos(rad))
-        return max(default_row_height, float(math.ceil(tight)))
+        # Each cell needs the height of its own rotated bounding box - the same estimate
+        # the category-label row uses, with 0.6 em as the mean glyph advance. The row takes
+        # the tallest, so an upright cell never shrinks the row a rotated one needs.
+        tallest = 0.0
+        for value, angle in zip(groups[label], row_angles[label]):
+            rad = math.radians(angle)
+            n_chars = len(_norm(value))
+            tallest = max(tallest, fontSize * 0.6 * n_chars * abs(math.sin(rad)) + fontSize * abs(math.cos(rad)))
+        return max(default_row_height, float(math.ceil(tallest)))
 
     row_heights = {label: float(height_map.get(label, _auto_row_height(label))) for label in row_order}
     rows_h = sum(row_heights.values())
@@ -374,10 +401,10 @@ def _multilabel_layer(
             "__category": cat,
             "__value": _norm(val),
             "__y": row_y[label],
-            "__angle": row_angles[label] % 360,
+            "__angle": angle % 360,
         }
         for label in row_order
-        for cat, val in zip(categories, groups[label])
+        for cat, val, angle in zip(categories, groups[label], row_angles[label])
     ]
     marks_df = pl.DataFrame(rows)
 

@@ -405,3 +405,48 @@ class TestRowAngle:
         flat = _multilabel_layer(ML_GROUPS, ML_CATS, style="symbol")
         rotated = _multilabel_layer(ML_GROUPS, ML_CATS, style="symbol", rowAngle=-90)
         assert rotated._kwds["height"] == flat._kwds["height"]
+
+    def test_per_cell_angle_list_rotates_only_some_cells(self):
+        # The dose-response case: numeric doses stand on end, the untreated controls'
+        # placeholders stay upright.
+        layer = _multilabel_layer(
+            {"dose": ["-", "10", "6.67"]},
+            ML_CATS,
+            rowAngle={"dose": [0, -90, -90]},
+        )
+        by_cat = {r["__category"]: r["__angle"] for r in self._text_marks(layer)}
+        assert by_cat == {"A": 0.0, "B": 270.0, "C": 270.0}
+
+    def test_per_cell_angle_sizes_the_row_from_its_tallest_cell(self):
+        upright = _multilabel_layer({"dose": ["-", "1", "2"]}, ML_CATS, rowAngle={"dose": [0, 0, 0]})
+        mixed = _multilabel_layer({"dose": ["-", "6.67", "2"]}, ML_CATS, rowAngle={"dose": [0, -90, 0]})
+        assert mixed._kwds["height"] > upright._kwds["height"]
+
+    def test_per_cell_angle_wrong_length_raises(self):
+        with pytest.raises(ValueError, match=r"rowAngle\['dose'\] has 2 entries"):
+            _multilabel_layer({"dose": ["-", "1", "2"]}, ML_CATS, rowAngle={"dose": [0, -90]})
+
+
+class TestPlaceholderMinus:
+    def test_lone_hyphen_renders_as_typographic_minus(self):
+        # A "-" placeholder in a text row must match the "−" a plusminus row draws for
+        # False, or the two glyphs differ visibly within one table.
+        layer = _multilabel_layer({"drug": [False, True, True], "dose": ["-", "10", "20"]}, ML_CATS)
+        values = {
+            (r["__label"], r["__category"]): r["__value"]
+            for ds_ in layer.to_dict().get("datasets", {}).values()
+            for r in ds_
+            if "__value" in r
+        }
+        assert values[("dose", "A")] == "−"
+        assert values[("drug", "A")] == "−"
+
+    def test_hyphen_inside_a_longer_value_is_untouched(self):
+        layer = _multilabel_layer({"range": ["1-2", "-", "a-b-c"]}, ML_CATS)
+        values = {
+            r["__category"]: r["__value"]
+            for ds_ in layer.to_dict().get("datasets", {}).values()
+            for r in ds_
+            if "__value" in r
+        }
+        assert values == {"A": "1-2", "B": "−", "C": "a-b-c"}
