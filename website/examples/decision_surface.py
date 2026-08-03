@@ -5,6 +5,7 @@ import numpy as np
 import polars as pl
 
 import dysonsphere as ds
+from dysonsphere.palettes import colors
 
 alt.data_transformers.enable("default", max_rows=None)
 ds.theme(chartWidth=175, chartHeight=150, closed=True, viewPadding=False)
@@ -61,7 +62,13 @@ scatter = (
     .encode(
         x="x:Q",
         y="y:Q",
-        color=alt.Color("class:N", scale=alt.Scale(range=["#C2506E", "#2C5F8A"]), legend=None),
+        # light stops of the field's own diverging palette - the dark ends sink into the
+        # saturated corners, and the paler stops stop telling the two classes apart
+        color=alt.Color(
+            "class:N",
+            scale=alt.Scale(range=[colors["ds_div_3"][3], colors["ds_div_3"][9]]),
+            legend=None,
+        ),
     )
 )
 
