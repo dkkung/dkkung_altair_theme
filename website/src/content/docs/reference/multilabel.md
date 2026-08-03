@@ -2,7 +2,7 @@
 title: "Multilabels"
 description: "Attach a multilabel annotation table below a chart."
 sidebar:
-  order: 6
+  order: 7
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->

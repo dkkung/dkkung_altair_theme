@@ -146,6 +146,7 @@ export default defineConfig({
 						},
 						{ label: 'Multilabels', slug: 'guides/multilabels' },
 						{ label: 'Nonlinear axes', slug: 'guides/nonlinear' },
+						{ label: 'Assembling figures', slug: 'guides/assembly' },
 						{ label: 'Saving, reading, loading', slug: 'guides/saving' },
 					],
 				},

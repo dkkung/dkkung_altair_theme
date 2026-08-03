@@ -4,6 +4,8 @@
 
 ### New features
 
+- **`ds.assemble()`** composes several charts into one figure, each built at its own `chartWidth` / `chartHeight`. Members are `(builder, width, height)` tuples (or dicts, `{"chart": ..., "width": ...}`), nested lists make rows, and `spacing` takes a number or `{"row": n, "column": n}`. A fourth tuple element - or a `label` key - adds a figure label at the top-left of that chart's whole area, styled by `labelFontSize` / `labelFontWeight` / `labelColor` / `labelPadding`; labels sharing a column are aligned exactly in SVG and PNG exports, whatever each chart's axis margin is. `None` as the chart reserves an empty slot of that size - filled and outlined to match the axes, so it reserves space for other content during later composition.
+
 - **`add_comparisons(reverse=)` now works in grouped mode** (`xOffsetCol`), where it was previously ignored. The tuples name `xOffsetCol` levels, like `pairs`, and apply in every category; reversed brackets hang below their sub-bars with the ticks pointing up, and combine with `bracketStyle="drop"` (reaching up to each sub-bar's minimum) and with normal brackets in the same chart.
 
 - **`add_comparisons(bracketStyle="drop")`** draws each bracket's end ticks reaching toward the data of the group that end sits over, instead of at a fixed length. A tick stops short of its own group's data, and short of any bracket or p-value label it would otherwise cross, so ticks sharing a column stagger rather than collide. Works with per-pair `bracketStyle` dicts, `reverse` brackets (which reach up to each group's minimum), grouped comparisons, and explicit `yStart` / `yStep` / `yPositions`. Best suited to a handful of brackets over groups of comparable height.

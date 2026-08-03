@@ -2,6 +2,7 @@
 # contents are deliberately NOT star-imported into the top namespace).
 from . import ext  # noqa: F401
 from .annotations import *  # noqa: F403
+from .assembly import *  # noqa: F403
 from .discovery import *  # noqa: F403
 from .export import *  # noqa: F403
 from .inference import *  # noqa: F403
@@ -36,6 +37,7 @@ __all__ = [
     "add_rule",
     "add_shade",
     "add_text",
+    "assemble",
     "band_geometry",
     "categorical",
     "clear_stats",

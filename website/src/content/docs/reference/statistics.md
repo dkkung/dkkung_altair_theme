@@ -2,7 +2,7 @@
 title: "Statistics registry"
 description: "Statistics report queue management."
 sidebar:
-  order: 12
+  order: 13
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->

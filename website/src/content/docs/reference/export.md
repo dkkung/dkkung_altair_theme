@@ -2,7 +2,7 @@
 title: "Saving & loading"
 description: "Export charts to files and rebuild them from the Vega-Lite JSON."
 sidebar:
-  order: 10
+  order: 11
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->

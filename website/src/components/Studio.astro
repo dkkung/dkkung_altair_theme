@@ -253,7 +253,7 @@ const paletteGroups = [
 
 <script>
 	import vegaEmbed from 'vega-embed';
-	import { alignGridToContent, italicizeStatSymbols, typesetScripts } from '../lib/fixSuperscripts';
+	import { alignFigureLabels, alignGridToContent, italicizeStatSymbols, typesetScripts } from '../lib/fixSuperscripts';
 	import { chartNaturalSize, scaleChart } from '../lib/scaleChart';
 	import { EditorView, basicSetup } from 'codemirror';
 	import { keymap } from '@codemirror/view';
@@ -730,6 +730,7 @@ high,100,26.4,6`;
 				const spec = JSON.parse(runtime.runChart(code, isDark()));
 				await vegaEmbed(chartEl, spec, { actions: true, renderer: 'svg', background: 'transparent' });
 				alignGridToContent(chartEl, spec);
+				alignFigureLabels(chartEl);
 				typesetScripts(chartEl);
 				italicizeStatSymbols(chartEl);
 				fitChartZoom();
