@@ -199,6 +199,12 @@ in `website/` on `main` and is developed on ordinary feature branches like the r
   the CSS pipeline strips a prefixed declaration (it assumes the unprefixed property covers every
   target), and Safari - the entire point - honours ONLY the prefixed one. Verify after a build with
   `grep -o -- '-webkit-text-size-adjust:100%' dist/index.html`.
+- **Figure labels are re-aligned client-side.** `alignFigureLabels` (fixSuperscripts.ts) ports
+  `export._align_figure_labels`: Vega aligns concat members by their PLOT area while a label anchors
+  to its member's BOUNDING BOX, so labels in a column go ragged by each member's own axis margin
+  (worst against a `ds.assemble` blank slot, whose margin is zero). Members sharing a column render
+  at an identical plot-area x, so it groups on that and seats each column's labels at the smallest
+  label x. Called after every vegaEmbed in Chart.astro + the Studio, like the grid fixer.
 - **Grid lines are re-seated client-side.** `alignGridToContent` (fixSuperscripts.ts) ports
   `export._align_grid_to_content`: on an open plot the grid inherits its axis group's
   `axisOffset` and renders dragged toward the axis; the fixer translates each line back so the

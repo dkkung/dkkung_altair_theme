@@ -1,13 +1,13 @@
 ---
 title: Assembling figures
-description: Compose several charts into one figure, each built at its own size.
+description: Compose several charts into one figure with ds.assemble - per-chart sizes, figure labels, and reserved slots.
 ---
 
 import Example from '../../../components/Example.astro';
 
-A subfigure often needs more than one chart - a time course beside its endpoint quantification, a
-heatmap beside the correlation it motivates. `ds.assemble()` composes them into one figure, each
-chart built at its own size.
+`ds.assemble()` composes several charts into one figure, each built at its own size - a time course
+beside its endpoint quantification, a heatmap beside the correlation it motivates. Members are
+`(builder, width, height)` tuples, and you pass the *function*, not the chart.
 
 ```python
 figure = ds.assemble(
@@ -16,167 +16,84 @@ figure = ds.assemble(
 )
 ```
 
-Each member is a `(builder, width, height)` tuple, where the builder is a zero-argument function
-returning a chart. You pass the *function*, not the chart, which is the whole point - see
-[Why a builder](#why-a-builder).
+That matters because `ds.theme()` alone cannot size charts in one figure independently - they share
+one `config.view`, so the last call wins - while `.properties()` sizes the box but leaves `markSize`,
+the corner radii and every pixel annotation computed for the theme's size. `assemble` runs each
+builder while the theme genuinely says that member's size, so `add_shade` spans, comparison brackets
+and `add_labels` placement all land correctly.
 
-## Rows
-
-Nest lists to make rows. A flat list is a single row:
-
-```python
-figure = ds.assemble(
-    [
-        [(time_course, 190, 110), (endpoint_quant, 90, 110)],
-        [(expression_heatmap, 130, 110), (activity_fit, 150, 110)],
-    ],
-    spacing={"row": 40, "column": 10},
-)
-```
-
-`spacing` is a number for both directions, or `{"row": n, "column": n}` to set them independently -
-the same shape Altair's own `hconcat` takes.
+Nest lists to make rows; `spacing` is a number, or `{"row": n, "column": n}`:
 
 <Example name="assemble" alt="Four charts of different sizes composed into one figure" />
 
-Rows are sized independently, so a wide chart in one row does not stretch the column beneath it -
-that is what keeps the heatmap and the scatter close together above. Vega still aligns the charts'
-plot areas down each column, so their axes line up even when the rows differ in width.
+Rows are sized independently, so a wide chart does not stretch the column beneath it, and they need
+not hold the same number of charts - a wide track over three panels is one row of one and one row of
+three:
+
+<Example name="assemble_rows" alt="A coverage track above three smaller panels" />
 
 ## Figure labels
 
-A fourth element in the member carries its figure label:
+A fourth element carries the panel's label - used verbatim, and optional per member:
 
 ```python
 [(time_course, 190, 110, "a"), (endpoint_quant, 90, 110, "b")]
 ```
 
-The text is used verbatim, and a member without a fourth element gets no label, so you can label
-some charts and not others. The label sits at the top-left of the chart's **whole** area - outside
-the axis labels, not inside the plot - and it rides its own wrapper, so a chart that already has a
-`.properties(title=...)` keeps it, with the label stacked above.
+It sits at the top-left of the chart's whole area, outside the axis labels, and rides its own
+wrapper so a chart with its own `.properties(title=...)` keeps it. `labelFontSize` (`8`),
+`labelFontWeight` (`700`), `labelColor` and `labelPadding` style every label in the figure; the font
+comes from `ds.theme()`. Labels sharing a column are aligned exactly, whatever each chart's axis
+margin is.
 
-Four keyword arguments style every label in the figure: `labelFontSize` (default `8`),
-`labelFontWeight` (default `700`), `labelColor` (default the theme's title ink, which follows
-`darkmode` at render), and `labelPadding` (default `(-5, 0)`, holding the label off the chart the
-way `axisOffset` detaches the axes). `font` and `fontStyle` are not exposed - they come from
-`ds.theme()`, so the labels move with the rest of your type.
+## Reserved slots
 
-Labels in the same column line up exactly, whatever each chart's axis margin is. That alignment is
-applied on export (`ds.save()` / `ds.show()`), because it needs the rendered margins - a live chart
-in a notebook or on this page shows each label at its own chart's edge instead.
+`None` as the chart holds space for a panel you will composite in later, labelled so the lettering
+stays in sequence:
 
-Because the label already sits at the figure's leftmost point, a negative `labelPadding` x cannot
-push it further left; it widens the canvas and indents the chart instead. The effect reads the
-same, at the cost of those pixels of figure width.
+<Example name="assemble_slot" alt="A four-panel figure whose first panel is a reserved empty slot" />
 
-## Members as dicts
+The slot is filled and outlined to match the axes, so it is a solid object to select, and it is
+drawn at exactly the size you give it. Expect a gap beside it: charts in a column align by their
+**plot** areas, and a slot has no axis labels to fill the space its neighbours use for theirs. That
+gap belongs to the neighbours and no slot size changes it.
 
-Anywhere a tuple works, a dict works, for callers who prefer the keys spelled out:
+## Members
 
-```python
-ds.assemble([
-    {"chart": time_course, "width": 190, "height": 110, "label": "a"},
-    {"chart": endpoint_quant, "width": 90, "height": 110, "label": "b"},
-])
-```
-
-Only `chart` is required; the rest fall back to the theme's size and no label. An unknown key raises
-rather than being ignored, so a typo cannot silently leave a chart at the wrong size.
-
-Rows need not hold the same number of charts - a wide track over three panels is one row of one and
-one row of three, which a fixed column count could not express:
-
-<Example name="assemble_rows" alt="A coverage track above three smaller panels" />
-
-Matching that track's width to the row beneath it is arithmetic you do once: the row renders 421 px
-wide, a lone chart carries 50 px of axis chrome, so the track is built at 371. Sizes are pixels, so
-nothing is guessed.
-
-## Reserving an empty slot
-
-`None` as the chart holds space to fill in later - a panel you will composite in during final
-assembly. It takes a label like any other member, so your lettering stays in sequence:
+Anywhere a tuple works, a dict works, and an unknown key raises rather than leaving a chart at the
+wrong size:
 
 ```python
-ds.assemble([
-    [(None, 180, 95, "a"), (phenotype_strip, 85, 95, "b")],
-    [(dose_curve, 95, 95, "c"), (motility_fit, 95, 95, "d")],
-])
+ds.assemble([{"chart": time_course, "width": 190, "height": 110, "label": "a"}])
 ```
 
-The slot is filled and outlined to match the axes around it, so it reads as a reserved area and is
-a solid object to select when you drop the real content in.
-
-It is drawn at exactly the size you give it. What you will notice is a gap between the slot and its
-neighbours: charts in a column are aligned by their **plot** areas, and a slot has no axis labels to
-put in the space its neighbours use for theirs. That gap belongs to the neighbours - it grows with
-their axis labels and does not change however you size the slot - so size a slot by what you are
-placing in it, and expect to trim the surrounding space during final assembly.
-
-Its one internal row is excluded from `read(what="data")` and from the provenance checksums: an
-empty panel is not part of the figure's data of record.
-
-## Why a builder
-
-Sizing with `ds.theme()` alone cannot give charts in one figure different sizes - they share a
-single `config.view`, so the last `theme()` call wins and every chart gets that size. Sizing with
-`.properties(width=, height=)` sets the box but leaves everything *derived* from the size computed
-for the theme's size instead: `markSize`, the corner and arc radii, and the pixel geometry of every
-annotation - `add_shade` spans, comparison brackets, `add_labels` placement.
-
-`assemble` takes builders so it can run each one while the theme genuinely says that member's
-size, then stamp the size on the finished chart so the shared config cannot override it. In the
-figure above, the shaded dosing window on the time course spans 0-12 h correctly at 190 px wide,
-which is exactly what breaks when a chart is resized after the fact.
-
-## Per-chart styling
-
-Vega-Lite's `config` is spec-level, so palettes, fonts and axis styling cannot differ between charts
-in one figure - `assemble` takes size and nothing else. Anything you want to vary per chart has to
-live in the chart itself, on the encoding:
-
-```python
-alt.Color("dose:N", scale=alt.Scale(range=ds.palette("ds_cat_2", 3)))   # this chart's palette
-alt.X("dose:N", axis=alt.Axis(labelFontSize=9))                         # this chart's labels
-```
-
-Those are per-view properties, so they survive. The four charts above each use a different palette
-this way. Mark config with no encoding equivalent - arc radii, boxplot proportions - cannot vary
-within one figure at all; set it with `ds.theme()` for the whole figure.
-
-Scales are not shared, so nothing collapses: concat resolves them independently already, and no
-`resolve_scale()` call is needed.
-
-## Other members
-
-A bare builder uses the theme's current size, so a mixed figure need not restate the default:
-
-```python
-ds.assemble([time_course, (endpoint_quant, 90, 110)])
-```
-
-An already-built chart is used as-is. Since `assemble` returns an ordinary Altair concat chart,
-that lets one call nest inside another - useful when two rows want different internal spacing:
+A bare builder uses the theme's current size. An already-built chart is used as-is - and since
+`assemble` returns an ordinary Altair chart, one call nests inside another when two rows want
+different internal spacing:
 
 ```python
 top = ds.assemble([(time_course, 190, 110), (endpoint_quant, 90, 110)], spacing=10)
-bottom = ds.assemble([(expression_heatmap, 130, 110), (activity_fit, 150, 110)], spacing=25)
+bottom = ds.assemble([(heatmap, 130, 110), (activity_fit, 150, 110)], spacing=25)
 
 figure = ds.assemble([[top], [bottom]], spacing={"row": 40})
 ```
 
-The result is a normal chart, so `.resolve_scale()`, `.properties()` and `ds.save()` all work on it.
+## Styling and export
 
-## Reading the data back
+Vega-Lite's `config` is spec-level, so palettes, fonts and axis styling cannot differ between charts
+in one figure - `assemble` takes size and nothing else. Vary those on the encoding instead, which is
+per-view and survives:
 
-An assembled figure usually holds several dataframes, so `ds.read(path, what="data")` raises rather
-than guess which one you meant. Pass `dataset="all"` for a `{name: frame}` dict, or a single dataset
-name. See [saving and reading](/guides/saving/).
+```python
+alt.Color("dose:N", scale=alt.Scale(range=ds.palette("ds_cat_2", 3)))
+alt.X("dose:N", axis=alt.Axis(labelFontSize=9))
+```
 
-## Faceting
+`ds.save(figure, "figure_1a")` exports it like any chart. Pass a callable when saving both
+backgrounds, since a reserved slot resolves its fill against `darkmode` at build time. An assembled
+figure usually holds several dataframes, so `ds.read(path, what="data")` needs `dataset="all"` or a
+name - see [saving and reading](/guides/saving/).
 
-Charts made with `.facet()` or `.repeat()` need none of this. They render one chart repeatedly, so
-every panel is already `chartWidth` wide and annotations land correctly in each. Those share scales
-by default, which is what you want when the panels show the same measurement split by a variable.
-Reach for `assemble` when the charts are genuinely different, not repetitions.
+Charts made with `.facet()` or `.repeat()` need none of this: they render one chart repeatedly, so
+every panel is already `chartWidth` wide. Reach for `assemble` when the charts are genuinely
+different.

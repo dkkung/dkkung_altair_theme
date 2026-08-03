@@ -233,3 +233,71 @@ export function flipTicksInward(root: ParentNode): void {
 		else if (y2 !== 0) line.setAttribute('y2', String(-y2));
 	}
 }
+
+const FIGURE_LABEL_PREFIX = '__dsfigure_label_';
+
+/**
+ * Seat every figure label at the leftmost panel edge in its column.
+ *
+ * Mirrors `export._align_figure_labels`. Vega aligns concat members by their PLOT area, but a
+ * label anchors to its member's bounding box, and those differ by that member's own axis margin -
+ * so labels go ragged while the plots stay aligned. Members sharing a column render at an identical
+ * plot-area x, so grouping on that and taking the smallest label x per column lines them up with no
+ * text measurement.
+ */
+export function alignFigureLabels(root: ParentNode): void {
+	const XLATE = /translate\(\s*([-\d.eE]+)[,\s]+([-\d.eE]+)\s*\)/;
+	const VIEW_RECT = /^M[-\d.]+,[-\d.]+h([-\d.]+)v([-\d.]+)/;
+
+	// absolute x of a node relative to `stop`, accumulating the ancestor translates
+	const absX = (el: Element, stop: Element): number => {
+		let x = 0;
+		for (let n: Element | null = el; n; n = n.parentElement) {
+			const m = XLATE.exec(n.getAttribute('transform') ?? '');
+			if (m) x += parseFloat(m[1]);
+			if (n === stop) break;
+		}
+		return x;
+	};
+
+	const found: { text: Element; labelX: number; plotX: number }[] = [];
+	for (const wrapper of root.querySelectorAll(`svg g[class*="${FIGURE_LABEL_PREFIX}"]`)) {
+		if (!/_group$/.test(wrapper.getAttribute('class') ?? '')) continue;
+		const title = wrapper.querySelector('g.role-title text');
+		if (!title) continue;
+		// the member's own plot rectangle - group backgrounds carry a zero-size path
+		let plot: Element | null = null;
+		for (const bg of wrapper.querySelectorAll('path.background')) {
+			const g = VIEW_RECT.exec(bg.getAttribute('d') ?? '');
+			if (g && parseFloat(g[1]) > 0 && parseFloat(g[2]) > 0) {
+				plot = bg;
+				break;
+			}
+		}
+		if (!plot) continue;
+		found.push({
+			text: title,
+			labelX: absX(title, wrapper) + parseFloat(title.getAttribute('x') ?? '0'),
+			plotX: absX(plot, wrapper),
+		});
+	}
+
+	const columns = new Map<number, typeof found>();
+	for (const entry of found) {
+		const key = Math.round(entry.plotX * 1000) / 1000;
+		columns.set(key, [...(columns.get(key) ?? []), entry]);
+	}
+	for (const column of columns.values()) {
+		const target = Math.min(...column.map((e) => e.labelX));
+		for (const entry of column) {
+			const by = target - entry.labelX;
+			if (Math.abs(by) <= 1e-6) continue;
+			const m = XLATE.exec(entry.text.getAttribute('transform') ?? '');
+			if (m) {
+				entry.text.setAttribute('transform', `translate(${parseFloat(m[1]) + by},${m[2]})`);
+			} else {
+				entry.text.setAttribute('x', String(parseFloat(entry.text.getAttribute('x') ?? '0') + by));
+			}
+		}
+	}
+}
