@@ -21,6 +21,8 @@
 
 ### Fixes
 
+- `add_multilabel(rowStyles=[...], showSampleSize=True)` assigns styles to the right rows. The list was matched against the order rows were defined in rather than the order they are displayed in, so an explicit `order=` gave each row the style meant for another.
+
 - A comparison bracket layered onto `mark_violin` no longer draws a stray second x axis.
 
 - Grouped p-value labels centre on their own bracket instead of on the x-axis tick, so with three or more `xOffsetCol` levels a label no longer drifts onto groups the comparison does not involve.
