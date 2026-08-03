@@ -2,13 +2,13 @@
 # contents are deliberately NOT star-imported into the top namespace).
 from . import ext  # noqa: F401
 from .annotations import *  # noqa: F403
+from .assembly import *  # noqa: F403
 from .discovery import *  # noqa: F403
 from .export import *  # noqa: F403
 from .inference import *  # noqa: F403
 from .labels import *  # noqa: F403
 from .marks import *  # noqa: F403
 from .metadata import *  # noqa: F403
-from .multichart import *  # noqa: F403
 from .multilabel import *  # noqa: F403
 from .nonlinear import *  # noqa: F403
 from .palettes import *  # noqa: F403
@@ -37,6 +37,7 @@ __all__ = [
     "add_rule",
     "add_shade",
     "add_text",
+    "assemble",
     "band_geometry",
     "categorical",
     "clear_stats",
@@ -54,7 +55,6 @@ __all__ = [
     "mark_strip",
     "mark_table",
     "mark_violin",
-    "multichart",
     "palette",
     "read",
     "save",

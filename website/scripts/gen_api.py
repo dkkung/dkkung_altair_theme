@@ -26,7 +26,7 @@ MODULES = [
     ("discovery", "Extensions", 3, "Discover and load installed dysonsphere extensions."),
     ("ext", "Extension authoring", 4, "The stable primitive surface for extension authors (dysonsphere.ext)."),
     ("marks", "Marks", 5, "Composite marks: strip and violin plots."),
-    ("multichart", "Multicharts", 6, "Compose several charts into one figure, each at its own size."),
+    ("assembly", "Assembling figures", 6, "Compose several charts into one figure, each at its own size."),
     ("multilabel", "Multilabels", 7, "Attach a multilabel annotation table below a chart."),
     ("nonlinear", "Nonlinear axes", 8, "Minor ticks and typeset labels for log and power axes."),
     ("palettes", "Palettes", 9, "Perceptually uniform palettes and Adobe Illustrator swatch export."),

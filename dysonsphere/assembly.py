@@ -8,7 +8,7 @@ from .utils import _internal_data
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
-__all__ = ["multichart"]
+__all__ = ["assemble"]
 
 # Markers on a labelled wrapper and on a reserved slot. Vega copies a view name into the SVG
 # group class, which is how export._align_figure_labels finds figure labels and leaves charts'
@@ -116,7 +116,7 @@ def _build(member: _Member, style: dict[str, Any]) -> _AltairChart:
         chart = _blank().properties(**size) if size else _blank()
     elif not callable(source):
         # An already-built chart: its derived pixel values are baked, so a size here cannot be
-        # honored - stamping one would leave exactly the stale geometry multichart exists to avoid.
+        # honored - stamping one would leave exactly the stale geometry assemble exists to avoid.
         if overrides:
             raise ValueError("a size cannot be applied to an already-built chart - pass a builder instead")
         chart = source
@@ -137,7 +137,7 @@ def _spacing_kwargs(gap: float | None) -> dict[str, float]:
     return {} if gap is None else {"spacing": gap}
 
 
-def multichart(
+def assemble(
     members: list[_Member],
     *,
     spacing: _Spacing = None,
@@ -153,7 +153,7 @@ def multichart(
     them different sizes - the last call wins. Sizing with ``.properties()`` instead leaves
     ``markSize``, the corner and arc radii, and the pixel geometry of every annotation
     (``add_shade`` spans, comparison brackets, ``add_labels`` placement) computed for the
-    theme's size rather than the one the chart renders at. ``multichart`` builds each member
+    theme's size rather than the one the chart renders at. ``assemble`` builds each member
     while the theme genuinely says its size, so those all land correctly, then stamps the
     size on the chart so the shared config cannot override it.
 
@@ -167,7 +167,7 @@ def multichart(
     members:
         The charts, in layout order. Each is a ``(builder, width, height)`` tuple, a bare
         zero-argument builder (built at the theme's current size), or an already-built chart
-        (used as-is, so a ``multichart`` result can nest inside another). Nest lists to make
+        (used as-is, so a ``assemble`` result can nest inside another). Nest lists to make
         rows: ``[[a, b], [c, d]]`` is two rows of two, a flat list is a single row.
 
         Add a fourth element to carry a figure label: ``(time_course, 190, 110, "a")`` puts
@@ -205,14 +205,14 @@ def multichart(
     --------
     A wide time course beside a narrow endpoint comparison::
 
-        figure = ds.multichart(
+        figure = ds.assemble(
             [(time_course, 210, 130), (endpoint_quant, 95, 130)],
             spacing=34,
         )
 
     Two rows, with more room between the rows than within them::
 
-        figure = ds.multichart(
+        figure = ds.assemble(
             [
                 [(time_course, 190, 110), (endpoint_quant, 90, 110)],
                 [(heatmap, 130, 110), (activity_fit, 150, 110)],
@@ -221,7 +221,7 @@ def multichart(
         )
     """
     if not members:
-        raise ValueError("multichart() needs at least one member")
+        raise ValueError("assemble() needs at least one member")
     if isinstance(spacing, dict):
         unknown = set(spacing) - {"row", "column"}
         if unknown:
@@ -242,7 +242,7 @@ def multichart(
         if not isinstance(row, list):
             raise ValueError("mix of rows and bare members - nest every row in its own list, or nest none")
         if not row:
-            raise ValueError("multichart() rows cannot be empty")
+            raise ValueError("assemble() rows cannot be empty")
         charts = [_build(m, style) for m in row]
         if len(charts) == 1:
             built.append(charts[0])

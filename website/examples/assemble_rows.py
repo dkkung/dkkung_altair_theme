@@ -67,7 +67,7 @@ def motility_fit():
 
 # The track's 372 px is chosen so its rendered width matches the row beneath it: that row
 # comes to 422 px, and a single chart carries 50 px of axis chrome around its plot area.
-chart = ds.multichart(
+chart = ds.assemble(
     [
         [{"chart": coverage_track, "width": 372, "height": 70, "label": "a"}],
         [

@@ -92,7 +92,7 @@ def activity_fit():
     return points + ds.add_correlation(activity, "expression", "activity", position="topLeft")
 
 
-chart = ds.multichart(
+chart = ds.assemble(
     [
         [(time_course, 190, 110, "a"), (endpoint_quant, 90, 110, "b")],
         [(expression_heatmap, 130, 110, "c"), (activity_fit, 150, 110, "d")],
