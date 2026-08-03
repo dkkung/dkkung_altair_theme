@@ -30,7 +30,8 @@ def _multilabel_layer(
     yPadding: float | None = None,
     chartWidth: int | None = None,
     fontSize: int | None = None,
-    rowHeight: int | float | None = None,
+    rowHeight: int | float | dict[str, int | float] | list[int | float] | None = None,
+    rowValueAngle: int | float | dict[str, Any] | list[Any] | None = None,
     categoryLabel: bool = False,
     categoryLabelPosition: str = "bottom",
     labelMap: dict[str, Any] | None = None,
@@ -112,9 +113,8 @@ def _multilabel_layer(
         down each column spanning consecutive ``True`` rows. ``"horizontal"``
         draws a rule across each row spanning consecutive ``True`` columns.
     yPadding:
-        Inner padding between rows as a fraction of the band step (0–1).
-        ``0`` means no gap; ``1`` means bands collapse to zero width.
-        Defaults to Vega-Lite's band scale default of ``0.1``.
+        Accepted but inert. Rows are positioned in pixel space, so there is no band
+        step to pad; use ``rowHeight`` to space rows apart.
     chartWidth:
         Width of the annotation chart in pixels. Inherits ``chartWidth`` from
         ``ds.theme()`` when not set.
@@ -122,7 +122,28 @@ def _multilabel_layer(
         Font size for ``"text"`` style symbols and row labels. Inherits ``fontSize``
         from ``ds.theme()`` when not set.
     rowHeight:
-        Height in pixels per annotation row. Defaults to ``fontSize * 1.5``.
+        Height in pixels per annotation row. Accepts a single number applied to every
+        row, a ``dict`` mapping row labels to heights, or a ``list`` of heights in
+        row-display order. A ``dict`` may be partial; unlisted rows are auto-sized.
+        Auto-sizing gives an unrotated row ``10`` px and a rotated row the height of
+        its rotated text bounding box (never less than ``10``).
+    rowValueAngle:
+        Rotation of the row's values in degrees, in every style — the text of a
+        ``"text"`` or ``"plusminus"`` row, and the marks of a ``"symbol"`` row.
+        Accepts a single number applied to every row, a ``dict`` mapping row labels to
+        angles, or a ``list`` of angles in row-display order. Defaults to ``0``
+        (horizontal). Use ``-90`` to read bottom-to-top and ``90`` to read
+        top-to-bottom. Values rotate about their own center, so they stay centered on
+        the category, and rotated rows grow to fit their tallest rotated cell unless
+        ``rowHeight`` pins them. Row labels are never rotated. Rotating the default
+        ``"circle"`` symbol has no visible effect; use a shape with orientation, such
+        as ``symbol="triangle-up"``.
+
+        A single row's angle may itself be a ``list`` — one angle per x-axis category —
+        to rotate only some cells, e.g. standing dose values on end while leaving the
+        ``-`` placeholders of the untreated controls upright::
+
+            rowValueAngle={"dose": [0, 0, -90, -90, -90]}
     categoryLabel:
         When ``True``, renders the x-axis category names as angled text in a
         dedicated row, replacing the main chart's stripped axis labels within the
@@ -177,12 +198,15 @@ def _multilabel_layer(
     alignment with ``mark_text`` even when both use ``baseline="middle"``, so the y
     axis is suppressed and labels are placed via ``alt.value(x)`` instead.
 
-    **``bandPosition=0.5``** is set explicitly on the shared ``y_enc`` rather than
-    relying on each mark type's default, which differs across mark types and may
-    change between Vega-Lite versions.
+    **Pixel rows.** Rows are stacked in pixel space on an identity linear y scale
+    (``domain == range``) rather than on an ordinal band scale, because a band scale
+    gives every row the same height and a rotated row needs more room than a flat one.
+    The identity scale puts the content marks in the same coordinate space as the span
+    and category-label marks, which position with ``alt.value``.
 
-    **``align="center"``** is required on all ``mark_text`` content marks. Without it,
-    Vega-Lite's vertical band placement drifts relative to other marks on some versions.
+    **``align="center"``** is required on all ``mark_text`` content marks — the mark
+    rotates about its own anchor, so any other alignment swings a rotated row's text
+    off its category tick.
 
     **Darkmode symbol colours** (``positive_color``, ``negative_fill``, ``negative_stroke``)
     are resolved from ``alt.theme.options`` at call time. When using ``style="symbol"``
@@ -267,14 +291,71 @@ def _multilabel_layer(
         chartWidth = _opt("chartWidth")
     if fontSize is None:
         fontSize = _opt("fontSize")
-    if rowHeight is None:
-        rowHeight = 10
+
+    def _norm(v: object) -> str:
+        if isinstance(v, bool):
+            return "+" if v else "−"
+        s = str(v)
+        # A lone ASCII hyphen is a "not applicable" placeholder - render it as the same
+        # typographic minus a plusminus row uses, so the two match within one table.
+        return "−" if s == "-" else s
+
+    def _per_row(value: object, name: str) -> dict[str, Any]:
+        """Normalize a scalar / list / dict per-row override to {row label: value}."""
+        if value is None:
+            return {}
+        if isinstance(value, dict):
+            mapping = cast(dict[str, Any], value)
+            unknown = [k for k in mapping if k not in row_order]
+            if unknown:
+                raise ValueError(f"{name} has unknown row label(s) {unknown}. Rows are {row_order}.")
+            return dict(mapping)
+        if isinstance(value, (list, tuple)):
+            seq = cast(list[Any], value)
+            if len(seq) != len(row_order):
+                raise ValueError(f"{name} list has {len(seq)} entries but there are {len(row_order)} rows.")
+            return dict(zip(row_order, seq))
+        return {label: value for label in row_order}
+
+    angle_map = _per_row(rowValueAngle, "rowValueAngle")
+
+    def _cell_angles(label: str) -> list[float]:
+        """One angle per category - a row's entry may be a scalar or a per-cell list."""
+        entry = angle_map.get(label)
+        if isinstance(entry, (list, tuple)):
+            seq = cast(list[Any], entry)
+            if len(seq) != len(categories):
+                raise ValueError(
+                    f"rowValueAngle[{label!r}] has {len(seq)} entries but categories has {len(categories)}. "
+                    f"A per-cell angle list needs one angle per x-axis category."
+                )
+            return [float(a or 0.0) for a in seq]
+        return [float(entry or 0.0)] * len(categories)
+
+    row_angles = {label: _cell_angles(label) for label in row_order}
+
+    # A scalar rowHeight also supplies the floor auto-sizing never drops below.
+    default_row_height = float(rowHeight) if isinstance(rowHeight, (int, float)) else 10.0
+    height_map = _per_row(rowHeight, "rowHeight")
+
+    def _auto_row_height(label: str) -> float:
+        # Each cell needs the height of its own rotated bounding box - the same estimate
+        # the category-label row uses, with 0.6 em as the mean glyph advance. The row takes
+        # the tallest, so an upright cell never shrinks the row a rotated one needs.
+        tallest = 0.0
+        for value, angle in zip(groups[label], row_angles[label]):
+            rad = math.radians(angle)
+            n_chars = len(_norm(value))
+            tallest = max(tallest, fontSize * 0.6 * n_chars * abs(math.sin(rad)) + fontSize * abs(math.cos(rad)))
+        return max(default_row_height, float(math.ceil(tallest)))
+
+    row_heights = {label: float(height_map.get(label, _auto_row_height(label))) for label in row_order}
+    rows_h = sum(row_heights.values())
 
     # When categoryLabel="bottom" and spans are present, defer the label row
     # to below the spans section so the visual order is: rows → spans → labels.
     defer_cat_label = bool(categoryLabel and span and categoryLabelPosition != "top")
 
-    band_range = None
     label_y = 0.0
     label_y_offset = 0.0
     extra = 0.0
@@ -303,37 +384,33 @@ def _multilabel_layer(
         # shifts the anchor into the label row so the gap is on the data side.
         extra = max(0.0, categoryLabelHeight - tight_height)
         if k == 0:
-            band_range = [
-                categoryLabelHeight,
-                len(row_order) * rowHeight + categoryLabelHeight,
-            ]
             label_y = label_y_offset
-        else:
-            band_range = [0, len(row_order) * rowHeight]
-            if not defer_cat_label:
-                label_y = len(row_order) * rowHeight + label_y_offset + extra
+        elif not defer_cat_label:
+            label_y = rows_h + label_y_offset + extra
 
-    # When spans are present, chart_h will grow beyond n*rowHeight. Without an
-    # explicit range, Vega auto-fits the band scale to the full chart height,
-    # stretching rows into the span section. Anchoring the range prevents this.
-    if span and band_range is None:
-        band_range = [0, len(row_order) * rowHeight]
-
-    def _norm(v: object) -> str:
-        if isinstance(v, bool):
-            return "+" if v else "−"
-        return str(v)
+    # Rows are stacked in pixel space (not on a band scale) because a band scale gives
+    # every row the same height, and a rotated row needs more room than a flat one.
+    y0 = float(categoryLabelHeight or 0) if (categoryLabel and categoryLabelPosition == "top") else 0.0
+    row_y: dict[str, float] = {}
+    _top = y0
+    for label in row_order:
+        row_y[label] = _top + row_heights[label] / 2
+        _top += row_heights[label]
 
     rows = [
-        {"__label": label, "__category": cat, "__value": _norm(val)}
+        {
+            "__label": label,
+            "__category": cat,
+            "__value": _norm(val),
+            "__y": row_y[label],
+            "__angle": angle % 360,
+        }
         for label in row_order
-        for cat, val in zip(categories, groups[label])
+        for cat, val, angle in zip(categories, groups[label], row_angles[label])
     ]
     marks_df = pl.DataFrame(rows)
 
-    chart_h = len(row_order) * rowHeight + (
-        0 if defer_cat_label else (categoryLabelHeight or 0 if categoryLabel else 0)
-    )
+    chart_h = y0 + rows_h + (0 if (defer_cat_label or categoryLabelPosition == "top") else (categoryLabelHeight or 0))
 
     x_enc = alt.X(
         "__category:N",
@@ -345,27 +422,23 @@ def _multilabel_layer(
         scale=alt.Scale(domain=categories),
         axis=alt.Axis(labels=False, ticks=False, domain=False, grid=False, title=None),
     )
-    y_scale = alt.Scale(
-        domain=row_order,
-        **({"range": band_range} if band_range is not None else {}),
-        **({"paddingInner": yPadding} if yPadding is not None else {}),
-    )
-    # Axis suppressed; row labels are explicit mark_text in row_labels layer below.
-    # bandPosition=0.5 is explicit because per-mark defaults vary across mark types.
+    # Identity linear scale (domain == range) so `__y` is read as pixels, matching the
+    # span and category-label marks, which position with alt.value. Pinning both ends
+    # also stops Vega stretching the rows into the span section below them.
+    rows_extent = y0 + rows_h or 1.0
     y_enc = alt.Y(
-        "__label:N",
-        sort=row_order,
-        bandPosition=0.5,
-        scale=y_scale,
-        axis=alt.Axis(labels=False, ticks=False, domain=False, grid=False, title=None),
+        "__y:Q",
+        scale=alt.Scale(domain=[0, rows_extent], range=[0, rows_extent], nice=False, zero=False),
+        axis=None,
     )
+    angle_enc = alt.Angle("__angle:Q", scale=None)
 
     if labelAlign == "right":
         label_x = alt.value(chartWidth + labelPadding)
     else:
         label_x = alt.value(-labelPadding)
     label_text_align = "left" if labelAlign == "right" else "right"
-    label_df = pl.DataFrame({"__label": row_order})
+    label_df = pl.DataFrame({"__label": row_order, "__y": [row_y[label] for label in row_order]})
     row_labels = (
         alt.Chart(_internal_data(label_df))
         .mark_text(fontSize=fontSize, align=label_text_align, baseline="middle")
@@ -377,12 +450,12 @@ def _multilabel_layer(
     # --- plusminus rows ---
     if plusminus_rows:
         pm_df = marks_df.filter(pl.col("__label").is_in(plusminus_rows))
-        # align="center" is required — without it Vega-Lite's vertical band
-        # placement drifts relative to other marks on some versions.
+        # align="center" keeps rotated text centered on its category - the mark rotates
+        # about its own anchor, so any other alignment swings it off the tick.
         layers.append(
             alt.Chart(_internal_data(pm_df))
             .mark_text(fontSize=fontSize, align="center", baseline="middle")
-            .encode(x=x_enc, y=y_enc, text=alt.Text("__value:N"))
+            .encode(x=x_enc, y=y_enc, angle=angle_enc, text=alt.Text("__value:N"))
         )
 
     # --- text rows ---
@@ -391,7 +464,7 @@ def _multilabel_layer(
         layers.append(
             alt.Chart(_internal_data(text_df))
             .mark_text(fontSize=fontSize, align="center", baseline="middle")
-            .encode(x=x_enc, y=y_enc, text=alt.Text("__value:N"))
+            .encode(x=x_enc, y=y_enc, angle=angle_enc, text=alt.Text("__value:N"))
         )
 
     # --- symbol rows ---
@@ -432,7 +505,7 @@ def _multilabel_layer(
                 size=symbolSize,
                 dy=symbol_dy,
             )
-            .encode(x=x_enc, y=y_enc)
+            .encode(x=x_enc, y=y_enc, angle=angle_enc)
         )
         negative = (
             alt.Chart(_internal_data(minus_df))
@@ -445,13 +518,13 @@ def _multilabel_layer(
                 size=symbolSize,
                 dy=symbol_dy,
             )
-            .encode(x=x_enc, y=y_enc)
+            .encode(x=x_enc, y=y_enc, angle=angle_enc)
         )
 
         # Connecting lines only span between symbol rows; non-symbol rows between
         # two symbol rows are skipped in run detection (they don't break runs).
         symbol_row_set = set(symbol_rows)
-        line_rows = []
+        line_rows: list[dict[str, Any]] = []
         if orientation == "horizontal":
             for label in row_order:
                 if label not in symbol_row_set:
@@ -525,6 +598,8 @@ def _multilabel_layer(
                     )
 
         if connectingLine and line_rows:
+            for r in line_rows:
+                r["__y"] = row_y[cast(str, r["__label"])]
             lines_df = pl.DataFrame(line_rows)
             if orientation == "horizontal":
                 lines = (
@@ -581,7 +656,7 @@ def _multilabel_layer(
         span_color = "white" if darkmode_val else "black"
         _one_row = _internal_data([{}])  # 1-row internal data for the pixel-positioned span marks
 
-        span_gap = rowHeight * 0.3 if spanGap is None else spanGap
+        span_gap = default_row_height * 0.3 if spanGap is None else spanGap
         label_gap = 2.0
         has_any_label = any(bool(lbl) for lbl, _ in span_pairs)
 
@@ -715,7 +790,7 @@ def add_multilabel(
 
     All keyword arguments beyond the named parameters are forwarded to
     :func:`_multilabel_layer` — see its docstring for the full parameter list,
-    including ``style``, ``rowStyles``, ``categoryLabel``,
+    including ``style``, ``rowStyles``, ``rowHeight``, ``rowValueAngle``, ``categoryLabel``,
     ``categoryLabelPosition``, ``categoryLabelAngle``, ``categoryLabelHeight``,
     ``span``, ``spanBracketStyle``, ``spanLabelPosition``, ``spanBracketReverse``,
     ``spanTickHeight``, and ``spanGap``.
@@ -786,18 +861,19 @@ def add_multilabel(
         if df is None or xCol is None:
             raise ValueError("showSampleSize=True requires both 'df' and 'xCol'.")
         counts = count_n(df, xCol, categories)
-        # Pin a list to its row labels before the n-row joins groups, or the entries
+        # Pin each list to its row labels before the n-row joins groups, or the entries
         # shift by one. The basis is the DISPLAY order, matching how _multilabel_layer
         # zips a list, and the length is checked here because that check sees a dict.
-        raw_styles = kwargs.get("rowStyles")
-        if isinstance(raw_styles, list):
-            list_order = kwargs.get("order") or list(groups.keys())
-            if len(raw_styles) != len(list_order):
-                raise ValueError(f"rowStyles list has {len(raw_styles)} entries but there are {len(list_order)} rows.")
-            raw_styles = dict(zip(list_order, raw_styles))
+        list_order = kwargs.get("order") or list(groups.keys())
+        for key in ("rowStyles", "rowValueAngle", "rowHeight"):
+            raw = kwargs.get(key)
+            if isinstance(raw, list):
+                if len(raw) != len(list_order):
+                    raise ValueError(f"{key} list has {len(raw)} entries but there are {len(list_order)} rows.")
+                kwargs[key] = dict(zip(list_order, raw))
         # Explicitly force the n-row to text style regardless of the global
         # style setting (e.g. "symbol") — counts always render as plain text.
-        kwargs["rowStyles"] = {**(raw_styles or {}), sampleSizeLabel: "text"}
+        kwargs["rowStyles"] = {**(kwargs.get("rowStyles") or {}), sampleSizeLabel: "text"}
         items = list(groups.items())
         items.insert(sampleSizeIndex, (sampleSizeLabel, counts))
         groups = dict(items)
