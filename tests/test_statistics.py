@@ -2170,15 +2170,9 @@ class TestDropTicks:
         rng = np.random.default_rng(0)
         df = pl.DataFrame({"g": ["A"] * 10 + ["B"] * 10 + ["C"] * 10, "v": rng.normal(0, 1, 30)})
         spec = add_comparisons(df, "g", "v", [("A", "B"), ("A", "C")], categories=MULTI, bracketStyle="drop").to_dict()
-        legs = [
-            sub["mark"]
-            for layer in spec["layer"]
-            for sub in layer.get("layer", [])
-            if isinstance(sub.get("mark"), dict) and "y2Offset" in sub.get("mark", {})
-        ]
-        assert legs, "drop brackets should still emit end legs"
-        lengths = {abs(m["y2Offset"] - m.get("yOffset", 0)) for m in legs}
-        assert len(lengths) > 1, "drop ticks should differ in length, not all be the fixed cap"
+        ends = self._leg_ends(spec)
+        assert ends, "drop brackets should still emit end legs"
+        assert len(set(ends)) > 1, "drop ticks should differ in length, not all be the fixed cap"
 
     def test_reverse_ticks_travel_up_to_the_group_minimum(self):
         # A reverse bracket hangs below the data with ticks pointing up, so it approaches each
@@ -2248,6 +2242,56 @@ class TestDropTicks:
         assert ends, "grouped drop brackets should emit end legs"
         assert len(set(ends)) > 1, "grouped drop ticks should differ per end"
 
+    def test_single_factor_drop_ends_above_its_group_whatever_the_pair_order(self):
+        # Two defects met here. The tick length was a pixel distance measured against a y domain
+        # guessed from the data, so a chart pinning a wider one overshot; and the solved lengths
+        # come back in COLUMN order, so a pair written against the category order handed each end
+        # the other group's length - the long drop landing on the tall group.
+        rng = np.random.default_rng(0)
+        cats = ["Ctrl", "A", "B"]
+        means = {"Ctrl": 1.0, "A": 20.0, "B": 12.0}
+        df = pl.DataFrame(
+            {
+                "g": [c for c in cats for _ in range(6)],
+                "v": [float(means[c] + rng.normal(0, 0.3)) for c in cats for _ in range(6)],
+            }
+        )
+        tops = {c: cast(float, df.filter(pl.col("g") == c)["v"].max()) for c in cats}
+        lo, hi = 0.0, 40.0
+        height = float(_opt("chartHeight"))
+
+        for pair in (("Ctrl", "A"), ("A", "Ctrl")):
+            base = (
+                alt.Chart(df)
+                .mark_point()
+                .encode(x=alt.X("g:N", sort=cats), y=alt.Y("v:Q", scale=alt.Scale(domain=[lo, hi])))
+            )
+            spec = (
+                base
+                + add_comparisons(df, "g", "v", pairs=[pair], categories=cats, test="ttest_ind", bracketStyle="drop")
+            ).to_dict()
+            found: dict[str, float] = {}
+
+            def collect(node: Any) -> None:
+                if isinstance(node, dict):
+                    mark = node.get("mark")
+                    if isinstance(mark, dict):
+                        for row in node.get("data", {}).get("values") or []:
+                            if "y2" in row and "x2" not in row and "x" in row:
+                                # where the tick actually ends, in data units, as Vega draws it
+                                px = height * (1.0 - (row["y2"] - lo) / (hi - lo)) + (mark.get("y2Offset") or 0.0)
+                                found[row["x"]] = lo + (1.0 - px / height) * (hi - lo)
+                    for value in node.values():
+                        collect(value)
+                elif isinstance(node, list):
+                    for value in node:
+                        collect(value)
+
+            collect(spec)
+            assert set(found) == set(pair), f"{pair}: expected a leg per group, got {found}"
+            for group, end in found.items():
+                assert end >= tops[group] - 1e-6, f"{pair}: {group} drop ran through its own data ({end:.2f})"
+
     def test_grouped_drop_ends_above_its_group_under_a_pinned_domain(self):
         # Regression: the tick length used to be a pixel distance measured against a y domain
         # the library guessed from the data. A chart that pins its own wider domain made every
@@ -2310,6 +2354,16 @@ class TestDropTicks:
             if isinstance((m := sub.get("mark")), dict) and "y2Offset" in m
         ]
 
+    def _leg_ends(self, spec):
+        """Single-factor drop ticks end at a DATA position (y2), not a pixel y2Offset."""
+        return [
+            row["y2"]
+            for layer in spec["layer"]
+            for sub in layer.get("layer", [])
+            for row in (sub.get("data", {}).get("values") or [])
+            if "y2" in row and row["y2"] != row.get("y")
+        ]
+
     def _grouped_leg_ends(self, spec):
         """Grouped drop ticks end at a DATA position (__y2), not a pixel y2Offset."""
         return [
@@ -2335,9 +2389,9 @@ class TestDropTicks:
             yStart=5.0,
             yStep=1.0,
         ).to_dict()
-        offsets = self._leg_offsets(spec)
-        assert offsets, "explicit placement should still emit end legs"
-        assert len(set(offsets)) > 1, "drop ticks should vary, not all be the fixed cap"
+        ends = self._leg_ends(spec)
+        assert ends, "explicit placement should still emit end legs"
+        assert len(set(ends)) > 1, "drop ticks should vary, not all be the fixed cap"
 
     def test_pinned_positions_are_included_in_the_domain(self):
         # A bracket pinned far above the data stretches the rendered domain. Estimating from the
@@ -2353,10 +2407,10 @@ class TestDropTicks:
             bracketStyle="drop",
             yPositions=[40.0, 60.0],
         ).to_dict()
-        offsets = self._leg_offsets(spec)
-        assert offsets
-        # every leg stays within the plot height - a data-only domain overshoots it wildly
-        assert all(abs(o) < float(_opt("chartHeight")) for o in offsets)
+        ends = self._leg_ends(spec)
+        assert ends
+        # every leg ends inside the data range - a data-only domain overshoots it wildly
+        assert all(-10.0 <= e <= 60.0 for e in ends), "a data-only domain overshoots the plot wildly"
 
     def test_grouped_explicit_placement_still_gets_drop_ticks(self):
         # Grouped drop was solved only under automatic placement; an explicit yStart left it

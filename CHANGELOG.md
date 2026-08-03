@@ -23,7 +23,9 @@
 
 ### Fixes
 
-- `add_comparisons(bracketStyle="drop")` end ticks stop above their own group in grouped mode. The tick length was a pixel distance measured against a y domain guessed from the data, so a chart that pinned its own wider domain - which `add_comparisons` cannot see - made every tick overshoot, through the bar it should stop above and off the bottom of the plot. The tick now ends at a data position, so the rendered domain no longer matters.
+- `add_comparisons(bracketStyle="drop")` end ticks stop above their own group. The tick length was a pixel distance measured against a y domain guessed from the data, so a chart that pinned its own wider domain - which `add_comparisons` cannot see - made every tick overshoot, through the bar it should stop above and off the bottom of the plot. The tick now ends at a data position, so the rendered domain no longer matters.
+
+- `add_comparisons(bracketStyle="drop")` puts each end tick on the right group when a pair is written against the category order. The solved lengths are in category order, so `pairs=[("A", "Ctrl")]` gave each end the other group's length - the long drop landing on the taller group.
 
 - `add_multilabel(showSampleSize=True, order=[...])` shows the sample size row. An explicit `order` lists the caller's own rows, so the injected one was absent from it and silently dropped, which also left `sampleSizeIndex` with nothing to do. It is now placed at `sampleSizeIndex`, or wherever `order` names it.
 - `add_multilabel(order=[...])` naming a row that is not in `groups` raises an error naming it, and the rows that do exist, instead of a bare `KeyError`.
