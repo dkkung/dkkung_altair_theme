@@ -24,9 +24,9 @@ strip = ds.mark_strip(df, "condition", "viability", conditions, yTitle="% viable
 chart = ds.add_multilabel(
     strip,
     {
-        "drug": [False, True, True, True, True, True, True],
-        "dose (µM)": ["-", "-", "10", "6.67", "4.44", "2.96", "1.98"],
+        "Drug": [False, True, True, True, True, True, True],
+        "Dose (µM)": ["-", "-", "10", "6.67", "4.44", "2.96", "1.98"],
     },
     categories=conditions,
-    rowValueAngle={"dose (µM)": [0, 0, -90, -90, -90, -90, -90]},
+    rowValueAngle={"Dose (µM)": [0, 0, -90, -90, -90, -90, -90]},
 )
