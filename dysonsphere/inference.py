@@ -424,6 +424,7 @@ def _pvalue_layer(
     notation: str | None = None,
     offset_px: float = 0.0,
     tick_px: float | tuple[float, float] | None = None,
+    tick_data: tuple[float, float] | None = None,
     domain_max: float | None = None,
 ) -> alt.LayerChart:
     from scipy import stats as _stats
@@ -515,7 +516,11 @@ def _pvalue_layer(
     # drop ticks differ per end, so each gets its own kwargs
     _lens = (tick_px, tick_px) if isinstance(tick_px, (int, float)) else tick_px
     _tick_kwargs_l, _tick_kwargs_r = dict(_rule_kwargs), dict(_rule_kwargs)
-    if _lens is not None:
+    # A drop tick ends at a DATA position. add_comparisons cannot see the base chart's y domain,
+    # so a pixel length measured against a guessed one overshoots through the data it should stop
+    # above - the further the rendered domain is from that guess, the worse.
+    tick_y2_l, tick_y2_r = tick_data if tick_data is not None else (tick_y2, tick_y2)
+    if _lens is not None and tick_data is None:
         _tick_kwargs_l["y2Offset"] = _sign * offset_px - _sign * _lens[0]
         _tick_kwargs_r["y2Offset"] = _sign * offset_px - _sign * _lens[1]
 
@@ -552,7 +557,7 @@ def _pvalue_layer(
 
     if bracket_style in ("bracket", "drop"):
         left_tick = (
-            alt.Chart(_internal_data([{"x": group1, "y": y, "y2": tick_y2}]))
+            alt.Chart(_internal_data([{"x": group1, "y": y, "y2": tick_y2_l}]))
             .mark_rule(**_tick_kwargs_l)
             .encode(
                 x=alt.value(x1_px),
@@ -561,7 +566,7 @@ def _pvalue_layer(
             )
         )
         right_tick = (
-            alt.Chart(_internal_data([{"x": group2, "y": y, "y2": tick_y2}]))
+            alt.Chart(_internal_data([{"x": group2, "y": y, "y2": tick_y2_r}]))
             .mark_rule(**_tick_kwargs_r)
             .encode(
                 x=alt.value(x2_px),
@@ -666,6 +671,7 @@ def _grouped_bracket_layer(
     chartWidth: float,
     offset_px: float = 0.0,
     tick_px: float | tuple[float, float] | None = None,
+    tick_data: tuple[float, float] | None = None,
     reverse: bool = False,
 ) -> alt.LayerChart:
     """One within-category bracket for grouped comparisons.
@@ -713,10 +719,17 @@ def _grouped_bracket_layer(
         # ticks differ per end, and y2Offset is a mark property, so each end needs its own layer.
         _lens = (tick_px, tick_px) if isinstance(tick_px, (int, float)) else tick_px
         legs = []
-        for level, tlen in zip((level1, level2), _lens if _lens is not None else (None, None)):
+        _ends = tick_data if tick_data is not None else (None, None)
+        for level, tlen, tend in zip((level1, level2), _lens if _lens is not None else (None, None), _ends):
             tk = dict(rk)
             y2_val = y + tick_height if reverse else y - tick_height
-            if tlen is not None:
+            if tend is not None:
+                # A drop tick ends at a DATA position, not a pixel distance. add_comparisons
+                # cannot see the base chart's y domain - an explicit scale=alt.Scale(domain=...)
+                # is invisible to it - so a pixel length measured against a guessed domain runs
+                # straight through the data it should stop above.
+                y2_val = tend
+            elif tlen is not None:
                 tk["y2Offset"] = _sign * offset_px - _sign * tlen
                 y2_val = y
             legs.append(
@@ -1034,6 +1047,7 @@ def _add_grouped_comparisons(
         cat_pair_anchor: list[float] = []
         cat_offsets: list[float] = []
         cat_drop: list[tuple[float, float]] | None = None
+        cat_drop_data: list[tuple[float, float]] | None = None
         if grp_pixel_mode:
             cat_spans = [
                 (min(level_order.index(a), level_order.index(b)), max(level_order.index(a), level_order.index(b)))
@@ -1130,6 +1144,12 @@ def _add_grouped_comparisons(
                     rev_flags,
                     _clevel_lo,
                 )
+
+                def _cat_data(i: int, length: float) -> float:
+                    end = _cbars[i] + (-1.0 if rev_flags[i] else 1.0) * length
+                    return _dlo + (1.0 - end / _ch) * _dspan
+
+                cat_drop_data = [(_cat_data(i, a), _cat_data(i, b)) for i, (a, b) in enumerate(cat_drop)]
         if not is_reference:
             # Every bracket's y, resolved before emitting so drop ticks can be solved against it
             # whichever placement mode is in use.
@@ -1181,6 +1201,11 @@ def _add_grouped_comparisons(
                 cat_drop = _drop_tick_lengths(
                     _ebars, _espans, _elvl, ["drop"] * len(pairs), [0.0] * len(level_order), _eedges
                 )
+
+                def _ext_data(i: int, length: float) -> float:
+                    return _elo + (1.0 - (_ebars[i] + length) / _ech) * _esp
+
+                cat_drop_data = [(_ext_data(i, a), _ext_data(i, b)) for i, (a, b) in enumerate(cat_drop)]
 
         for pi, (l1, l2) in enumerate(pairs):
             p = adj[k]
@@ -1240,6 +1265,7 @@ def _add_grouped_comparisons(
                         tick_px=(
                             cat_drop[pi] if cat_drop is not None else (_BRACKET_TICK_PX if _tick_arg is None else None)
                         ),
+                        tick_data=(cat_drop_data[pi] if cat_drop_data is not None else None),
                     )
                 )
             comparisons.append(
@@ -1926,6 +1952,7 @@ def add_comparisons(
         offsets_px = [0.0] * len(pairs)
         tick_px = _BRACKET_TICK_PX if _tick_arg is None else None
         drop_px: list[tuple[float, float]] | None = None
+        drop_data: list[tuple[float, float]] | None = None
         bracket_domain_max: float | None = None
         idx_span = [
             (min(categories.index(g1), categories.index(g2)), max(categories.index(g1), categories.index(g2)))
@@ -2017,6 +2044,9 @@ def add_comparisons(
                 def _to_px(v: float, _lo=_ylo, _sp=_yspan, _h=_ch) -> float:
                     return _h * (1.0 - (v - _lo) / _sp)
 
+                def _un_px(px: float, _lo=_ylo, _sp=_yspan, _h=_ch) -> float:
+                    return _lo + (1.0 - px / _h) * _sp
+
                 # Each ladder returns the shared anchor its rungs hang from, so `final_y` is that
                 # anchor rather than the bracket's own - the rung spacing is then pure pixels.
                 final_y = list(pair_anchor)
@@ -2048,6 +2078,15 @@ def add_comparisons(
                         ],
                         _to_px,
                     )
+                    _dbars = [
+                        _to_px(final_y[i]) + (offsets_px[i] if rev_flags[i] else -offsets_px[i])
+                        for i in range(len(pairs))
+                    ]
+
+                    def _from_px(i: int, length: float, _b: list[float] = _dbars) -> float:
+                        return _un_px(_b[i] + (-1.0 if rev_flags[i] else 1.0) * length)
+
+                    drop_data = [(_from_px(i, a), _from_px(i, b)) for i, (a, b) in enumerate(drop_px)]
 
             else:
                 # Data-unit path: the stack base is the caller's yStart, else the annotated
@@ -2070,7 +2109,23 @@ def add_comparisons(
             def _dpx(v: float, _lo: float = _dlo, _sp: float = _dsp, _h: float = _dch) -> float:
                 return _h * (1.0 - (v - _lo) / _sp)
 
-            drop_px = _solve_drop([_dpx(v) for v in final_y], _dpx)
+            _dbars2 = [_dpx(v) for v in final_y]
+            drop_px = _solve_drop(_dbars2, _dpx)
+
+            def _un_dpx(p: float, _lo: float = _dlo, _sp: float = _dsp, _h: float = _dch) -> float:
+                return _lo + (1.0 - p / _h) * _sp
+
+            drop_data = [
+                (
+                    _un_dpx(_dbars2[i] + (-1.0 if rev_flags[i] else 1.0) * a),
+                    _un_dpx(_dbars2[i] + (-1.0 if rev_flags[i] else 1.0) * b),
+                )
+                for i, (a, b) in enumerate(drop_px)
+            ]
+
+        def _pair_order(ends: tuple[float, float], g1: str, i: int) -> tuple[float, float]:
+            """Reorder a column-ordered (low, high) pair to (group1, group2)."""
+            return ends if categories.index(g1) == idx_span[i][0] else (ends[1], ends[0])
 
         for i, ((g1, g2), pval) in enumerate(zip(pairs, computed_pvalues)):
             annotation_layers.append(
@@ -2090,7 +2145,11 @@ def add_comparisons(
                     sigFigs=effective_sigfigs,
                     notation=pair_notations[i],
                     offset_px=offsets_px[i],
-                    tick_px=(drop_px[i] if drop_px is not None else tick_px),
+                    # Solved lengths come back in COLUMN order (the span's low end first), but
+                    # the legs are drawn for group1/group2 - which a pair written against the
+                    # category order reverses.
+                    tick_px=(_pair_order(drop_px[i], g1, i) if drop_px is not None else tick_px),
+                    tick_data=(_pair_order(drop_data[i], g1, i) if drop_data is not None else None),
                     domain_max=bracket_domain_max if i == 0 else None,
                 )
             )
