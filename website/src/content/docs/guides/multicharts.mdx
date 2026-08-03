@@ -1,0 +1,108 @@
+---
+title: Multicharts
+description: Compose several charts into one figure, each built at its own size.
+---
+
+import Example from '../../../components/Example.astro';
+
+A subfigure often needs more than one chart - a time course beside its endpoint quantification, a
+heatmap beside the correlation it motivates. `ds.multichart()` composes them into one figure, each
+chart built at its own size.
+
+```python
+figure = ds.multichart(
+    [(time_course, 210, 130), (endpoint_quant, 95, 130)],
+    spacing=34,
+)
+```
+
+Each member is a `(builder, width, height)` tuple, where the builder is a zero-argument function
+returning a chart. You pass the *function*, not the chart, which is the whole point - see
+[Why a builder](#why-a-builder).
+
+## Rows
+
+Nest lists to make rows. A flat list is a single row:
+
+```python
+figure = ds.multichart(
+    [
+        [(time_course, 190, 110), (endpoint_quant, 90, 110)],
+        [(expression_heatmap, 130, 110), (activity_fit, 150, 110)],
+    ],
+    spacing={"row": 40, "column": 10},
+)
+```
+
+`spacing` is a number for both directions, or `{"row": n, "column": n}` to set them independently -
+the same shape Altair's own `hconcat` takes.
+
+<Example name="multichart" alt="Four charts of different sizes composed into one figure" />
+
+Rows pack independently, so columns do not line up across rows. That is what keeps the heatmap and
+the scatter close together above; if you want aligned columns, give the members in a column matching
+widths.
+
+## Why a builder
+
+Sizing with `ds.theme()` alone cannot give charts in one figure different sizes - they share a
+single `config.view`, so the last `theme()` call wins and every chart gets that size. Sizing with
+`.properties(width=, height=)` sets the box but leaves everything *derived* from the size computed
+for the theme's size instead: `markSize`, the corner and arc radii, and the pixel geometry of every
+annotation - `add_shade` spans, comparison brackets, `add_labels` placement.
+
+`multichart` takes builders so it can run each one while the theme genuinely says that member's
+size, then stamp the size on the finished chart so the shared config cannot override it. In the
+figure above, the shaded dosing window on the time course spans 0-12 h correctly at 190 px wide,
+which is exactly what breaks when a chart is resized after the fact.
+
+## Per-chart styling
+
+Vega-Lite's `config` is spec-level, so palettes, fonts and axis styling cannot differ between charts
+in one figure - `multichart` takes size and nothing else. Anything you want to vary per chart has to
+live in the chart itself, on the encoding:
+
+```python
+alt.Color("dose:N", scale=alt.Scale(range=ds.palette("ds_cat_2", 3)))   # this chart's palette
+alt.X("dose:N", axis=alt.Axis(labelFontSize=9))                         # this chart's labels
+```
+
+Those are per-view properties, so they survive. The four charts above each use a different palette
+this way. Mark config with no encoding equivalent - arc radii, boxplot proportions - cannot vary
+within one figure at all; set it with `ds.theme()` for the whole figure.
+
+Scales are not shared, so nothing collapses: concat resolves them independently already, and no
+`resolve_scale()` call is needed.
+
+## Other members
+
+A bare builder uses the theme's current size, so a mixed figure need not restate the default:
+
+```python
+ds.multichart([time_course, (endpoint_quant, 90, 110)])
+```
+
+An already-built chart is used as-is. Since `multichart` returns an ordinary Altair concat chart,
+that lets one call nest inside another - useful when two rows want different internal spacing:
+
+```python
+top = ds.multichart([(time_course, 190, 110), (endpoint_quant, 90, 110)], spacing=10)
+bottom = ds.multichart([(expression_heatmap, 130, 110), (activity_fit, 150, 110)], spacing=25)
+
+figure = ds.multichart([[top], [bottom]], spacing={"row": 40})
+```
+
+The result is a normal chart, so `.resolve_scale()`, `.properties()` and `ds.save()` all work on it.
+
+## Reading the data back
+
+A multichart figure usually holds several dataframes, so `ds.read(path, what="data")` raises rather
+than guess which one you meant. Pass `dataset="all"` for a `{name: frame}` dict, or a single dataset
+name. See [saving and reading](/guides/saving/).
+
+## Faceting
+
+Charts made with `.facet()` or `.repeat()` need none of this. They render one chart repeatedly, so
+every panel is already `chartWidth` wide and annotations land correctly in each. Those share scales
+by default, which is what you want when the panels show the same measurement split by a variable.
+Reach for `multichart` when the charts are genuinely different, not repetitions.

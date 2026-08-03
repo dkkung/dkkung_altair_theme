@@ -20,6 +20,7 @@ _MODULE_NAMES = [
     "labels",
     "marks",
     "metadata",
+    "multichart",
     "multilabel",
     "nonlinear",
     "palettes",

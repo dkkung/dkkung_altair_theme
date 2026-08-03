@@ -2,7 +2,7 @@
 title: "Utilities"
 description: "Shared helpers: DataFrame handling, counts, band geometry, checksums."
 sidebar:
-  order: 16
+  order: 17
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->

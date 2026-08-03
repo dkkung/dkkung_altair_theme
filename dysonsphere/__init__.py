@@ -8,6 +8,7 @@ from .inference import *  # noqa: F403
 from .labels import *  # noqa: F403
 from .marks import *  # noqa: F403
 from .metadata import *  # noqa: F403
+from .multichart import *  # noqa: F403
 from .multilabel import *  # noqa: F403
 from .nonlinear import *  # noqa: F403
 from .palettes import *  # noqa: F403
@@ -53,6 +54,7 @@ __all__ = [
     "mark_strip",
     "mark_table",
     "mark_violin",
+    "multichart",
     "palette",
     "read",
     "save",

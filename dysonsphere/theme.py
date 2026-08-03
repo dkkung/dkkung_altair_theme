@@ -222,6 +222,8 @@ def theme(style: str | None = None, **kwargs: Any) -> None:
     overrides. See the README for the config file format and search path.
     Named styles in the config file are selected with ``style=``.
     """
+    global _ACTIVE_ARGS
+    _ACTIVE_ARGS = {**kwargs, **({"style": style} if style is not None else {})}
     kwargs = _apply_deprecated_aliases(kwargs)
     unknown = set(kwargs) - set(_BUILTIN_DEFAULTS)
     if unknown:
@@ -287,6 +289,14 @@ def _compute_derived(p: dict[str, Any]) -> None:
 
 
 _FALLBACK_OPTIONS: dict[str, Any] | None = None
+# the args of the last theme() call - a scoped override rebuilds from these, since the
+# resolved options would freeze markSize and friends instead of re-deriving them
+_ACTIVE_ARGS: dict[str, Any] = {}
+
+
+def _active_args() -> dict[str, Any]:
+    """A copy of the last theme() call's explicit args - theme() rebinds the global, so read it here."""
+    return dict(_ACTIVE_ARGS)
 
 
 def _opt(key: str) -> Any:
