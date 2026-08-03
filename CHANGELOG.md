@@ -4,7 +4,7 @@
 
 ### New features
 
-- **`ds.multichart()`** composes several charts into one figure, each built at its own `chartWidth` / `chartHeight`. Members are `(builder, width, height)` tuples, nested lists make rows, and `spacing` takes a number or `{"row": n, "column": n}`. Sizing with `theme()` alone cannot do this (charts in one figure share a single view config, so the last call wins) and `.properties()` alone leaves mark size and the pixel geometry of annotations computed for the theme's size rather than the one the chart renders at.
+- **`ds.multichart()`** composes several charts into one figure, each built at its own `chartWidth` / `chartHeight`. Members are `(builder, width, height)` tuples (or dicts, `{"chart": ..., "width": ...}`), nested lists make rows, and `spacing` takes a number or `{"row": n, "column": n}`. A fourth tuple element - or a `label` key - adds a figure label at the top-left of that chart's whole area, styled by `labelFontSize` / `labelFontWeight` / `labelColor` / `labelPadding`. Sizing with `theme()` alone cannot do this (charts in one figure share a single view config, so the last call wins) and `.properties()` alone leaves mark size and the pixel geometry of annotations computed for the theme's size rather than the one the chart renders at.
 
 - **`add_comparisons(reverse=)` now works in grouped mode** (`xOffsetCol`), where it was previously ignored. The tuples name `xOffsetCol` levels, like `pairs`, and apply in every category; reversed brackets hang below their sub-bars with the ticks pointing up, and combine with `bracketStyle="drop"` (reaching up to each sub-bar's minimum) and with normal brackets in the same chart.
 

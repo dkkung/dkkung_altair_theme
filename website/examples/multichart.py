@@ -94,8 +94,8 @@ def activity_fit():
 
 chart = ds.multichart(
     [
-        [(time_course, 190, 110), (endpoint_quant, 90, 110)],
-        [(expression_heatmap, 130, 110), (activity_fit, 150, 110)],
+        [(time_course, 190, 110, "a"), (endpoint_quant, 90, 110, "b")],
+        [(expression_heatmap, 130, 110, "c"), (activity_fit, 150, 110, "d")],
     ],
     spacing={"row": 40, "column": 10},
 )

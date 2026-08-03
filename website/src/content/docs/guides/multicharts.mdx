@@ -43,6 +43,52 @@ Rows pack independently, so columns do not line up across rows. That is what kee
 the scatter close together above; if you want aligned columns, give the members in a column matching
 widths.
 
+## Figure labels
+
+A fourth element in the member carries its figure label:
+
+```python
+[(time_course, 190, 110, "a"), (endpoint_quant, 90, 110, "b")]
+```
+
+The text is used verbatim, and a member without a fourth element gets no label, so you can label
+some charts and not others. The label sits at the top-left of the chart's **whole** area - outside
+the axis labels, not inside the plot - and it rides its own wrapper, so a chart that already has a
+`.properties(title=...)` keeps it, with the label stacked above.
+
+Four keyword arguments style every label in the figure: `labelFontSize` (default `8`),
+`labelFontWeight` (default `700`), `labelColor` (default the theme's title ink, which follows
+`darkmode` at render), and `labelPadding` (default `(-5, 0)`, holding the label off the chart the
+way `axisOffset` detaches the axes). `font` and `fontStyle` are not exposed - they come from
+`ds.theme()`, so the labels move with the rest of your type.
+
+Because the label already sits at the figure's leftmost point, a negative `labelPadding` x cannot
+push it further left; it widens the canvas and indents the chart instead. The effect reads the
+same, at the cost of those pixels of figure width.
+
+## Members as dicts
+
+Anywhere a tuple works, a dict works, for callers who prefer the keys spelled out:
+
+```python
+ds.multichart([
+    {"chart": time_course, "width": 190, "height": 110, "label": "a"},
+    {"chart": endpoint_quant, "width": 90, "height": 110, "label": "b"},
+])
+```
+
+Only `chart` is required; the rest fall back to the theme's size and no label. An unknown key raises
+rather than being ignored, so a typo cannot silently leave a chart at the wrong size.
+
+Rows need not hold the same number of charts - a wide track over three panels is one row of one and
+one row of three, which a fixed column count could not express:
+
+<Example name="multichart_rows" alt="A coverage track above three smaller panels" />
+
+Matching that track's width to the row beneath it is arithmetic you do once: the row renders 421 px
+wide, a lone chart carries 50 px of axis chrome, so the track is built at 371. Sizes are pixels, so
+nothing is guessed.
+
 ## Why a builder
 
 Sizing with `ds.theme()` alone cannot give charts in one figure different sizes - they share a

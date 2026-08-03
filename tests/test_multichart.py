@@ -112,11 +112,149 @@ class TestMultichartLayout:
         assert spec["spacing"] == 40
         assert spec["vconcat"][0]["spacing"] == 10
 
-    def test_scales_resolve_independently_without_asking(self):
-        # concat already resolves scales independently - multichart must not inject a resolve.
+    def test_legends_survive_composition(self):
+        # hconcat defaults legends to shared and DROPS them when the panels' color scales
+        # cannot merge, so multichart resolves color independently. Rendered, not inspected:
+        # the spec keeps both encodings either way - only the render shows the loss.
+        import re
+
+        import vl_convert as vlc
+
         theme()
-        spec = multichart([(_chart, 60, 40), (_chart, 60, 40)]).to_dict()
-        assert "resolve" not in spec
+
+        def colored(pal):
+            df = pl.DataFrame({"g": ["A", "B"], "v": [1.0, 2.0]})
+            return lambda: (
+                alt.Chart(df).mark_bar().encode(x="g:N", y="v:Q", color=alt.Color("g:N", scale=alt.Scale(range=pal)))
+            )
+
+        figure = multichart([(colored(["#111111", "#222222"]), 60, 40), (colored(["#888888", "#999999"]), 60, 40)])
+        assert re.findall("role-legend", vlc.vegalite_to_svg(figure.to_json())), "legends dropped by the concat"
+
+
+class TestFigureLabels:
+    def test_fourth_element_labels_the_chart(self):
+        theme()
+        spec = multichart([(_chart, 60, 40, "a"), (_chart, 60, 40)]).to_dict()
+        first, second = spec["hconcat"]
+        assert first["title"]["text"] == "a"
+        assert first["vconcat"][0]["width"] == 60, "the label rides a wrapper, chart size intact"
+        assert "title" not in second, "a member without a fourth element gets no label"
+
+    def test_text_is_verbatim(self):
+        theme()
+        spec = multichart([(_chart, 60, 40, "B")]).to_dict()
+        assert spec["title"]["text"] == "B", "no case transformation"
+
+    def test_anchors_top_left_in_bold_by_default(self):
+        theme()
+        title = multichart([(_chart, 60, 40, "a")]).to_dict()["title"]
+        assert title["anchor"] == "start"
+        assert (title["fontSize"], title["fontWeight"]) == (8, 700)
+
+    def test_color_is_left_to_the_theme_by_default(self):
+        # config.title.color is darkmode-aware and resolved when the spec is written, so a
+        # save() across both backgrounds gets the right ink without a callable.
+        theme()
+        assert "color" not in multichart([(_chart, 60, 40, "a")]).to_dict()["title"]
+        spec = multichart([(_chart, 60, 40, "a")], labelColor="#ff0000").to_dict()
+        assert spec["title"]["color"] == "#ff0000"
+
+    def test_padding_offsets_the_label(self):
+        theme()
+        default = multichart([(_chart, 60, 40, "a")]).to_dict()["title"]
+        assert (default["dx"], default["dy"]) == (-5, 0), "held off the chart like axisOffset"
+        one = multichart([(_chart, 60, 40, "a")], labelPadding=3).to_dict()["title"]
+        assert (one["dx"], one["dy"]) == (3, 3)
+        two = multichart([(_chart, 60, 40, "a")], labelPadding=(-4, 2)).to_dict()["title"]
+        assert (two["dx"], two["dy"]) == (-4, 2)
+
+    def test_chart_keeps_its_own_title(self):
+        # the label rides a wrapper, so it does not consume the chart's title slot
+        theme()
+
+        def titled():
+            return _chart().properties(title="Real title")
+
+        spec = multichart([(titled, 60, 40, "a")]).to_dict()
+        assert spec["title"]["text"] == "a"
+        assert spec["vconcat"][0]["title"] == "Real title"
+
+    def test_anchors_to_the_whole_chart_not_the_plot_area(self):
+        # frame="bounds" measures the full bounding box, so the label clears the y-axis
+        # labels; frame="group" would stop at the plot area (measured: x=44 vs x=6).
+        theme()
+        assert multichart([(_chart, 60, 40, "a")]).to_dict()["title"]["frame"] == "bounds"
+
+
+class TestDictMembers:
+    def test_dict_member_matches_the_tuple_form(self):
+        theme()
+        as_tuple = multichart([(_chart, 60, 40, "a")]).to_dict()
+        as_dict = multichart([{"chart": _chart, "width": 60, "height": 40, "label": "a"}]).to_dict()
+        assert as_dict == as_tuple
+
+    def test_only_chart_is_required(self):
+        theme(chartWidth=123)
+        spec = multichart([{"chart": _chart}]).to_dict()
+        assert "width" not in spec, "no stamp - it inherits config.view"
+        theme()
+
+    def test_dict_takes_a_prebuilt_chart(self):
+        theme()
+        spec = multichart([{"chart": _chart().properties(width=42, height=17), "label": "a"}]).to_dict()
+        assert spec["title"]["text"] == "a"
+        assert spec["vconcat"][0]["width"] == 42
+
+    def test_unknown_key_raises(self):
+        theme()
+        with pytest.raises(ValueError, match="unknown"):
+            multichart([{"chart": _chart, "wdith": 60}])
+
+    def test_missing_chart_key_raises(self):
+        theme()
+        with pytest.raises(ValueError, match="needs a 'chart' key"):
+            multichart([{"width": 60, "height": 40}])
+
+    def test_sizing_a_prebuilt_chart_raises(self):
+        # its derived pixel values are already baked, so a size could not be honored
+        theme()
+        with pytest.raises(ValueError, match="already-built chart"):
+            multichart([{"chart": _chart(), "width": 60, "height": 40}])
+
+    def test_wrong_length_tuple_raises(self):
+        theme()
+        with pytest.raises(ValueError, match="member tuple must be"):
+            multichart([(_chart, 60)])
+
+
+class TestBlankSlots:
+    def test_none_reserves_space(self):
+        theme()
+        spec = multichart([(None, 120, 80), (_chart, 60, 40)]).to_dict()
+        blank = spec["hconcat"][0]
+        assert (blank["width"], blank["height"]) == (120, 80)
+        assert blank["mark"]["opacity"] == 0
+
+    def test_blank_can_be_labelled(self):
+        theme()
+        spec = multichart([(None, 120, 80, "a")]).to_dict()
+        assert spec["title"]["text"] == "a"
+
+    def test_blank_dict_form(self):
+        theme()
+        as_tuple = multichart([(None, 120, 80, "a")]).to_dict()
+        as_dict = multichart([{"chart": None, "width": 120, "height": 80, "label": "a"}]).to_dict()
+        assert as_dict == as_tuple
+
+    def test_blank_data_is_internal(self, tmp_path):
+        # a reserved slot is not part of the figure's data of record
+        import dysonsphere as ds
+
+        theme()
+        ds.save(multichart([(None, 120, 80), (_chart, 60, 40)]), str(tmp_path / "fig"), format="json")
+        frame = ds.read(str(tmp_path / "fig.json"), what="data")
+        assert list(frame.columns) == ["g", "v"], "the blank must not surface as a user frame"
 
 
 class TestMultichartErrors:
