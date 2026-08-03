@@ -519,3 +519,69 @@ class TestSampleSizeRowInteraction:
     def test_row_angle_list_length_is_still_checked(self):
         with pytest.raises(ValueError, match="rowValueAngle list has 3 entries but there are 2 rows"):
             self._built(rowValueAngle=[0, -90, 0])
+
+
+class TestSampleSizeRowWithExplicitOrder:
+    """An explicit `order` lists the caller's rows, so the injected n-row must still land."""
+
+    C = ["A", "B", "C"]
+    GROUPS = {"a": [True, True, True], "b": [True, False, True]}
+
+    def _df(self):
+        return pl.DataFrame({"g": [c for c in self.C for _ in range(4)], "v": [float(i) for i in range(12)]})
+
+    def _rows(self, **kwargs) -> list[str]:
+        """Row labels in the order they were rendered."""
+        df = self._df()
+        chart = add_multilabel(
+            mark_strip(df, "g", "v", self.C),
+            self.GROUPS,
+            categories=self.C,
+            showSampleSize=True,
+            df=df,
+            xCol="g",
+            **kwargs,
+        )
+        seen: list[str] = []
+        for rows in chart.to_dict().get("datasets", {}).values():
+            for row in rows:
+                if "__label" in row and row["__label"] not in seen:
+                    seen.append(row["__label"])
+        return seen
+
+    def test_order_without_the_n_row_still_shows_it(self):
+        # Regression: the n-row is injected after the caller wrote `order`, so it was absent
+        # from row_order and silently dropped - taking sampleSizeIndex out of service with it.
+        assert self._rows(order=["b", "a"]) == ["n =", "b", "a"]
+
+    def test_sample_size_index_positions_it_within_an_explicit_order(self):
+        assert self._rows(order=["b", "a"], sampleSizeIndex=2) == ["b", "a", "n ="]
+        assert self._rows(order=["b", "a"], sampleSizeIndex=-1) == ["b", "n =", "a"]
+
+    def test_naming_the_row_in_order_wins(self):
+        # sampleSizeIndex defaults to 0, but an explicit placement is the caller's.
+        assert self._rows(order=["b", "a", "n ="]) == ["b", "a", "n ="]
+
+    def test_custom_sample_size_label_is_matched(self):
+        assert self._rows(order=["b", "a"], sampleSizeLabel="N") == ["N", "b", "a"]
+
+    def test_order_may_still_subset_the_caller_rows(self):
+        assert self._rows(order=["b"]) == ["n =", "b"]
+
+    def test_empty_order_stays_empty(self):
+        # An empty order means no rows; the line resolving the list basis reads it as
+        # "no order given", so injecting the n-row here would disagree with that.
+        assert self._rows(order=[]) == []
+
+    def test_caller_order_list_is_not_mutated(self):
+        shared = ["b", "a"]
+        assert self._rows(order=shared) == ["n =", "b", "a"]
+        assert shared == ["b", "a"]
+        assert self._rows(order=shared) == ["n =", "b", "a"]
+
+    def test_list_kwargs_still_count_the_caller_rows(self):
+        # The n-row joins `order` only after the list normalization, so a list stays sized
+        # to the rows the caller actually wrote.
+        assert self._rows(order=["b", "a"], rowValueAngle=[0, -90]) == ["n =", "b", "a"]
+        with pytest.raises(ValueError, match="rowValueAngle list has 3 entries but there are 2 rows"):
+            self._rows(order=["b", "a"], rowValueAngle=[0, -90, 0])

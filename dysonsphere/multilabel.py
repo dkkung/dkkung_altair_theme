@@ -824,9 +824,11 @@ def add_multilabel(
         Insertion index among the ``groups`` rows, using ``list.insert()``
         semantics. ``0`` (default) places the n-row first; ``len(groups)``
         places it last. Negative indices follow Python convention (``-1`` is
-        second-to-last, not last).
+        second-to-last, not last). Applies to ``order`` too when one is given,
+        unless that ``order`` names ``sampleSizeLabel`` itself.
     sampleSizeLabel:
-        Row label for the sample size row. Defaults to ``"n ="``.
+        Row label for the sample size row. Defaults to ``"n ="``. Name it in
+        ``order`` to place the row yourself.
 
     Examples
     --------
@@ -874,6 +876,11 @@ def add_multilabel(
         # Explicitly force the n-row to text style regardless of the global
         # style setting (e.g. "symbol") — counts always render as plain text.
         kwargs["rowStyles"] = {**(kwargs.get("rowStyles") or {}), sampleSizeLabel: "text"}
+        # An explicit order omits the injected row, so seat it at sampleSizeIndex - after the
+        # list normalization above, whose lengths count the caller's own rows.
+        explicit_order = kwargs.get("order")
+        if explicit_order and sampleSizeLabel not in explicit_order:
+            kwargs["order"] = [*explicit_order[:sampleSizeIndex], sampleSizeLabel, *explicit_order[sampleSizeIndex:]]
         items = list(groups.items())
         items.insert(sampleSizeIndex, (sampleSizeLabel, counts))
         groups = dict(items)
