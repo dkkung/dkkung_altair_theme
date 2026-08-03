@@ -1,3 +1,4 @@
+import math
 from typing import Any, cast
 
 import altair as alt
@@ -2291,6 +2292,56 @@ class TestDropTicks:
             assert set(found) == set(pair), f"{pair}: expected a leg per group, got {found}"
             for group, end in found.items():
                 assert end >= tops[group] - 1e-6, f"{pair}: {group} drop ran through its own data ({end:.2f})"
+
+    def test_drop_ends_above_its_group_on_a_log_scale(self):
+        # The old pixel conversion assumed a LINEAR scale, so on a log axis the tick landed far
+        # below its group. A data-space endpoint is scale-type independent.
+        rng = np.random.default_rng(3)
+        cats = ["Ctrl", "Lo", "Hi"]
+        mult = {"Ctrl": 1.0, "Lo": 30.0, "Hi": 900.0}
+        df = pl.DataFrame(
+            {
+                "g": [c for c in cats for _ in range(6)],
+                "v": [float(mult[c] * (1 + rng.normal(0, 0.05))) for c in cats for _ in range(6)],
+            }
+        )
+        tops = {c: cast(float, df.filter(pl.col("g") == c)["v"].max()) for c in cats}
+        base = (
+            alt.Chart(df)
+            .mark_point()
+            .encode(x=alt.X("g:N", sort=cats), y=alt.Y("v:Q", scale=alt.Scale(type="log", domain=[0.5, 2000])))
+        )
+        spec = (
+            base
+            + add_comparisons(
+                df, "g", "v", pairs=[("Ctrl", "Hi")], categories=cats, test="ttest_ind", bracketStyle="drop"
+            )
+        ).to_dict()
+        ends: dict[str, tuple[float, float]] = {}
+        height = float(_opt("chartHeight"))
+
+        def collect(node: Any) -> None:
+            if isinstance(node, dict):
+                mark = node.get("mark")
+                if isinstance(mark, dict):
+                    for row in node.get("data", {}).get("values") or []:
+                        if "y2" in row and "x2" not in row and "x" in row:
+                            ends[row["x"]] = (row["y2"], mark.get("y2Offset") or 0.0)
+                for value in node.values():
+                    collect(value)
+            elif isinstance(node, list):
+                for value in node:
+                    collect(value)
+
+        collect(spec)
+        assert set(ends) == {"Ctrl", "Hi"}
+        for group, (y2, y2_offset) in ends.items():
+            # Resolve where the tick really ends, in data units, on the log scale it is drawn on.
+            # A pixel offset converted as if the scale were linear lands far below its group.
+            frac = (math.log10(y2) - math.log10(0.5)) / (math.log10(2000) - math.log10(0.5))
+            px = height * (1.0 - frac) + y2_offset
+            end = 10 ** (math.log10(0.5) + (1.0 - px / height) * (math.log10(2000) - math.log10(0.5)))
+            assert end >= tops[group] - 1e-6, f"{group} drop ran through its own data on a log scale"
 
     def test_grouped_drop_ends_above_its_group_under_a_pinned_domain(self):
         # Regression: the tick length used to be a pixel distance measured against a y domain
