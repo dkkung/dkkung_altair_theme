@@ -69,6 +69,8 @@ def _multilabel_layer(
         or ``mark_violin``.
     order:
         Row display order (top to bottom). Defaults to ``dict`` insertion order.
+        Every label must be a key of ``groups``; listing only some of them displays
+        only those rows.
     style:
         Global default style for all rows. ``"plusminus"`` renders ``True`` as ``+``
         and ``False`` as ``−``. ``"symbol"`` renders ``True`` as a filled mark and
@@ -245,6 +247,10 @@ def _multilabel_layer(
     from .palettes import colors
 
     row_order = order if order is not None else list(groups.keys())
+
+    unknown_rows = [label for label in row_order if label not in groups]
+    if unknown_rows:
+        raise ValueError(f"order names row(s) {unknown_rows} that are not in groups. Rows are {list(groups)}.")
 
     for label in row_order:
         if len(groups[label]) != len(categories):
@@ -862,6 +868,14 @@ def add_multilabel(
     if showSampleSize:
         if df is None or xCol is None:
             raise ValueError("showSampleSize=True requires both 'df' and 'xCol'.")
+        # The injected row shares the groups dict, so a same-named row of the caller's would
+        # be silently replaced - by the counts, or by their own values, depending on `order`.
+        if sampleSizeLabel in groups:
+            raise ValueError(
+                f"groups already has a row labelled {sampleSizeLabel!r}, which is the label "
+                f"showSampleSize=True adds. Rename that row, or pass sampleSizeLabel= to use "
+                f"a different label for the sample size row."
+            )
         counts = count_n(df, xCol, categories)
         # Pin each list to its row labels before the n-row joins groups, or the entries
         # shift by one. The basis is the DISPLAY order, matching how _multilabel_layer

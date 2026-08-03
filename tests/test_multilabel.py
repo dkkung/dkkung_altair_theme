@@ -585,3 +585,56 @@ class TestSampleSizeRowWithExplicitOrder:
         assert self._rows(order=["b", "a"], rowValueAngle=[0, -90]) == ["n =", "b", "a"]
         with pytest.raises(ValueError, match="rowValueAngle list has 3 entries but there are 2 rows"):
             self._rows(order=["b", "a"], rowValueAngle=[0, -90, 0])
+
+
+class TestRowValidation:
+    """Bad row labels report themselves instead of failing obscurely or silently."""
+
+    C = ["A", "B", "C"]
+    GROUPS = {"a": [True, True, True], "b": [True, False, True]}
+
+    def _df(self):
+        return pl.DataFrame({"g": [c for c in self.C for _ in range(4)], "v": [float(i) for i in range(12)]})
+
+    def _with_n(self, groups, **kwargs):
+        df = self._df()
+        return add_multilabel(
+            mark_strip(df, "g", "v", self.C),
+            groups,
+            categories=self.C,
+            showSampleSize=True,
+            df=df,
+            xCol="g",
+            **kwargs,
+        )
+
+    def test_order_naming_an_unknown_row_raises(self):
+        # Was a bare KeyError from the value-count loop, naming nothing useful.
+        with pytest.raises(ValueError, match=r"order names row\(s\) \['zz'\] that are not in groups"):
+            _multilabel_layer(self.GROUPS, self.C, order=["b", "zz"])
+
+    def test_the_error_lists_the_rows_that_do_exist(self):
+        with pytest.raises(ValueError, match=r"Rows are \['a', 'b'\]"):
+            _multilabel_layer(self.GROUPS, self.C, order=["bb"])
+
+    def test_valid_order_still_builds(self):
+        assert isinstance(_multilabel_layer(self.GROUPS, self.C, order=["b", "a"]), alt.LayerChart)
+        assert isinstance(_multilabel_layer(self.GROUPS, self.C, order=[]), alt.LayerChart)
+
+    def test_sample_size_label_colliding_with_a_row_raises(self):
+        # One row silently replaced the other, and which one won depended on `order`.
+        groups = {"n =": ["x", "y", "z"], "b": [True, False, True]}
+        with pytest.raises(ValueError, match="groups already has a row labelled 'n ='"):
+            self._with_n(groups)
+        with pytest.raises(ValueError, match="groups already has a row labelled 'n ='"):
+            self._with_n(groups, order=["b", "n ="])
+
+    def test_a_custom_sample_size_label_avoids_the_collision(self):
+        chart = self._with_n({"n =": ["x", "y", "z"]}, sampleSizeLabel="N")
+        labels = {r["__label"] for rows in chart.to_dict()["datasets"].values() for r in rows if "__label" in r}
+        assert labels == {"n =", "N"}  # the caller's row AND the counts row
+
+    def test_the_label_is_free_without_show_sample_size(self):
+        df = self._df()
+        chart = add_multilabel(mark_strip(df, "g", "v", self.C), {"n =": ["x", "y", "z"]}, categories=self.C)
+        assert isinstance(chart, alt.VConcatChart)
