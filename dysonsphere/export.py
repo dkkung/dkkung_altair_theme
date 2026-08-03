@@ -578,7 +578,7 @@ def _flip_ticks_inward(root: ET.Element) -> None:
                     line.set(attr, v[1:] if v.startswith("-") else "-" + v)
 
 
-_FIGURE_LABEL_PREFIX = "__dysonsphere_label_"
+_FIGURE_LABEL_PREFIX = "__dsfigure_label_"
 _TRANSLATE = re.compile(r"translate\(\s*([-\d.eE]+)\s*[,\s]\s*([-\d.eE]+)\s*\)")
 
 

@@ -10,10 +10,15 @@ from .utils import _internal_data
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
 __all__ = ["multichart"]
 
-# Marker on a labelled member's wrapper - Vega puts a view name into the SVG group class, so
-# export._align_figure_labels can find figure labels and leave charts' own titles alone.
-_LABEL_NAME = "__dysonsphere_label_"
+# Markers on a labelled wrapper and on a reserved slot. Vega copies a view name into the SVG
+# group class, which is how export._align_figure_labels finds figure labels and leaves charts'
+# own titles alone. The prefix is deliberately NOT the statistics one: that channel is stripped
+# from written output, and these must survive so a ds.load() round trip re-renders identically.
+_FIGURE_PREFIX = "__dsfigure_"
+_LABEL_NAME = f"{_FIGURE_PREFIX}label_"
+_BLANK_NAME = f"{_FIGURE_PREFIX}blank_"
 _label_counter = 0
+_blank_counter = 0
 
 # A member is a builder, a builder with its size, or an already-built chart.
 _Member = Any
@@ -76,23 +81,27 @@ def _unpack(member: _Member) -> tuple[Any, Any, Any, str | None]:
 
 
 def _blank() -> _AltairChart:
-    """An empty view that draws nothing but its own outline, and occupies its size.
+    """A filled, outlined view that draws nothing and occupies its size.
 
-    The outline rides ``view.stroke`` rather than a rect mark, so it traces the reserved
-    area exactly with no encodings, at ``axisWidth`` to match the axes around it. Its color
-    is read at build time like ``add_shade``'s, so a ``save()`` across both backgrounds
-    needs a callable to re-resolve it.
-
-    The one data row is tagged internal, so a reserved slot stays out of
-    ``read(what="data")`` and the provenance checksums - an empty panel is not part of the
-    figure's data of record.
+    It rides ``view`` rather than a rect mark, so it traces the reserved area with no
+    encodings; colors are read at build time like ``add_shade``'s, so a ``save()`` across
+    both backgrounds needs a callable. Its row is tagged internal, keeping a reserved slot
+    out of ``read(what="data")`` and the provenance checksums.
     """
+    darkmode = _opt("darkmode")
     outline = alt.ViewBackground(
-        stroke="white" if _opt("darkmode") else "black",
+        fill=_opt("chartFill") or ("black" if darkmode else "white"),
+        stroke="white" if darkmode else "black",
         strokeWidth=_opt("axisWidth"),
         strokeDash=[0, 0],  # solid - config.rule's dash must not reach it
     )
-    return alt.Chart(_internal_data([{}])).mark_point(opacity=0).properties(view=outline)
+    global _blank_counter
+    _blank_counter += 1
+    return (
+        alt.Chart(_internal_data([{}]))
+        .mark_point(opacity=0)
+        .properties(view=outline, name=f"{_BLANK_NAME}{_blank_counter}")
+    )
 
 
 def _build(member: _Member, style: dict[str, Any]) -> _AltairChart:

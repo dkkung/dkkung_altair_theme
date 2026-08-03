@@ -9,7 +9,7 @@ from dysonsphere.theme import _opt, theme
 def _no_marker(spec):
     """Drop the label marker so two equivalent member forms compare equal."""
     if isinstance(spec, dict):
-        marker = "__dysonsphere_label_"
+        marker = "__dsfigure_"  # label and blank counters both vary between calls
         return {k: _no_marker(v) for k, v in spec.items() if not (k == "name" and str(v).startswith(marker))}
     return [_no_marker(v) for v in spec] if isinstance(spec, list) else spec
 
@@ -282,6 +282,32 @@ class TestLabelAlignment:
         assert found["a"] == found["c"]
 
 
+class TestProvenance:
+    """A multichart figure must stay honest about what it does and does not cover."""
+
+    def test_figure_markers_are_not_the_statistics_channel(self):
+        # sharing the statistics prefix would both feed junk hashes to the record scan and get
+        # the markers stripped from written output, which broke ds.load() parity
+        from dysonsphere.multichart import _FIGURE_PREFIX
+        from dysonsphere.statistics import _MARKER_PREFIX
+
+        assert not _FIGURE_PREFIX.startswith(_MARKER_PREFIX)
+
+    def test_labels_survive_a_load_round_trip(self, tmp_path):
+        # ds.load() promises parity, and alignment needs the markers the writer used to strip
+        import json
+
+        import dysonsphere as ds
+
+        theme()
+        figure = multichart([[(_chart, 60, 40, "a")], [(_chart, 60, 40, "c")]])
+        ds.save(figure, str(tmp_path / "fig"), format="json", background="light")
+        spec = json.loads((tmp_path / "fig.json").read_text())
+        assert "__dsfigure_label_" in json.dumps(spec)
+        reloaded = ds.load(str(tmp_path / "fig.json"), raw=True)
+        assert "__dsfigure_label_" in json.dumps(reloaded)
+
+
 class TestBlankSlots:
     def test_none_reserves_space(self):
         theme()
@@ -297,9 +323,20 @@ class TestBlankSlots:
         assert view["strokeDash"] == [0, 0], "solid - config.rule's dash must not reach it"
         assert view["stroke"] == "black"
 
-    def test_outline_follows_darkmode(self):
+    def test_slot_is_filled_so_it_can_be_selected(self):
+        # a transparent slot is nothing to grab in a vector editor
+        theme()
+        assert multichart([(None, 120, 80)]).to_dict()["view"]["fill"] == "white"
+
+    def test_outline_and_fill_follow_darkmode(self):
         theme(darkmode=True)
-        assert multichart([(None, 120, 80)]).to_dict()["view"]["stroke"] == "white"
+        view = multichart([(None, 120, 80)]).to_dict()["view"]
+        assert (view["stroke"], view["fill"]) == ("white", "black")
+        theme()
+
+    def test_explicit_chart_fill_wins(self):
+        theme(chartFill="#eeeeee")
+        assert multichart([(None, 120, 80)]).to_dict()["view"]["fill"] == "#eeeeee"
         theme()
 
     def test_blank_can_be_labelled(self):

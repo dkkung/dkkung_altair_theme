@@ -105,9 +105,14 @@ ds.multichart([
 ])
 ```
 
-The slot is outlined to match the axes around it, so you can see the space you have reserved. It
-carries no axis chrome, so it occupies exactly its width where a real chart of the same width also
-takes its axis margin - size the slot by what you are placing in it, not by its neighbour's number.
+The slot is filled and outlined to match the axes around it, so it reads as a reserved area and is
+a solid object to select when you drop the real content in.
+
+It is drawn at exactly the size you give it. What you will notice is a gap between the slot and its
+neighbours: charts in a column are aligned by their **plot** areas, and a slot has no axis labels to
+put in the space its neighbours use for theirs. That gap belongs to the neighbours - it grows with
+their axis labels and does not change however you size the slot - so size a slot by what you are
+placing in it, and expect to trim the surrounding space during final assembly.
 
 Its one internal row is excluded from `read(what="data")` and from the provenance checksums: an
 empty panel is not part of the figure's data of record.
