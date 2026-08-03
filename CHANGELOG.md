@@ -23,6 +23,8 @@
 
 ### Fixes
 
+- `add_multilabel(showSampleSize=True, order=[...])` shows the sample size row. An explicit `order` lists the caller's own rows, so the injected one was absent from it and silently dropped, which also left `sampleSizeIndex` with nothing to do. It is now placed at `sampleSizeIndex`, or wherever `order` names it.
+
 - `add_multilabel(rowStyles=[...], showSampleSize=True)` assigns styles to the right rows. The list was matched against the order rows were defined in rather than the order they are displayed in, so an explicit `order=` gave each row the style meant for another.
 - A lone `-` in an `add_multilabel` text row renders as the typographic minus `−`, matching what a `plusminus` row draws for `False`.
 
