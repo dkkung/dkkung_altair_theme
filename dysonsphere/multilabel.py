@@ -31,7 +31,7 @@ def _multilabel_layer(
     chartWidth: int | None = None,
     fontSize: int | None = None,
     rowHeight: int | float | dict[str, int | float] | list[int | float] | None = None,
-    rowAngle: int | float | dict[str, Any] | list[Any] | None = None,
+    rowValueAngle: int | float | dict[str, Any] | list[Any] | None = None,
     categoryLabel: bool = False,
     categoryLabelPosition: str = "bottom",
     labelMap: dict[str, Any] | None = None,
@@ -127,21 +127,23 @@ def _multilabel_layer(
         row-display order. A ``dict`` may be partial; unlisted rows are auto-sized.
         Auto-sizing gives an unrotated row ``10`` px and a rotated row the height of
         its rotated text bounding box (never less than ``10``).
-    rowAngle:
-        Rotation of the row's content text in degrees, for rows rendered as
-        ``"plusminus"`` or ``"text"``. Accepts a single number applied to every row, a
-        ``dict`` mapping row labels to angles, or a ``list`` of angles in row-display
-        order. Defaults to ``0`` (horizontal). Use ``-90`` to read bottom-to-top and
-        ``90`` to read top-to-bottom. Text rotates about its own center, so it stays
-        centered on the category. Rotated rows grow to fit their tallest rotated cell
-        unless ``rowHeight`` pins them. Row labels and ``"symbol"`` rows are never
-        rotated.
+    rowValueAngle:
+        Rotation of the row's values in degrees, in every style — the text of a
+        ``"text"`` or ``"plusminus"`` row, and the marks of a ``"symbol"`` row.
+        Accepts a single number applied to every row, a ``dict`` mapping row labels to
+        angles, or a ``list`` of angles in row-display order. Defaults to ``0``
+        (horizontal). Use ``-90`` to read bottom-to-top and ``90`` to read
+        top-to-bottom. Values rotate about their own center, so they stay centered on
+        the category, and rotated rows grow to fit their tallest rotated cell unless
+        ``rowHeight`` pins them. Row labels are never rotated. Rotating the default
+        ``"circle"`` symbol has no visible effect; use a shape with orientation, such
+        as ``symbol="triangle-up"``.
 
         A single row's angle may itself be a ``list`` — one angle per x-axis category —
         to rotate only some cells, e.g. standing dose values on end while leaving the
         ``-`` placeholders of the untreated controls upright::
 
-            rowAngle={"dose": [0, 0, -90, -90, -90]}
+            rowValueAngle={"dose": [0, 0, -90, -90, -90]}
     categoryLabel:
         When ``True``, renders the x-axis category names as angled text in a
         dedicated row, replacing the main chart's stripped axis labels within the
@@ -315,7 +317,7 @@ def _multilabel_layer(
             return dict(zip(row_order, seq))
         return {label: value for label in row_order}
 
-    angle_map = _per_row(rowAngle, "rowAngle")
+    angle_map = _per_row(rowValueAngle, "rowValueAngle")
 
     def _cell_angles(label: str) -> list[float]:
         """One angle per category - a row's entry may be a scalar or a per-cell list."""
@@ -324,7 +326,7 @@ def _multilabel_layer(
             seq = cast(list[Any], entry)
             if len(seq) != len(categories):
                 raise ValueError(
-                    f"rowAngle[{label!r}] has {len(seq)} entries but categories has {len(categories)}. "
+                    f"rowValueAngle[{label!r}] has {len(seq)} entries but categories has {len(categories)}. "
                     f"A per-cell angle list needs one angle per x-axis category."
                 )
             return [float(a or 0.0) for a in seq]
@@ -503,7 +505,7 @@ def _multilabel_layer(
                 size=symbolSize,
                 dy=symbol_dy,
             )
-            .encode(x=x_enc, y=y_enc)
+            .encode(x=x_enc, y=y_enc, angle=angle_enc)
         )
         negative = (
             alt.Chart(_internal_data(minus_df))
@@ -516,7 +518,7 @@ def _multilabel_layer(
                 size=symbolSize,
                 dy=symbol_dy,
             )
-            .encode(x=x_enc, y=y_enc)
+            .encode(x=x_enc, y=y_enc, angle=angle_enc)
         )
 
         # Connecting lines only span between symbol rows; non-symbol rows between
@@ -788,7 +790,7 @@ def add_multilabel(
 
     All keyword arguments beyond the named parameters are forwarded to
     :func:`_multilabel_layer` — see its docstring for the full parameter list,
-    including ``style``, ``rowStyles``, ``rowHeight``, ``rowAngle``, ``categoryLabel``,
+    including ``style``, ``rowStyles``, ``rowHeight``, ``rowValueAngle``, ``categoryLabel``,
     ``categoryLabelPosition``, ``categoryLabelAngle``, ``categoryLabelHeight``,
     ``span``, ``spanBracketStyle``, ``spanLabelPosition``, ``spanBracketReverse``,
     ``spanTickHeight``, and ``spanGap``.
@@ -863,7 +865,7 @@ def add_multilabel(
         # shift by one. The basis is the DISPLAY order, matching how _multilabel_layer
         # zips a list, and the length is checked here because that check sees a dict.
         list_order = kwargs.get("order") or list(groups.keys())
-        for key in ("rowStyles", "rowAngle", "rowHeight"):
+        for key in ("rowStyles", "rowValueAngle", "rowHeight"):
             raw = kwargs.get(key)
             if isinstance(raw, list):
                 if len(raw) != len(list_order):

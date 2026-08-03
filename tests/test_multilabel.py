@@ -289,7 +289,9 @@ class TestRowStylesListWithSampleSize:
 
     def test_sample_size_row_still_forced_to_text(self):
         assert self._styles(self._with_n(style="symbol", rowStyles=["symbol", "symbol"]))["n ="] == "flat"
-class TestRowAngle:
+
+
+class TestRowValueAngle:
     """Per-row text rotation and the per-row heights it needs."""
 
     TEXT_GROUPS = {"r1": ["1", "2", "3"], "r2": ["10", "20", "30"]}
@@ -319,23 +321,23 @@ class TestRowAngle:
         assert {r["__angle"] for r in self._text_marks(layer)} == {0.0}
 
     def test_scalar_applies_to_every_row(self):
-        layer = _multilabel_layer(self.TEXT_GROUPS, ML_CATS, rowAngle=-90)
+        layer = _multilabel_layer(self.TEXT_GROUPS, ML_CATS, rowValueAngle=-90)
         assert {r["__angle"] for r in self._text_marks(layer)} == {270.0}
 
     def test_dict_applies_per_row(self):
-        layer = _multilabel_layer(self.TEXT_GROUPS, ML_CATS, rowAngle={"r2": -90})
+        layer = _multilabel_layer(self.TEXT_GROUPS, ML_CATS, rowValueAngle={"r2": -90})
         by_row = {r["__label"]: r["__angle"] for r in self._text_marks(layer)}
         assert by_row == {"r1": 0.0, "r2": 270.0}
 
     def test_list_applies_in_row_order(self):
-        layer = _multilabel_layer(self.TEXT_GROUPS, ML_CATS, rowAngle=[0, 90])
+        layer = _multilabel_layer(self.TEXT_GROUPS, ML_CATS, rowValueAngle=[0, 90])
         by_row = {r["__label"]: r["__angle"] for r in self._text_marks(layer)}
         assert by_row == {"r1": 0.0, "r2": 90.0}
 
     def test_rotated_row_grows_taller(self):
         groups = {"r1": ["1", "2", "3"], "r2": ["1.98", "6.67", "4.44"]}
         flat = _multilabel_layer(groups, ML_CATS)
-        rotated = _multilabel_layer(groups, ML_CATS, rowAngle={"r2": -90})
+        rotated = _multilabel_layer(groups, ML_CATS, rowValueAngle={"r2": -90})
         assert rotated._kwds["height"] > flat._kwds["height"]
         # Only the rotated row grew, so the flat row above it keeps its center.
         assert self._row_y(rotated, "r1") == self._row_y(flat, "r1")
@@ -344,17 +346,17 @@ class TestRowAngle:
         # Auto-sizing floors at the 10px default, so a 1-2 char rotated row never shrinks
         # the table or grows it needlessly.
         flat = _multilabel_layer(self.TEXT_GROUPS, ML_CATS)
-        rotated = _multilabel_layer(self.TEXT_GROUPS, ML_CATS, rowAngle=-90)
+        rotated = _multilabel_layer(self.TEXT_GROUPS, ML_CATS, rowValueAngle=-90)
         assert rotated._kwds["height"] == flat._kwds["height"]
 
     def test_rotated_row_height_scales_with_longest_value(self):
-        short = _multilabel_layer({"r": ["1", "2", "3"]}, ML_CATS, rowAngle=-90)
-        long = _multilabel_layer({"r": ["1", "2", "3000000"]}, ML_CATS, rowAngle=-90)
+        short = _multilabel_layer({"r": ["1", "2", "3"]}, ML_CATS, rowValueAngle=-90)
+        long = _multilabel_layer({"r": ["1", "2", "3000000"]}, ML_CATS, rowValueAngle=-90)
         assert long._kwds["height"] > short._kwds["height"]
 
     def test_explicit_row_height_pins_a_rotated_row(self):
-        auto = _multilabel_layer({"r": ["1000000", "2", "3"]}, ML_CATS, rowAngle=-90)
-        pinned = _multilabel_layer({"r": ["1000000", "2", "3"]}, ML_CATS, rowAngle=-90, rowHeight=10)
+        auto = _multilabel_layer({"r": ["1000000", "2", "3"]}, ML_CATS, rowValueAngle=-90)
+        pinned = _multilabel_layer({"r": ["1000000", "2", "3"]}, ML_CATS, rowValueAngle=-90, rowHeight=10)
         assert auto._kwds["height"] > 10
         assert pinned._kwds["height"] == 10
 
@@ -387,24 +389,49 @@ class TestRowAngle:
     def test_rotation_reaches_the_rendered_svg(self):
         import vl_convert as vlc
 
-        svg = vlc.vegalite_to_svg(_multilabel_layer({"r": ["12", "34", "56"]}, ML_CATS, rowAngle=-90).to_dict())
+        svg = vlc.vegalite_to_svg(_multilabel_layer({"r": ["12", "34", "56"]}, ML_CATS, rowValueAngle=-90).to_dict())
         assert svg.count("rotate(270)") == 3
 
     def test_unknown_row_label_raises(self):
-        with pytest.raises(ValueError, match="rowAngle has unknown row label"):
-            _multilabel_layer(self.TEXT_GROUPS, ML_CATS, rowAngle={"nope": 90})
+        with pytest.raises(ValueError, match="rowValueAngle has unknown row label"):
+            _multilabel_layer(self.TEXT_GROUPS, ML_CATS, rowValueAngle={"nope": 90})
         with pytest.raises(ValueError, match="rowHeight has unknown row label"):
             _multilabel_layer(self.TEXT_GROUPS, ML_CATS, rowHeight={"nope": 20})
 
     def test_wrong_list_length_raises(self):
-        with pytest.raises(ValueError, match="rowAngle list has 3 entries"):
-            _multilabel_layer(self.TEXT_GROUPS, ML_CATS, rowAngle=[0, 90, 180])
+        with pytest.raises(ValueError, match="rowValueAngle list has 3 entries"):
+            _multilabel_layer(self.TEXT_GROUPS, ML_CATS, rowValueAngle=[0, 90, 180])
 
-    def test_symbol_rows_are_unaffected(self):
-        # Symbol marks carry no text to rotate; rowAngle must not resize their row.
+    def test_symbol_rows_rotate_too(self):
+        import vl_convert as vlc
+
+        rotated = _multilabel_layer(ML_GROUPS, ML_CATS, style="symbol", symbol="triangle-up", rowValueAngle=-90)
+        svg = vlc.vegalite_to_svg(rotated.to_dict())
+        # One rotation per category: the marks carry the angle, not just text rows.
+        assert svg.count("rotate(270)") == len(ML_CATS)
+
+    def test_symbol_rows_keep_their_height_when_rotated(self):
+        # A symbol's footprint is set by symbolSize, not by text length, so rotating one
+        # must not resize the row the way a long rotated string does.
         flat = _multilabel_layer(ML_GROUPS, ML_CATS, style="symbol")
-        rotated = _multilabel_layer(ML_GROUPS, ML_CATS, style="symbol", rowAngle=-90)
+        rotated = _multilabel_layer(ML_GROUPS, ML_CATS, style="symbol", rowValueAngle=-90)
         assert rotated._kwds["height"] == flat._kwds["height"]
+
+    def test_per_cell_angle_reaches_symbol_marks(self):
+        layer = _multilabel_layer(
+            {"r": [True, True, True]},
+            ML_CATS,
+            style="symbol",
+            symbol="triangle-up",
+            rowValueAngle={"r": [0, 90, 180]},
+        )
+        by_cat = {
+            r["__category"]: r["__angle"]
+            for rows in layer.to_dict()["datasets"].values()
+            for r in rows
+            if "__angle" in r
+        }
+        assert by_cat == {"A": 0.0, "B": 90.0, "C": 180.0}
 
     def test_per_cell_angle_list_rotates_only_some_cells(self):
         # The dose-response case: numeric doses stand on end, the untreated controls'
@@ -412,19 +439,19 @@ class TestRowAngle:
         layer = _multilabel_layer(
             {"dose": ["-", "10", "6.67"]},
             ML_CATS,
-            rowAngle={"dose": [0, -90, -90]},
+            rowValueAngle={"dose": [0, -90, -90]},
         )
         by_cat = {r["__category"]: r["__angle"] for r in self._text_marks(layer)}
         assert by_cat == {"A": 0.0, "B": 270.0, "C": 270.0}
 
     def test_per_cell_angle_sizes_the_row_from_its_tallest_cell(self):
-        upright = _multilabel_layer({"dose": ["-", "1", "2"]}, ML_CATS, rowAngle={"dose": [0, 0, 0]})
-        mixed = _multilabel_layer({"dose": ["-", "6.67", "2"]}, ML_CATS, rowAngle={"dose": [0, -90, 0]})
+        upright = _multilabel_layer({"dose": ["-", "1", "2"]}, ML_CATS, rowValueAngle={"dose": [0, 0, 0]})
+        mixed = _multilabel_layer({"dose": ["-", "6.67", "2"]}, ML_CATS, rowValueAngle={"dose": [0, -90, 0]})
         assert mixed._kwds["height"] > upright._kwds["height"]
 
     def test_per_cell_angle_wrong_length_raises(self):
-        with pytest.raises(ValueError, match=r"rowAngle\['dose'\] has 2 entries"):
-            _multilabel_layer({"dose": ["-", "1", "2"]}, ML_CATS, rowAngle={"dose": [0, -90]})
+        with pytest.raises(ValueError, match=r"rowValueAngle\['dose'\] has 2 entries"):
+            _multilabel_layer({"dose": ["-", "1", "2"]}, ML_CATS, rowValueAngle={"dose": [0, -90]})
 
 
 class TestPlaceholderMinus:
@@ -477,10 +504,10 @@ class TestSampleSizeRowInteraction:
     def test_row_angle_list_survives_the_injected_n_row(self):
         # Regression: the list is sized to the user's rows, but the n-row joins them before
         # _multilabel_layer sees them - so an unpinned list raised "2 entries but 3 rows".
-        assert self._angles(self._built(rowAngle=[0, -90])) == {"r1": 0.0, "r2": 270.0, "n =": 0.0}
+        assert self._angles(self._built(rowValueAngle=[0, -90])) == {"r1": 0.0, "r2": 270.0, "n =": 0.0}
 
     def test_row_angle_list_maps_correctly_with_a_trailing_n_row(self):
-        got = self._angles(self._built(rowAngle=[0, -90], sampleSizeIndex=2))
+        got = self._angles(self._built(rowValueAngle=[0, -90], sampleSizeIndex=2))
         assert got == {"r1": 0.0, "r2": 270.0, "n =": 0.0}
 
     def test_row_height_list_survives_the_injected_n_row(self):
@@ -490,5 +517,5 @@ class TestSampleSizeRowInteraction:
         assert table["height"] == 60.0
 
     def test_row_angle_list_length_is_still_checked(self):
-        with pytest.raises(ValueError, match="rowAngle list has 3 entries but there are 2 rows"):
-            self._built(rowAngle=[0, -90, 0])
+        with pytest.raises(ValueError, match="rowValueAngle list has 3 entries but there are 2 rows"):
+            self._built(rowValueAngle=[0, -90, 0])
