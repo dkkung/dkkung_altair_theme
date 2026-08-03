@@ -859,18 +859,19 @@ def add_multilabel(
         if df is None or xCol is None:
             raise ValueError("showSampleSize=True requires both 'df' and 'xCol'.")
         counts = count_n(df, xCol, categories)
-        # Pin a list to its row labels before the n-row joins groups, or the entries
+        # Pin each list to its row labels before the n-row joins groups, or the entries
         # shift by one. The basis is the DISPLAY order, matching how _multilabel_layer
         # zips a list, and the length is checked here because that check sees a dict.
-        raw_styles = kwargs.get("rowStyles")
-        if isinstance(raw_styles, list):
-            list_order = kwargs.get("order") or list(groups.keys())
-            if len(raw_styles) != len(list_order):
-                raise ValueError(f"rowStyles list has {len(raw_styles)} entries but there are {len(list_order)} rows.")
-            raw_styles = dict(zip(list_order, raw_styles))
+        list_order = kwargs.get("order") or list(groups.keys())
+        for key in ("rowStyles", "rowAngle", "rowHeight"):
+            raw = kwargs.get(key)
+            if isinstance(raw, list):
+                if len(raw) != len(list_order):
+                    raise ValueError(f"{key} list has {len(raw)} entries but there are {len(list_order)} rows.")
+                kwargs[key] = dict(zip(list_order, raw))
         # Explicitly force the n-row to text style regardless of the global
         # style setting (e.g. "symbol") — counts always render as plain text.
-        kwargs["rowStyles"] = {**(raw_styles or {}), sampleSizeLabel: "text"}
+        kwargs["rowStyles"] = {**(kwargs.get("rowStyles") or {}), sampleSizeLabel: "text"}
         items = list(groups.items())
         items.insert(sampleSizeIndex, (sampleSizeLabel, counts))
         groups = dict(items)

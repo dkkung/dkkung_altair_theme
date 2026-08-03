@@ -450,3 +450,45 @@ class TestPlaceholderMinus:
             if "__value" in r
         }
         assert values == {"A": "1-2", "B": "−", "C": "a-b-c"}
+
+
+class TestSampleSizeRowInteraction:
+    """add_multilabel injects the n-row into groups, which list-shaped kwargs must survive."""
+
+    C = ["A", "B", "C"]
+    GROUPS = {"r1": ["1", "2", "3"], "r2": ["10", "20", "30"]}
+
+    def _df(self):
+        return pl.DataFrame({"g": [c for c in self.C for _ in range(4)], "v": [float(i) for i in range(12)]})
+
+    def _angles(self, chart) -> dict[str, float]:
+        out: dict[str, float] = {}
+        for rows in chart.to_dict().get("datasets", {}).values():
+            for r in rows:
+                if "__angle" in r:
+                    out[r["__label"]] = r["__angle"]
+        return out
+
+    def _built(self, **kwargs):
+        df = self._df()
+        base = mark_strip(df, "g", "v", self.C)
+        return add_multilabel(base, self.GROUPS, categories=self.C, showSampleSize=True, df=df, xCol="g", **kwargs)
+
+    def test_row_angle_list_survives_the_injected_n_row(self):
+        # Regression: the list is sized to the user's rows, but the n-row joins them before
+        # _multilabel_layer sees them - so an unpinned list raised "2 entries but 3 rows".
+        assert self._angles(self._built(rowAngle=[0, -90])) == {"r1": 0.0, "r2": 270.0, "n =": 0.0}
+
+    def test_row_angle_list_maps_correctly_with_a_trailing_n_row(self):
+        got = self._angles(self._built(rowAngle=[0, -90], sampleSizeIndex=2))
+        assert got == {"r1": 0.0, "r2": 270.0, "n =": 0.0}
+
+    def test_row_height_list_survives_the_injected_n_row(self):
+        chart = self._built(rowHeight=[20, 30])
+        # 20 + 30 for the user's rows, plus the auto-sized 10px n-row.
+        table = chart.to_dict()["vconcat"][-1]
+        assert table["height"] == 60.0
+
+    def test_row_angle_list_length_is_still_checked(self):
+        with pytest.raises(ValueError, match="rowAngle list has 3 entries but there are 2 rows"):
+            self._built(rowAngle=[0, -90, 0])
