@@ -18,7 +18,7 @@ import zlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import altair as alt
 
@@ -646,6 +646,8 @@ class VerifyResult:
     computedDataChecksums: list[str]
     exportIdentifier: str | None
     timestamp: str | None
+    matches: dict[str, bool | None] | None = None
+    groups: dict[str, dict[str, int] | None] | None = None
 
     @property
     def ok(self) -> bool:
@@ -653,7 +655,56 @@ class VerifyResult:
         return self.specValid is not False and self.dataMatches is not False
 
 
-def verify(path: str, df: Any = None) -> VerifyResult:
+_COMPARE_KEYS = ("spec", "data", "save")
+
+
+def _identities(item: Any, index: int) -> tuple[str, dict[str, str | None]]:
+    """A label plus the three identities of one figure - a saved file or a chart in memory.
+
+    A file reports what it recorded at save time.  A chart is measured directly, and has no
+    ``save`` identity at all: it was never exported, so there is no export event to name.
+    """
+    from .utils import _hash_rows
+
+    if isinstance(item, (str, Path)):
+        prov = _read_dysonsphere_block(str(item)).get("provenance") or {}
+        stored = prov.get("dataChecksum")
+        return str(item), {
+            "spec": prov.get("vegaliteChecksum"),
+            "data": "|".join(sorted(stored)) if stored else None,
+            "save": prov.get("exportIdentifier"),
+        }
+    if not hasattr(item, "to_dict"):
+        raise TypeError(
+            f"Item {index} is a {type(item).__name__}; each figure must be a path to a dysonsphere "
+            f"export or an Altair chart."
+        )
+    spec = item.to_dict()
+    # save() strips the statistics markers before hashing, and their names carry a counter that
+    # increments per build - leaving them in would make two identical charts look different.
+    _strip_markers(spec)
+    frames = _user_datasets(spec)
+    return f"chart[{index}]", {
+        "spec": _spec_checksum({k: v for k, v in spec.items() if k != "usermeta"}),
+        "data": "|".join(sorted(_hash_rows(rows) for rows in frames.values())) or None,
+        "save": None,
+    }
+
+
+def _group_by_identity(labels: list[str], values: list[str | None]) -> dict[str, int] | None:
+    """Number each figure by shared identity - same number, same figure.
+
+    The numbers are assigned AFTER grouping on the full checksum, so two different figures can
+    never share one.  A truncated checksum would read better but could collide, showing two
+    different charts as identical.
+    """
+    if any(v is None for v in values):
+        return None
+    numbering: dict[str, int] = {}
+    return {label: numbering.setdefault(cast(str, value), len(numbering)) for label, value in zip(labels, values)}
+
+
+def verify(figure: Any, df: Any = None, what: str | tuple[str, ...] | list[str] = _COMPARE_KEYS) -> VerifyResult:
     """Check a saved figure against its own embedded checksums, and optionally against its data.
 
     Two independent questions, neither of which needs the original script:
@@ -666,17 +717,39 @@ def verify(path: str, df: Any = None) -> VerifyResult:
       the checksums travel in the metadata block, and it is order-independent in both senses:
       row order within a frame does not matter, nor does the order frames are passed in.
 
-    Because the checksums are content-derived, a figure that has lost its metadata entirely
-    (screenshotted, re-saved by another tool) can still be identified: verify an intact sibling
-    export, or compare ``frame_checksum(df)`` against a recorded value directly.
+    ``exportIdentifier`` is reported, never checked.  It is a random UUID per ``save()`` call, or
+    - under ``SOURCE_DATE_EPOCH`` - one derived from the figure's own content, in which case two
+    saves of identical inputs share it by design.  Compare it across two files to ask whether they
+    came from one save; compare ``vegaliteChecksum`` to ask whether they are the same chart.
+
+    A file whose metadata is gone - screenshotted, or re-saved by a tool that drops it - cannot
+    be checked at all: there is nothing to compare against, and this raises.  What survives is the
+    trail for the DATA, because these checksums are recomputed from content rather than minted per
+    file.  ``frame_checksum(df)`` returns the same value for the same rows forever, so a dataframe
+    can still be matched against an intact sibling export or a checksum recorded elsewhere.
+
+    Passing a **list** compares figures instead of checking one.  Each may be a saved file or a
+    chart still in memory, in any mix.  ``what`` selects the questions - ``"spec"`` (the same
+    chart, however it was exported), ``"data"`` (built from the same data), ``"save"`` (produced by
+    one ``save()`` call) - and defaults to all three.  ``matches`` says whether every figure agrees
+    on each; ``groups`` numbers them, so the same number means the same figure.  A chart in memory
+    has no ``save`` identity, so that question comes back ``None`` for the whole call.
+
+    Comparing reads what each file RECORDED, which is what lets a PNG be compared with a JSON -
+    but it means an edited file still compares as the chart it claims to be.  Checking one figure
+    on its own is what detects an edit; the two questions are deliberately separate.
 
     Parameters
     ----------
-    path:
-        A dysonsphere-exported ``.png``, ``.svg``, or ``.json``.
+    figure:
+        A dysonsphere-exported ``.png``, ``.svg``, or ``.json`` to check - or a list of figures
+        to compare, each a path or an Altair chart.
     df:
         Optional dataframe, or list of dataframes, that the figure should have been built from.
         Polars or pandas.  Omit to check only the spec.
+    what:
+        Which questions to ask when comparing a list: any of ``"spec"``, ``"data"``, ``"save"``.
+        Defaults to all three.  Ignored when checking a single figure.
 
     Returns
     -------
@@ -694,6 +767,47 @@ def verify(path: str, df: Any = None) -> VerifyResult:
     """
     from .utils import frame_checksum
 
+    if isinstance(figure, (list, tuple)):
+        if df is not None:
+            raise ValueError(
+                "df= checks one figure against its data; it does not apply when comparing a list. "
+                "Verify each figure separately, or drop df= to compare them with each other."
+            )
+        wanted = [what] if isinstance(what, str) else list(what)
+        unknown = [w for w in wanted if w not in _COMPARE_KEYS]
+        if unknown:
+            raise ValueError(f"what has unknown name(s) {unknown}. Choose from {list(_COMPARE_KEYS)}.")
+        if not wanted:
+            raise ValueError(f"what must name at least one of {list(_COMPARE_KEYS)}.")
+        if len(figure) < 2:
+            raise ValueError("Comparing needs at least two figures; pass one on its own to check it.")
+        pairs = [_identities(item, i) for i, item in enumerate(figure)]
+        # The same path can appear twice; the labels key a dict, so repeats would overwrite each
+        # other and the result would no longer describe the list that was passed.
+        seen_labels: dict[str, int] = {}
+        labels = []
+        for label, _ in pairs:
+            seen_labels[label] = seen_labels.get(label, 0) + 1
+            labels.append(label if seen_labels[label] == 1 else f"{label} #{seen_labels[label]}")
+        groups: dict[str, dict[str, int] | None] = {}
+        matches: dict[str, bool | None] = {}
+        for key in wanted:
+            grouped = _group_by_identity(labels, [ids[key] for _, ids in pairs])
+            groups[key] = grouped
+            matches[key] = None if grouped is None else len(set(grouped.values())) == 1
+        return VerifyResult(
+            path=", ".join(labels),
+            specValid=None,
+            dataMatches=None,
+            storedDataChecksums=[],
+            computedDataChecksums=[],
+            exportIdentifier=None,
+            timestamp=None,
+            matches=matches,
+            groups=groups,
+        )
+
+    path = figure
     block = _read_dysonsphere_block(path)
     prov = block.get("provenance") or {}
     stored = sorted(prov.get("dataChecksum") or [])
