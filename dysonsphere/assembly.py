@@ -17,8 +17,38 @@ __all__ = ["assemble"]
 _FIGURE_PREFIX = "__dsfigure_"
 _LABEL_NAME = f"{_FIGURE_PREFIX}label_"
 _BLANK_NAME = f"{_FIGURE_PREFIX}blank_"
-_label_counter = 0
-_blank_counter = 0
+# Placeholder names; the finished figure is renumbered in traversal order so two identical
+# figures get identical markers. A process-wide counter made them differ per call, which broke
+# the content checksum - and with it SOURCE_DATE_EPOCH reproducibility - for assembled figures.
+_PENDING = "pending"
+
+
+def _renumber_markers(chart: Any) -> None:
+    """Number every figure marker by position in the finished chart, depth-first.
+
+    Uniqueness is required (Vega rejects duplicate view names) and so is determinism, which a
+    process-wide counter cannot give. Traversal order supplies both, and renumbering at the end
+    also covers an ``assemble`` result nested inside another.
+    """
+    seen = {_LABEL_NAME: 0, _BLANK_NAME: 0}
+
+    def walk(node: Any) -> None:
+        kwds = getattr(node, "_kwds", None)
+        if kwds is None:
+            return
+        name = kwds.get("name")
+        if isinstance(name, str):
+            for prefix in (_LABEL_NAME, _BLANK_NAME):
+                if name.startswith(prefix):
+                    seen[prefix] += 1
+                    kwds["name"] = f"{prefix}{seen[prefix]}"
+                    break
+        for key in ("vconcat", "hconcat", "concat", "layer"):
+            for sub in kwds.get(key) or []:
+                walk(sub)
+
+    walk(chart)
+
 
 # A member is a builder, a builder with its size, or an already-built chart.
 _Member = Any
@@ -41,11 +71,9 @@ def _label(chart: _AltairChart, text: str, style: dict[str, Any]) -> _AltairChar
     pad = style["padding"]
     dx, dy = pad if isinstance(pad, tuple) else (pad, pad)
     color = {"color": style["color"]} if style["color"] is not None else {}
-    global _label_counter
-    _label_counter += 1
     return alt.vconcat(
         chart,
-        name=f"{_LABEL_NAME}{_label_counter}",
+        name=f"{_LABEL_NAME}{_PENDING}",
         title=alt.TitleParams(
             text=text,
             anchor="start",
@@ -95,12 +123,8 @@ def _blank() -> _AltairChart:
         strokeWidth=_opt("axisWidth"),
         strokeDash=[0, 0],  # solid - config.rule's dash must not reach it
     )
-    global _blank_counter
-    _blank_counter += 1
     return (
-        alt.Chart(_internal_data([{}]))
-        .mark_point(opacity=0)
-        .properties(view=outline, name=f"{_BLANK_NAME}{_blank_counter}")
+        alt.Chart(_internal_data([{}])).mark_point(opacity=0).properties(view=outline, name=f"{_BLANK_NAME}{_PENDING}")
     )
 
 
@@ -250,6 +274,10 @@ def assemble(
         # hconcat defaults its legends to shared and DROPS them outright when the panels'
         # colour scales cannot merge; resolving makes each keep its own.
         built.append(alt.hconcat(*charts, **_spacing_kwargs(column_gap)).resolve_scale(color="independent"))
-    if len(built) == 1:
-        return built[0]
-    return alt.vconcat(*built, **_spacing_kwargs(row_gap)).resolve_scale(color="independent")
+    result = (
+        built[0]
+        if len(built) == 1
+        else alt.vconcat(*built, **_spacing_kwargs(row_gap)).resolve_scale(color="independent")
+    )
+    _renumber_markers(result)
+    return result

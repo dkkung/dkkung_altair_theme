@@ -380,3 +380,65 @@ class TestAssembleErrors:
         theme()
         with pytest.raises(ValueError, match="row.*column"):
             assemble([(_chart, 60, 40)], spacing={"vertical": 10})
+
+
+class TestMarkerDeterminism:
+    """Two identical figures must produce identical markers - a process-wide counter did not."""
+
+    def _figure(self, blank=False):
+        df = pl.DataFrame({"g": ["A", "B"], "v": [1.0, 2.0]})
+        bar = lambda: alt.Chart(df).mark_bar().encode(x="g:N", y="v:Q")  # noqa: E731
+        row = [(bar, 120, 90, "a"), None if blank else (bar, 120, 90, "b")]
+        return assemble([row])
+
+    def _markers(self, chart):
+        found: list[str] = []
+
+        def walk(node):
+            if isinstance(node, dict):
+                name = node.get("name")
+                if isinstance(name, str) and name.startswith("__dsfigure_"):
+                    found.append(name)
+                for value in node.values():
+                    walk(value)
+            elif isinstance(node, list):
+                for value in node:
+                    walk(value)
+
+        walk(chart.to_dict())
+        return found
+
+    def test_identical_figures_get_identical_markers(self):
+        # The counter used to run process-wide, so the second call emitted label_3/label_4 for
+        # the same figure - changing its spec, its checksum, and its exported bytes.
+        assert self._markers(self._figure()) == self._markers(self._figure())
+
+    def test_repeated_builds_are_byte_identical_when_pinned(self, tmp_path, monkeypatch):
+        # SOURCE_DATE_EPOCH promises repeated saves of an unchanged figure are byte-identical.
+        # Assembled figures broke that promise.
+        import dysonsphere as ds
+
+        monkeypatch.setenv("SOURCE_DATE_EPOCH", "1700000000")
+        ds.save(self._figure(), str(tmp_path / "r1"), format="json", background=["light"])
+        ds.save(self._figure(), str(tmp_path / "r2"), format="json", background=["light"])
+        assert (tmp_path / "r1.json").read_text() == (tmp_path / "r2.json").read_text()
+
+    def test_markers_stay_unique_within_one_figure(self):
+        # Uniqueness is not cosmetic: Vega rejects duplicate view names outright.
+        import vl_convert as vlc
+
+        chart = self._figure(blank=True)
+        markers = self._markers(chart)
+        assert markers and len(markers) == len(set(markers))
+        vlc.vegalite_to_svg(chart.to_dict())  # raises if Vega rejects the names
+
+    def test_a_nested_figure_is_renumbered_by_the_outer_call(self):
+        # Renumbering happens on the finished figure, so an assemble() result nested inside
+        # another cannot collide with the outer figure's own markers.
+        df = pl.DataFrame({"g": ["A", "B"], "v": [1.0, 2.0]})
+        bar = lambda: alt.Chart(df).mark_bar().encode(x="g:N", y="v:Q")  # noqa: E731
+        inner = assemble([[(bar, 100, 80, "x"), (bar, 100, 80, "y")]])
+        outer = assemble([[inner, (bar, 100, 80, "z")]])
+        markers = self._markers(outer)
+        assert len(markers) == 3
+        assert len(set(markers)) == 3, "nested markers must not collide with the outer figure's"
