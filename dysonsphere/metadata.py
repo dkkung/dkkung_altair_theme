@@ -637,9 +637,12 @@ class VerifyResult:
     and ``None`` when it could not run at all.  A check that was impossible is not a failure -
     an SVG or PNG carries no spec to re-hash, so ``specValid`` is ``None`` there, and
     ``dataMatches`` is ``None`` when no dataframe was supplied to compare against.
+
+    Checking one figure fills ``path``/``specValid``/``dataMatches``; comparing a list fills
+    ``matches``/``groups`` instead, and leaves ``path`` ``None`` since there is no single file.
     """
 
-    path: str
+    path: str | None
     specValid: bool | None
     dataMatches: bool | None
     storedDataChecksums: list[str]
@@ -796,7 +799,7 @@ def verify(figure: Any, df: Any = None, what: str | tuple[str, ...] | list[str] 
             groups[key] = grouped
             matches[key] = None if grouped is None else len(set(grouped.values())) == 1
         return VerifyResult(
-            path=", ".join(labels),
+            path=None,  # a comparison has no single path; the labels live in groups/matches
             specValid=None,
             dataMatches=None,
             storedDataChecksums=[],

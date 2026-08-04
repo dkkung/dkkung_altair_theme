@@ -1304,3 +1304,11 @@ class TestVerifyCompare:
         r = ds.verify(str(saved / "f1.json"), df=frames[0])
         assert r.ok and r.specValid is True and r.dataMatches is True
         assert r.matches is None and r.groups is None
+
+    def test_path_is_the_file_when_checking_and_none_when_comparing(self, saved):
+        # `path` names the single file that was checked; a comparison has no single file, so it
+        # is None rather than a joined string of every label.
+        import dysonsphere as ds
+
+        assert ds.verify(str(saved / "f1.json")).path == str(saved / "f1.json")
+        assert ds.verify([str(saved / "f1.json"), str(saved / "f2.json")]).path is None
