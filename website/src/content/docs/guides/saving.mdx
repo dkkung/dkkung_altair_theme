@@ -312,6 +312,18 @@ spec  = ds.load("figure.json", raw=True)  # the untouched Vega-Lite spec dict
 `load()` is JSON-only (it needs the full spec) and re-applies the baked theme so the reconstructed
 chart renders identically.
 
+The rebuilt Altair object carries **no metadata**: `load()` strips `usermeta` along with `config`,
+because Altair's schema rejects some of the theme's config values. So loading a figure and then
+checking it does not work - there are no checksums left on the object to check. Verify the file
+itself, which is what `ds.verify()` expects anyway:
+
+```python
+ds.verify("figure.json", df=df)                    # yes - reads the file
+ds.verify(ds.load("figure.json"))                  # no - the object has no metadata
+```
+
+`ds.load("figure.json", raw=True)` does keep `usermeta`, since it returns the spec untouched.
+
 ## Statistics without a file
 
 `add_comparisons()` and `add_correlation()` can surface their report directly:
