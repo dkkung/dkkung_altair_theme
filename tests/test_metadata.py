@@ -1231,6 +1231,35 @@ class TestVerifyCompare:
         # and a genuinely different chart is still reported as different
         assert spec_matches([built(), ds.mark_strip(df, "g", "v", cats)]) is False
 
+    def test_duplicate_paths_stay_distinct(self, saved):
+        # groups is keyed by label, so the same path twice would overwrite itself and the result
+        # would no longer describe the list that was passed.
+        import dysonsphere as ds
+
+        one = str(saved / "f1.json")
+        r = ds.verify([one, one, str(saved / "f3.json")], what="spec")
+        assert r.groups is not None and r.groups["spec"] is not None
+        assert len(r.groups["spec"]) == 3, "three items in, three entries out"
+
+    def test_comparing_reads_recorded_values_not_the_file_contents(self, saved, frames):
+        # Comparing a PNG with a JSON is only possible because it reads what each file recorded.
+        # The cost is that an edited file still compares as the chart it claims to be - checking
+        # one figure on its own is what catches that.
+        import json
+
+        import dysonsphere as ds
+
+        original = saved / "f1.json"
+        spec = json.loads(original.read_text())
+        spec["mark"] = "point"
+        edited = saved / "edited.json"
+        edited.write_text(json.dumps(spec))
+
+        assert ds.verify(str(edited), df=frames[0]).specValid is False, "the edit is detectable"
+        r = ds.verify([str(original), str(edited)], what="spec")
+        assert r.matches is not None
+        assert r.matches["spec"] is True, "but comparing trusts the recorded identity"
+
     def test_rejects_a_dataframe_when_comparing(self, saved, frames):
         # df= checks one figure against its data; silently ignoring it while comparing a list
         # would answer a question the caller did not ask.

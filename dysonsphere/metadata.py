@@ -732,8 +732,12 @@ def verify(figure: Any, df: Any = None, what: str | tuple[str, ...] | list[str] 
     chart still in memory, in any mix.  ``what`` selects the questions - ``"spec"`` (the same
     chart, however it was exported), ``"data"`` (built from the same data), ``"save"`` (produced by
     one ``save()`` call) - and defaults to all three.  ``matches`` says whether every figure agrees
-    on each; ``groups`` shows which of them cluster together when they do not.  A chart in memory
+    on each; ``groups`` numbers them, so the same number means the same figure.  A chart in memory
     has no ``save`` identity, so that question comes back ``None`` for the whole call.
+
+    Comparing reads what each file RECORDED, which is what lets a PNG be compared with a JSON -
+    but it means an edited file still compares as the chart it claims to be.  Checking one figure
+    on its own is what detects an edit; the two questions are deliberately separate.
 
     Parameters
     ----------
@@ -778,7 +782,13 @@ def verify(figure: Any, df: Any = None, what: str | tuple[str, ...] | list[str] 
         if len(figure) < 2:
             raise ValueError("Comparing needs at least two figures; pass one on its own to check it.")
         pairs = [_identities(item, i) for i, item in enumerate(figure)]
-        labels = [label for label, _ in pairs]
+        # The same path can appear twice; the labels key a dict, so repeats would overwrite each
+        # other and the result would no longer describe the list that was passed.
+        seen_labels: dict[str, int] = {}
+        labels = []
+        for label, _ in pairs:
+            seen_labels[label] = seen_labels.get(label, 0) + 1
+            labels.append(label if seen_labels[label] == 1 else f"{label} #{seen_labels[label]}")
         groups: dict[str, dict[str, int] | None] = {}
         matches: dict[str, bool | None] = {}
         for key in wanted:
