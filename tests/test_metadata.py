@@ -1202,6 +1202,35 @@ class TestVerifyCompare:
             by_number.setdefault(number, set()).add(label)
         assert by_number[r.groups["spec"][str(saved / "f3.json")]] == {str(saved / "f3.json")}
 
+    def test_statistics_markers_do_not_make_identical_charts_differ(self, tmp_path):
+        # add_comparisons tags its layer with a marker whose name carries a counter that
+        # increments per build. save() strips markers before hashing, so an in-memory chart has
+        # to as well - otherwise two identical charts, and a chart against its own export, differ.
+        import numpy as np
+
+        import dysonsphere as ds
+
+        rng = np.random.default_rng(0)
+        cats = ["A", "B"]
+        df = pl.DataFrame({"g": [c for c in cats for _ in range(8)], "v": rng.normal(0, 1, 16).tolist()})
+
+        def built():
+            return ds.mark_strip(df, "g", "v", cats) + ds.add_comparisons(
+                df, "g", "v", pairs=[("A", "B")], test="ttest_ind"
+            )
+
+        ds.save(built(), str(tmp_path / "s"), format="json", background=["light"])
+
+        def spec_matches(items):
+            matches = ds.verify(items, what="spec").matches
+            assert matches is not None
+            return matches["spec"]
+
+        assert spec_matches([built(), built()]) is True
+        assert spec_matches([str(tmp_path / "s.json"), built()]) is True
+        # and a genuinely different chart is still reported as different
+        assert spec_matches([built(), ds.mark_strip(df, "g", "v", cats)]) is False
+
     def test_rejects_a_dataframe_when_comparing(self, saved, frames):
         # df= checks one figure against its data; silently ignoring it while comparing a list
         # would answer a question the caller did not ask.

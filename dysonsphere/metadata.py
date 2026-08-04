@@ -680,6 +680,9 @@ def _identities(item: Any, index: int) -> tuple[str, dict[str, str | None]]:
             f"export or an Altair chart."
         )
     spec = item.to_dict()
+    # save() strips the statistics markers before hashing, and their names carry a counter that
+    # increments per build - leaving them in would make two identical charts look different.
+    _strip_markers(spec)
     frames = _user_datasets(spec)
     return f"chart[{index}]", {
         "spec": _spec_checksum({k: v for k, v in spec.items() if k != "usermeta"}),
