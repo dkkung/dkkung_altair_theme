@@ -4,7 +4,7 @@
 
 ### New features
 
-- **`ds.verify(path, against=other)`** compares two exports, reporting `sameChart` (identical charts, however each was exported), `sameSave` (both produced by one `ds.save()` call), and `sameData`. It reads the checksums each file recorded, so any combination of formats works - a PNG against an SVG, say. The comparison never affects `.ok`, since two files differing is not a failure of either one.
+- **`ds.verify()` compares figures when given a list.** `ds.verify([a, b, c])` reports whether they are the same chart, built from the same data, and produced by one `ds.save()` call - and when they are not, which of them group together. Items may be saved files in any format or Altair charts still in memory; a chart has no save identity, so that question comes back `None`. `what=` narrows it to the questions you want. Checking a single figure is unchanged.
 
 - **`add_multilabel(rowValueAngle=)`** rotates a condition-table row's values - `rowValueAngle={"dose": -90}` stands a row of numeric values on end so long values fit under narrow categories. Takes a single angle for every row, a dict keyed by row label, or a list in row order. A row's own angle may be a list too, one per x-axis category, to rotate only some cells - `rowValueAngle={"dose": [0, 0, -90, -90, -90]}` stands the doses on end while leaving the untreated controls' `-` placeholders upright. Applies in every row style, rotating a `symbol` row's marks as readily as a text row's characters, though the default circle looks the same at any angle. Values rotate about their own center, so they stay centered on their category, and a rotated row grows to fit its tallest rotated cell automatically. `rowHeight` now accepts a dict or list too, to pin heights per row.
 

@@ -1129,73 +1129,90 @@ class TestVerify:
             ds.verify(str(tmp_path / "plain.json"))
 
 
-class TestVerifyAgainst:
-    """`verify(against=)` compares two exports instead of one file with its own data."""
+class TestVerifyCompare:
+    """A list of figures is compared instead of checked; same number means same figure."""
 
     @pytest.fixture
-    def bar(self):
-        df = pl.DataFrame({"x": ["A", "B", "C"], "y": [1.0, 2.0, 3.0]})
-        return alt.Chart(df).mark_bar().encode(x="x:N", y="y:Q"), df
+    def frames(self):
+        return (
+            pl.DataFrame({"x": ["A", "B", "C"], "y": [1.0, 2.0, 3.0]}),
+            pl.DataFrame({"x": ["A", "B", "C"], "y": [9.0, 8.0, 7.0]}),
+        )
+
+    def _bar(self, df):
+        return alt.Chart(df).mark_bar().encode(x="x:N", y="y:Q")
 
     @pytest.fixture
-    def point(self):
-        df = pl.DataFrame({"x": ["A", "B", "C"], "y": [1.0, 2.0, 3.0]})
-        return alt.Chart(df).mark_point().encode(x="x:N", y="y:Q"), df
-
-    def test_same_save_compares_across_formats(self, bar, tmp_path):
-        # The checksums are recorded in all three formats, so a PNG compares with an SVG.
+    def saved(self, frames, tmp_path):
         import dysonsphere as ds
 
-        chart, _ = bar
-        ds.save(chart, str(tmp_path / "a"), format=["json", "svg", "png"], background=["light"])
-        for one, two in (("a.json", "a.png"), ("a.svg", "a.png"), ("a.json", "a.svg")):
-            r = ds.verify(str(tmp_path / one), against=str(tmp_path / two))
-            assert (r.sameChart, r.sameSave, r.sameData) == (True, True, True), f"{one} vs {two}"
+        a, b = frames
+        ds.save(self._bar(a), str(tmp_path / "f1"), format=["json", "png"], background=["light"])
+        ds.save(self._bar(a), str(tmp_path / "f2"), format="json", background=["light"])
+        ds.save(self._bar(b), str(tmp_path / "f3"), format="json", background=["light"])
+        return tmp_path
 
-    def test_same_chart_re_saved_is_a_different_save(self, bar, tmp_path):
-        # The distinction that makes three fields worth having rather than one bool.
+    def test_groups_figures_that_share_an_identity(self, saved):
         import dysonsphere as ds
 
-        chart, _ = bar
-        ds.save(chart, str(tmp_path / "a"), format="json", background=["light"])
-        ds.save(chart, str(tmp_path / "b"), format="json", background=["light"])
-        r = ds.verify(str(tmp_path / "a.json"), against=str(tmp_path / "b.json"))
-        assert r.sameChart is True
-        assert r.sameSave is False
-        assert r.sameData is True
+        r = ds.verify([str(saved / "f1.json"), str(saved / "f2.json"), str(saved / "f3.json")])
+        assert r.groups is not None and r.matches is not None
+        by_dim = {k: v for k, v in r.groups.items() if v is not None}
+        assert set(by_dim) == {"spec", "data", "save"}
+        spec = list(by_dim["spec"].values())
+        assert spec[0] == spec[1] != spec[2], "f1 and f2 are the same chart, f3 is not"
+        assert list(by_dim["data"].values()) == spec
+        assert len(set(by_dim["save"].values())) == 3, "three separate saves"
+        assert r.matches == {"spec": False, "data": False, "save": False}
 
-    def test_different_chart_same_data(self, bar, point, tmp_path):
+    def test_all_matching_reports_true(self, saved):
+        # One save written to two formats agrees on everything.
         import dysonsphere as ds
 
-        ds.save(bar[0], str(tmp_path / "a"), format="json", background=["light"])
-        ds.save(point[0], str(tmp_path / "b"), format="json", background=["light"])
-        r = ds.verify(str(tmp_path / "a.json"), against=str(tmp_path / "b.json"))
-        assert r.sameChart is False
-        assert r.sameData is True
+        r = ds.verify([str(saved / "f1.json"), str(saved / "f1.png")])
+        assert r.matches == {"spec": True, "data": True, "save": True}
 
-    def test_none_without_against(self, bar, tmp_path):
+    def test_a_chart_in_memory_has_no_save_identity(self, saved, frames):
         import dysonsphere as ds
 
-        chart, df = bar
-        ds.save(chart, str(tmp_path / "a"), format="json", background=["light"])
-        r = ds.verify(str(tmp_path / "a.json"), df=df)
-        assert (r.sameChart, r.sameSave, r.sameData) == (None, None, None)
-        assert r.ok is True
+        r = ds.verify([str(saved / "f1.json"), self._bar(frames[0])])
+        assert r.groups is not None and r.matches is not None
+        assert r.matches["spec"] is True
+        assert r.matches["data"] is True
+        assert r.matches["save"] is None, "a chart was never exported"
+        assert r.groups["save"] is None
 
-    def test_comparison_never_affects_ok(self, bar, point, tmp_path):
-        # Two different figures are not a failure of either one.
+    def test_what_selects_the_questions(self, saved):
         import dysonsphere as ds
 
-        ds.save(bar[0], str(tmp_path / "a"), format="json", background=["light"])
-        ds.save(point[0], str(tmp_path / "b"), format="json", background=["light"])
-        r = ds.verify(str(tmp_path / "a.json"), df=bar[1], against=str(tmp_path / "b.json"))
-        assert r.sameChart is False
-        assert r.ok is True
+        r = ds.verify([str(saved / "f1.json"), str(saved / "f3.json")], what="data")
+        assert r.matches is not None
+        assert set(r.matches) == {"data"}
+        assert r.matches["data"] is False
 
-    def test_other_file_without_metadata_raises(self, bar, tmp_path):
+    def test_group_numbers_never_collide(self, saved):
+        # Numbers are assigned after grouping on the full checksum, so two different figures
+        # cannot share one however short the labels look.
         import dysonsphere as ds
 
-        ds.save(bar[0], str(tmp_path / "a"), format="json", background=["light"])
-        (tmp_path / "plain.json").write_text('{"mark":"bar"}')
-        with pytest.raises(ValueError, match="no dysonsphere metadata"):
-            ds.verify(str(tmp_path / "a.json"), against=str(tmp_path / "plain.json"))
+        r = ds.verify([str(saved / "f1.json"), str(saved / "f2.json"), str(saved / "f3.json")])
+        assert r.groups is not None and r.groups["spec"] is not None
+        by_number: dict[int, set[str]] = {}
+        for label, number in r.groups["spec"].items():
+            by_number.setdefault(number, set()).add(label)
+        assert by_number[r.groups["spec"][str(saved / "f3.json")]] == {str(saved / "f3.json")}
+
+    def test_rejects_a_single_item_and_a_bad_question(self, saved):
+        import dysonsphere as ds
+
+        with pytest.raises(ValueError, match="at least two figures"):
+            ds.verify([str(saved / "f1.json")])
+        with pytest.raises(ValueError, match="unknown name"):
+            ds.verify([str(saved / "f1.json"), str(saved / "f2.json")], what="colour")
+
+    def test_checking_one_figure_still_works(self, saved, frames):
+        import dysonsphere as ds
+
+        r = ds.verify(str(saved / "f1.json"), df=frames[0])
+        assert r.ok and r.specValid is True and r.dataMatches is True
+        assert r.matches is None and r.groups is None

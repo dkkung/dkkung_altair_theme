@@ -18,7 +18,7 @@ import zlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import altair as alt
 
@@ -646,9 +646,8 @@ class VerifyResult:
     computedDataChecksums: list[str]
     exportIdentifier: str | None
     timestamp: str | None
-    sameChart: bool | None = None
-    sameSave: bool | None = None
-    sameData: bool | None = None
+    matches: dict[str, bool | None] | None = None
+    groups: dict[str, dict[str, int] | None] | None = None
 
     @property
     def ok(self) -> bool:
@@ -656,13 +655,48 @@ class VerifyResult:
         return self.specValid is not False and self.dataMatches is not False
 
 
-def _both(a: dict[str, Any], b: dict[str, Any], key: str) -> bool | None:
-    """Compare one provenance field across two files; ``None`` when either lacks it."""
-    x, y = a.get(key), b.get(key)
-    return None if x is None or y is None else x == y
+_COMPARE_KEYS = ("spec", "data", "save")
 
 
-def verify(path: str, df: Any = None, against: str | None = None) -> VerifyResult:
+def _identities(item: Any, index: int) -> tuple[str, dict[str, str | None]]:
+    """A label plus the three identities of one figure - a saved file or a chart in memory.
+
+    A file reports what it recorded at save time.  A chart is measured directly, and has no
+    ``save`` identity at all: it was never exported, so there is no export event to name.
+    """
+    from .utils import _hash_rows
+
+    if isinstance(item, (str, Path)):
+        prov = _read_dysonsphere_block(str(item)).get("provenance") or {}
+        stored = prov.get("dataChecksum")
+        return str(item), {
+            "spec": prov.get("vegaliteChecksum"),
+            "data": "|".join(sorted(stored)) if stored else None,
+            "save": prov.get("exportIdentifier"),
+        }
+    spec = item.to_dict()
+    frames = _user_datasets(spec)
+    return f"chart[{index}]", {
+        "spec": _spec_checksum({k: v for k, v in spec.items() if k != "usermeta"}),
+        "data": "|".join(sorted(_hash_rows(rows) for rows in frames.values())) or None,
+        "save": None,
+    }
+
+
+def _group_by_identity(labels: list[str], values: list[str | None]) -> dict[str, int] | None:
+    """Number each figure by shared identity - same number, same figure.
+
+    The numbers are assigned AFTER grouping on the full checksum, so two different figures can
+    never share one.  A truncated checksum would read better but could collide, showing two
+    different charts as identical.
+    """
+    if any(v is None for v in values):
+        return None
+    numbering: dict[str, int] = {}
+    return {label: numbering.setdefault(cast(str, value), len(numbering)) for label, value in zip(labels, values)}
+
+
+def verify(figure: Any, df: Any = None, what: str | tuple[str, ...] | list[str] = _COMPARE_KEYS) -> VerifyResult:
     """Check a saved figure against its own embedded checksums, and optionally against its data.
 
     Two independent questions, neither of which needs the original script:
@@ -686,25 +720,24 @@ def verify(path: str, df: Any = None, against: str | None = None) -> VerifyResul
     file.  ``frame_checksum(df)`` returns the same value for the same rows forever, so a dataframe
     can still be matched against an intact sibling export or a checksum recorded elsewhere.
 
-    A third question needs a second file rather than the data.  ``against`` compares the two,
-    reporting ``sameChart`` (identical ``vegaliteChecksum`` - the same chart however it was
-    exported), ``sameSave`` (identical ``exportIdentifier`` - both produced by one ``save()``
-    call), and ``sameData``.  Comparison reads the values each file RECORDED, so it works across
-    formats: a PNG can be compared with an SVG or a JSON.  Reach for ``sameChart`` first - two
-    saves of an identical chart share it but get different identifiers, so ``sameSave`` alone
-    reports "different" for a figure that was merely re-exported.  These three never affect
-    ``ok``: two files legitimately differing is not a failure of either one.
+    Passing a **list** compares figures instead of checking one.  Each may be a saved file or a
+    chart still in memory, in any mix.  ``what`` selects the questions - ``"spec"`` (the same
+    chart, however it was exported), ``"data"`` (built from the same data), ``"save"`` (produced by
+    one ``save()`` call) - and defaults to all three.  ``matches`` says whether every figure agrees
+    on each; ``groups`` shows which of them cluster together when they do not.  A chart in memory
+    has no ``save`` identity, so that question comes back ``None`` for the whole call.
 
     Parameters
     ----------
-    path:
-        A dysonsphere-exported ``.png``, ``.svg``, or ``.json``.
+    figure:
+        A dysonsphere-exported ``.png``, ``.svg``, or ``.json`` to check - or a list of figures
+        to compare, each a path or an Altair chart.
     df:
         Optional dataframe, or list of dataframes, that the figure should have been built from.
         Polars or pandas.  Omit to check only the spec.
-    against:
-        Optional path to a second dysonsphere export to compare this one with.  Any combination
-        of formats.  Omit to leave ``sameChart``/``sameSave``/``sameData`` as ``None``.
+    what:
+        Which questions to ask when comparing a list: any of ``"spec"``, ``"data"``, ``"save"``.
+        Defaults to all three.  Ignored when checking a single figure.
 
     Returns
     -------
@@ -722,6 +755,34 @@ def verify(path: str, df: Any = None, against: str | None = None) -> VerifyResul
     """
     from .utils import frame_checksum
 
+    if isinstance(figure, (list, tuple)):
+        wanted = [what] if isinstance(what, str) else list(what)
+        unknown = [w for w in wanted if w not in _COMPARE_KEYS]
+        if unknown:
+            raise ValueError(f"what has unknown name(s) {unknown}. Choose from {list(_COMPARE_KEYS)}.")
+        if len(figure) < 2:
+            raise ValueError("Comparing needs at least two figures; pass one on its own to check it.")
+        pairs = [_identities(item, i) for i, item in enumerate(figure)]
+        labels = [label for label, _ in pairs]
+        groups: dict[str, dict[str, int] | None] = {}
+        matches: dict[str, bool | None] = {}
+        for key in wanted:
+            grouped = _group_by_identity(labels, [ids[key] for _, ids in pairs])
+            groups[key] = grouped
+            matches[key] = None if grouped is None else len(set(grouped.values())) == 1
+        return VerifyResult(
+            path=", ".join(labels),
+            specValid=None,
+            dataMatches=None,
+            storedDataChecksums=[],
+            computedDataChecksums=[],
+            exportIdentifier=None,
+            timestamp=None,
+            matches=matches,
+            groups=groups,
+        )
+
+    path = figure
     block = _read_dysonsphere_block(path)
     prov = block.get("provenance") or {}
     stored = sorted(prov.get("dataChecksum") or [])
@@ -741,16 +802,6 @@ def verify(path: str, df: Any = None, against: str | None = None) -> VerifyResul
         computed = sorted(frame_checksum(f) for f in frames)
         data_matches = computed == stored
 
-    # Comparison reads what each file RECORDED, so it works across formats - an SVG carries the
-    # checksums even though it cannot re-hash its own spec.
-    same_chart = same_save = same_data = None
-    if against is not None:
-        other = _read_dysonsphere_block(against).get("provenance") or {}
-        same_chart = _both(prov, other, "vegaliteChecksum")
-        same_save = _both(prov, other, "exportIdentifier")
-        a_data, b_data = prov.get("dataChecksum"), other.get("dataChecksum")
-        same_data = None if a_data is None or b_data is None else sorted(a_data) == sorted(b_data)
-
     return VerifyResult(
         path=str(path),
         specValid=spec_valid,
@@ -759,7 +810,4 @@ def verify(path: str, df: Any = None, against: str | None = None) -> VerifyResul
         computedDataChecksums=computed,
         exportIdentifier=prov.get("exportIdentifier"),
         timestamp=prov.get("timestamp"),
-        sameChart=same_chart,
-        sameSave=same_save,
-        sameData=same_data,
     )
