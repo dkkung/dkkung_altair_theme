@@ -226,6 +226,7 @@ VerifyResult(
 | `computedDataChecksums` | what your frames hash to now - the two differ only when `dataMatches` is `False` |
 | `exportIdentifier` | the `ds.save()` call that produced the file; every format and background of one save shares it |
 | `timestamp` | when that save ran |
+| `matches` / `groups` | filled only when comparing a list - see below |
 | `.ok` | every check that actually ran passed |
 
 Both checks are tri-state: `None` means the check could not run, which is not a failure - SVG and
@@ -258,19 +259,39 @@ Three fields in `provenance` look interchangeable and are not:
 | Did these files come from one `ds.save()` call? | `exportIdentifier` - shared by every format and background of one save |
 | Is this the same underlying data? | `dataChecksum` - unchanged by restyling the chart |
 
-Comparing two figures is a `ds.read()` one-liner:
+## Comparing figures
+
+Hand `ds.verify()` a list and it compares them instead of checking one:
 
 ```python
-a = ds.read("one.png", what="metadata")["provenance"]
-b = ds.read("two.png", what="metadata")["provenance"]
-
-a["vegaliteChecksum"] == b["vegaliteChecksum"]   # same chart?
-a["exportIdentifier"] == b["exportIdentifier"]   # same save?
+ds.verify(["fig1.json", "fig2.png", "fig3.svg"])
 ```
 
-Reach for `vegaliteChecksum` first. Two saves of an identical chart share it but get *different*
-export identifiers, so comparing identifiers alone reports "different" for a figure that was simply
-re-exported.
+```python
+matches   {"spec": False, "data": True,  "save": False}
+groups    {"spec": {"fig1.json": 0, "fig2.png": 0, "fig3.svg": 1},
+           "data": {"fig1.json": 0, "fig2.png": 0, "fig3.svg": 0},
+           "save": {"fig1.json": 0, "fig2.png": 1, "fig3.svg": 2}}
+```
+
+`matches` is the quick answer - do they all agree. `groups` numbers them when they do not, and
+**the same number means the same figure**: above, the first two are the same chart, all three were
+built from the same data, and each came from its own save.
+
+Items may be saved files in any format, or Altair charts you have not saved yet - so
+`ds.verify(["published.json", chart])` asks whether the figure your script builds today still
+matches the one you published. A chart in memory has no export identity, so `"save"` comes back
+`None` for the whole call. `what=` narrows it: `what="data"` asks only about the data.
+
+Reach for `"spec"` first when you want "is this the same chart". Two saves of an identical chart
+agree on it but get *different* export identifiers, so `"save"` alone reports a difference for a
+figure that was merely re-exported.
+
+:::note
+Comparing reads what each file *recorded*, which is what lets a PNG be compared with a JSON - a PNG
+carries no spec to re-hash. The cost is that an edited file still compares as the chart it claims
+to be; checking a figure on its own is what detects an edit.
+:::
 
 ## Reproducible exports
 

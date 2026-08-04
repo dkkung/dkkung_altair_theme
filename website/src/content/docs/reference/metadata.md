@@ -32,7 +32,11 @@ Read back the metadata (or data) embedded by :func:`save` from a PNG, SVG, or JS
 ## `verify`
 
 ```python
-def verify(path: str, df: Any = None) -> VerifyResult: ...
+def verify(
+    figure: Any,
+    df: Any = None,
+    what: str | tuple[str, ...] | list[str] = _COMPARE_KEYS,
+) -> VerifyResult: ...
 ```
 
 Check a saved figure against its own embedded checksums, and optionally against its data.
@@ -58,10 +62,22 @@ trail for the DATA, because these checksums are recomputed from content rather t
 file.  ``frame_checksum(df)`` returns the same value for the same rows forever, so a dataframe
 can still be matched against an intact sibling export or a checksum recorded elsewhere.
 
+Passing a **list** compares figures instead of checking one.  Each may be a saved file or a
+chart still in memory, in any mix.  ``what`` selects the questions - ``"spec"`` (the same
+chart, however it was exported), ``"data"`` (built from the same data), ``"save"`` (produced by
+one ``save()`` call) - and defaults to all three.  ``matches`` says whether every figure agrees
+on each; ``groups`` numbers them, so the same number means the same figure.  A chart in memory
+has no ``save`` identity, so that question comes back ``None`` for the whole call.
+
+Comparing reads what each file RECORDED, which is what lets a PNG be compared with a JSON -
+but it means an edited file still compares as the chart it claims to be.  Checking one figure
+on its own is what detects an edit; the two questions are deliberately separate.
+
 **Parameters**
 
-- **`path`** (`str`) - A dysonsphere-exported ``.png``, ``.svg``, or ``.json``.
+- **`figure`** (`Any`) - A dysonsphere-exported ``.png``, ``.svg``, or ``.json`` to check - or a list of figures to compare, each a path or an Altair chart.
 - **`df`** (`Any`) - Optional dataframe, or list of dataframes, that the figure should have been built from. Polars or pandas. Omit to check only the spec.
+- **`what`** (`str | tuple[str, ...] | list[str]`) - Which questions to ask when comparing a list: any of ``"spec"``, ``"data"``, ``"save"``. Defaults to all three. Ignored when checking a single figure.
 
 **Returns**
 
