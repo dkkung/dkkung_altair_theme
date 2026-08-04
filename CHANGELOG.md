@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [3.11.0] - 2026-08-04
 
 ### New features
 
