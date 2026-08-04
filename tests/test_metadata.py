@@ -1202,6 +1202,36 @@ class TestVerifyCompare:
             by_number.setdefault(number, set()).add(label)
         assert by_number[r.groups["spec"][str(saved / "f3.json")]] == {str(saved / "f3.json")}
 
+    def test_rejects_a_dataframe_when_comparing(self, saved, frames):
+        # df= checks one figure against its data; silently ignoring it while comparing a list
+        # would answer a question the caller did not ask.
+        import dysonsphere as ds
+
+        with pytest.raises(ValueError, match="does not apply when comparing"):
+            ds.verify([str(saved / "f1.json"), str(saved / "f2.json")], df=frames[0])
+
+    def test_rejects_an_empty_what(self, saved):
+        import dysonsphere as ds
+
+        with pytest.raises(ValueError, match="must name at least one"):
+            ds.verify([str(saved / "f1.json"), str(saved / "f2.json")], what=[])
+
+    def test_rejects_an_item_that_is_neither_path_nor_chart(self, saved):
+        import dysonsphere as ds
+
+        with pytest.raises(TypeError, match="Item 1 is a int"):
+            ds.verify([str(saved / "f1.json"), 42])
+
+    def test_accepts_paths_charts_and_every_format(self, saved, frames):
+        # Mixed input is the point: a JSON, a PNG, an SVG and a live chart in one call.
+        import dysonsphere as ds
+
+        r = ds.verify(
+            [str(saved / "f1.json"), str(saved / "f1.png"), self._bar(frames[0])],
+            what=["spec", "data"],
+        )
+        assert r.matches == {"spec": True, "data": True}
+
     def test_rejects_a_single_item_and_a_bad_question(self, saved):
         import dysonsphere as ds
 

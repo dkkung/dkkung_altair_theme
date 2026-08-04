@@ -674,6 +674,11 @@ def _identities(item: Any, index: int) -> tuple[str, dict[str, str | None]]:
             "data": "|".join(sorted(stored)) if stored else None,
             "save": prov.get("exportIdentifier"),
         }
+    if not hasattr(item, "to_dict"):
+        raise TypeError(
+            f"Item {index} is a {type(item).__name__}; each figure must be a path to a dysonsphere "
+            f"export or an Altair chart."
+        )
     spec = item.to_dict()
     frames = _user_datasets(spec)
     return f"chart[{index}]", {
@@ -756,10 +761,17 @@ def verify(figure: Any, df: Any = None, what: str | tuple[str, ...] | list[str] 
     from .utils import frame_checksum
 
     if isinstance(figure, (list, tuple)):
+        if df is not None:
+            raise ValueError(
+                "df= checks one figure against its data; it does not apply when comparing a list. "
+                "Verify each figure separately, or drop df= to compare them with each other."
+            )
         wanted = [what] if isinstance(what, str) else list(what)
         unknown = [w for w in wanted if w not in _COMPARE_KEYS]
         if unknown:
             raise ValueError(f"what has unknown name(s) {unknown}. Choose from {list(_COMPARE_KEYS)}.")
+        if not wanted:
+            raise ValueError(f"what must name at least one of {list(_COMPARE_KEYS)}.")
         if len(figure) < 2:
             raise ValueError("Comparing needs at least two figures; pass one on its own to check it.")
         pairs = [_identities(item, i) for i, item in enumerate(figure)]
