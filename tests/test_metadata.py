@@ -1127,3 +1127,180 @@ class TestVerify:
         (tmp_path / "plain.json").write_text('{"mark":"point"}')
         with pytest.raises(ValueError, match="no dysonsphere metadata"):
             ds.verify(str(tmp_path / "plain.json"))
+
+
+class TestVerifyCompare:
+    """A list of figures is compared instead of checked; same number means same figure."""
+
+    @pytest.fixture
+    def frames(self):
+        return (
+            pl.DataFrame({"x": ["A", "B", "C"], "y": [1.0, 2.0, 3.0]}),
+            pl.DataFrame({"x": ["A", "B", "C"], "y": [9.0, 8.0, 7.0]}),
+        )
+
+    def _bar(self, df):
+        return alt.Chart(df).mark_bar().encode(x="x:N", y="y:Q")
+
+    @pytest.fixture
+    def saved(self, frames, tmp_path):
+        import dysonsphere as ds
+
+        a, b = frames
+        ds.save(self._bar(a), str(tmp_path / "f1"), format=["json", "png"], background=["light"])
+        ds.save(self._bar(a), str(tmp_path / "f2"), format="json", background=["light"])
+        ds.save(self._bar(b), str(tmp_path / "f3"), format="json", background=["light"])
+        return tmp_path
+
+    def test_groups_figures_that_share_an_identity(self, saved):
+        import dysonsphere as ds
+
+        r = ds.verify([str(saved / "f1.json"), str(saved / "f2.json"), str(saved / "f3.json")])
+        assert r.groups is not None and r.matches is not None
+        by_dim = {k: v for k, v in r.groups.items() if v is not None}
+        assert set(by_dim) == {"spec", "data", "save"}
+        spec = list(by_dim["spec"].values())
+        assert spec[0] == spec[1] != spec[2], "f1 and f2 are the same chart, f3 is not"
+        assert list(by_dim["data"].values()) == spec
+        assert len(set(by_dim["save"].values())) == 3, "three separate saves"
+        assert r.matches == {"spec": False, "data": False, "save": False}
+
+    def test_all_matching_reports_true(self, saved):
+        # One save written to two formats agrees on everything.
+        import dysonsphere as ds
+
+        r = ds.verify([str(saved / "f1.json"), str(saved / "f1.png")])
+        assert r.matches == {"spec": True, "data": True, "save": True}
+
+    def test_a_chart_in_memory_has_no_save_identity(self, saved, frames):
+        import dysonsphere as ds
+
+        r = ds.verify([str(saved / "f1.json"), self._bar(frames[0])])
+        assert r.groups is not None and r.matches is not None
+        assert r.matches["spec"] is True
+        assert r.matches["data"] is True
+        assert r.matches["save"] is None, "a chart was never exported"
+        assert r.groups["save"] is None
+
+    def test_what_selects_the_questions(self, saved):
+        import dysonsphere as ds
+
+        r = ds.verify([str(saved / "f1.json"), str(saved / "f3.json")], what="data")
+        assert r.matches is not None
+        assert set(r.matches) == {"data"}
+        assert r.matches["data"] is False
+
+    def test_group_numbers_never_collide(self, saved):
+        # Numbers are assigned after grouping on the full checksum, so two different figures
+        # cannot share one however short the labels look.
+        import dysonsphere as ds
+
+        r = ds.verify([str(saved / "f1.json"), str(saved / "f2.json"), str(saved / "f3.json")])
+        assert r.groups is not None and r.groups["spec"] is not None
+        by_number: dict[int, set[str]] = {}
+        for label, number in r.groups["spec"].items():
+            by_number.setdefault(number, set()).add(label)
+        assert by_number[r.groups["spec"][str(saved / "f3.json")]] == {str(saved / "f3.json")}
+
+    def test_statistics_markers_do_not_make_identical_charts_differ(self, tmp_path):
+        # add_comparisons tags its layer with a marker whose name carries a counter that
+        # increments per build. save() strips markers before hashing, so an in-memory chart has
+        # to as well - otherwise two identical charts, and a chart against its own export, differ.
+        import numpy as np
+
+        import dysonsphere as ds
+
+        rng = np.random.default_rng(0)
+        cats = ["A", "B"]
+        df = pl.DataFrame({"g": [c for c in cats for _ in range(8)], "v": rng.normal(0, 1, 16).tolist()})
+
+        def built():
+            return ds.mark_strip(df, "g", "v", cats) + ds.add_comparisons(
+                df, "g", "v", pairs=[("A", "B")], test="ttest_ind"
+            )
+
+        ds.save(built(), str(tmp_path / "s"), format="json", background=["light"])
+
+        def spec_matches(items):
+            matches = ds.verify(items, what="spec").matches
+            assert matches is not None
+            return matches["spec"]
+
+        assert spec_matches([built(), built()]) is True
+        assert spec_matches([str(tmp_path / "s.json"), built()]) is True
+        # and a genuinely different chart is still reported as different
+        assert spec_matches([built(), ds.mark_strip(df, "g", "v", cats)]) is False
+
+    def test_duplicate_paths_stay_distinct(self, saved):
+        # groups is keyed by label, so the same path twice would overwrite itself and the result
+        # would no longer describe the list that was passed.
+        import dysonsphere as ds
+
+        one = str(saved / "f1.json")
+        r = ds.verify([one, one, str(saved / "f3.json")], what="spec")
+        assert r.groups is not None and r.groups["spec"] is not None
+        assert len(r.groups["spec"]) == 3, "three items in, three entries out"
+
+    def test_comparing_reads_recorded_values_not_the_file_contents(self, saved, frames):
+        # Comparing a PNG with a JSON is only possible because it reads what each file recorded.
+        # The cost is that an edited file still compares as the chart it claims to be - checking
+        # one figure on its own is what catches that.
+        import json
+
+        import dysonsphere as ds
+
+        original = saved / "f1.json"
+        spec = json.loads(original.read_text())
+        spec["mark"] = "point"
+        edited = saved / "edited.json"
+        edited.write_text(json.dumps(spec))
+
+        assert ds.verify(str(edited), df=frames[0]).specValid is False, "the edit is detectable"
+        r = ds.verify([str(original), str(edited)], what="spec")
+        assert r.matches is not None
+        assert r.matches["spec"] is True, "but comparing trusts the recorded identity"
+
+    def test_rejects_a_dataframe_when_comparing(self, saved, frames):
+        # df= checks one figure against its data; silently ignoring it while comparing a list
+        # would answer a question the caller did not ask.
+        import dysonsphere as ds
+
+        with pytest.raises(ValueError, match="does not apply when comparing"):
+            ds.verify([str(saved / "f1.json"), str(saved / "f2.json")], df=frames[0])
+
+    def test_rejects_an_empty_what(self, saved):
+        import dysonsphere as ds
+
+        with pytest.raises(ValueError, match="must name at least one"):
+            ds.verify([str(saved / "f1.json"), str(saved / "f2.json")], what=[])
+
+    def test_rejects_an_item_that_is_neither_path_nor_chart(self, saved):
+        import dysonsphere as ds
+
+        with pytest.raises(TypeError, match="Item 1 is a int"):
+            ds.verify([str(saved / "f1.json"), 42])
+
+    def test_accepts_paths_charts_and_every_format(self, saved, frames):
+        # Mixed input is the point: a JSON, a PNG, an SVG and a live chart in one call.
+        import dysonsphere as ds
+
+        r = ds.verify(
+            [str(saved / "f1.json"), str(saved / "f1.png"), self._bar(frames[0])],
+            what=["spec", "data"],
+        )
+        assert r.matches == {"spec": True, "data": True}
+
+    def test_rejects_a_single_item_and_a_bad_question(self, saved):
+        import dysonsphere as ds
+
+        with pytest.raises(ValueError, match="at least two figures"):
+            ds.verify([str(saved / "f1.json")])
+        with pytest.raises(ValueError, match="unknown name"):
+            ds.verify([str(saved / "f1.json"), str(saved / "f2.json")], what="colour")
+
+    def test_checking_one_figure_still_works(self, saved, frames):
+        import dysonsphere as ds
+
+        r = ds.verify(str(saved / "f1.json"), df=frames[0])
+        assert r.ok and r.specValid is True and r.dataMatches is True
+        assert r.matches is None and r.groups is None
