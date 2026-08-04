@@ -666,6 +666,11 @@ def verify(path: str, df: Any = None) -> VerifyResult:
       the checksums travel in the metadata block, and it is order-independent in both senses:
       row order within a frame does not matter, nor does the order frames are passed in.
 
+    ``exportIdentifier`` is reported, never checked.  It is a random UUID per ``save()`` call, or
+    - under ``SOURCE_DATE_EPOCH`` - one derived from the figure's own content, in which case two
+    saves of identical inputs share it by design.  Compare it across two files to ask whether they
+    came from one save; compare ``vegaliteChecksum`` to ask whether they are the same chart.
+
     A file whose metadata is gone - screenshotted, or re-saved by a tool that drops it - cannot
     be checked at all: there is nothing to compare against, and this raises.  What survives is the
     trail for the DATA, because these checksums are recomputed from content rather than minted per

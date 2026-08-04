@@ -248,6 +248,60 @@ survives is the trail for the *data*: these checksums are recomputed from conten
 minted per file, so `ds.frame_checksum(df)` returns the same value for the same rows forever, and a
 dataframe can still be matched against an intact sibling export or a checksum recorded elsewhere.
 
+## Which field answers which question
+
+Three fields in `provenance` look interchangeable and are not:
+
+| question | field |
+| --- | --- |
+| Is this the same chart? | `vegaliteChecksum` - content identity, unchanged by re-saving |
+| Did these files come from one `ds.save()` call? | `exportIdentifier` - shared by every format and background of one save |
+| Is this the same underlying data? | `dataChecksum` - unchanged by restyling the chart |
+
+Comparing two figures is a `ds.read()` one-liner:
+
+```python
+a = ds.read("one.png", what="metadata")["provenance"]
+b = ds.read("two.png", what="metadata")["provenance"]
+
+a["vegaliteChecksum"] == b["vegaliteChecksum"]   # same chart?
+a["exportIdentifier"] == b["exportIdentifier"]   # same save?
+```
+
+Reach for `vegaliteChecksum` first. Two saves of an identical chart share it but get *different*
+export identifiers, so comparing identifiers alone reports "different" for a figure that was simply
+re-exported.
+
+## Reproducible exports
+
+Re-running a build script rewrites every figure even when nothing changed, because `timestamp` and
+`exportIdentifier` are the only non-deterministic bytes in an export - the checksums are already
+stable. For figures committed alongside a manuscript that means every rebuild dirties every file.
+
+Set [`SOURCE_DATE_EPOCH`](https://reproducible-builds.org/specs/source-date-epoch/), the
+cross-tool convention for this, to an integer count of UTC seconds:
+
+```bash
+SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) uv run python build_figures.py
+```
+
+Repeated saves of an unchanged figure are then byte-identical. Anchoring it to the last commit is
+the idiom worth copying: the recorded time becomes *the commit the figure was built from*, so it
+moves when the code moves and holds still when it does not.
+
+Nothing else about the metadata changes - same fields, same shapes. Two values differ:
+
+| | default | pinned |
+| --- | --- | --- |
+| `timestamp` | the real save time | the instant you supplied |
+| `exportIdentifier` | a random UUID, new every save | a UUID derived from the figure's timestamp, spec, and data |
+
+What you give up is real and worth stating: the figure no longer records when the export actually
+ran, and two separate saves of identical inputs now share an identifier - identical inputs
+producing identical outputs is the whole point. A malformed value raises rather than quietly
+falling back to the clock, since a silent fallback would hand you a non-reproducible file while you
+believed it was pinned.
+
 ## Rebuilding the chart
 
 ```python
