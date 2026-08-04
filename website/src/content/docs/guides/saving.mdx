@@ -204,14 +204,124 @@ ds.verify("figure.png", df=df)             # did this figure come from this data
 ds.verify("figure.json", df=[counts, meta]) # multi-frame chart
 ```
 
-It returns a `VerifyResult` with `specValid`, `dataMatches`, and `.ok`. Both checks are tri-state:
-`None` means the check could not run, which is not a failure - SVG and PNG carry the checksums but
-not the spec, so `specValid` is `None` there while `dataMatches` still works. Neither row order nor
-the order dataframes are passed in affects the result.
+It returns a `VerifyResult`:
 
-Because the checksums are derived from content rather than stored alongside it, a figure that has
-lost its metadata entirely - screenshotted, or re-saved by another tool - can still be identified:
-verify an intact sibling export, or compare `ds.frame_checksum(df)` against a recorded value.
+```python
+VerifyResult(
+    path='figure.json',
+    specValid=True,
+    dataMatches=True,
+    storedDataChecksums=['multiset-sha256:57ae424f2a1d3887eaed57bd8733b7a256d1f6f7370a55cc3458bd14a19f928b'],
+    computedDataChecksums=['multiset-sha256:57ae424f2a1d3887eaed57bd8733b7a256d1f6f7370a55cc3458bd14a19f928b'],
+    exportIdentifier='0513f023-4667-4367-8883-e8762571811d',
+    timestamp='2026-08-03T23:56:06Z',
+)
+```
+
+| field | |
+| --- | --- |
+| `specValid` | the spec still hashes to the recorded `vegaliteChecksum` - the file has not been edited |
+| `dataMatches` | the frames you passed hash to the recorded `dataChecksum` |
+| `storedDataChecksums` | what the file recorded |
+| `computedDataChecksums` | what your frames hash to now - the two differ only when `dataMatches` is `False` |
+| `exportIdentifier` | the `ds.save()` call that produced the file; every format and background of one save shares it |
+| `timestamp` | when that save ran |
+| `matches` / `groups` | filled only when comparing a list - see below |
+| `.ok` | every check that actually ran passed |
+
+Both checks are tri-state: `None` means the check could not run, which is not a failure - SVG and
+PNG carry the checksums but not the spec, so `specValid` is `None` there while `dataMatches` still
+works. `.ok` reads `None` as "not a failure" for that reason. Neither row order nor the order
+dataframes are passed in affects the result.
+
+When a check fails, the two checksum fields are what tell you which frame diverged:
+
+```python
+r = ds.verify("figure.json", df=edited)
+r.ok           # False
+r.specValid    # True  - the file itself is intact
+r.dataMatches  # False - but it did not come from this data
+```
+
+A file whose metadata is gone - screenshotted, or re-saved by a tool that drops it - cannot be
+checked at all; `ds.verify()` raises, because there is nothing left to compare against. What
+survives is the trail for the *data*: these checksums are recomputed from content rather than
+minted per file, so `ds.frame_checksum(df)` returns the same value for the same rows forever, and a
+dataframe can still be matched against an intact sibling export or a checksum recorded elsewhere.
+
+## Which field answers which question
+
+Three fields in `provenance` look interchangeable and are not:
+
+| question | field |
+| --- | --- |
+| Is this the same chart? | `vegaliteChecksum` - content identity, unchanged by re-saving |
+| Did these files come from one `ds.save()` call? | `exportIdentifier` - shared by every format and background of one save |
+| Is this the same underlying data? | `dataChecksum` - unchanged by restyling the chart |
+
+## Comparing figures
+
+Hand `ds.verify()` a list and it compares them instead of checking one:
+
+```python
+ds.verify(["fig1.json", "fig2.png", "fig3.svg"])
+```
+
+```python
+matches   {"spec": False, "data": True,  "save": False}
+groups    {"spec": {"fig1.json": 0, "fig2.png": 0, "fig3.svg": 1},
+           "data": {"fig1.json": 0, "fig2.png": 0, "fig3.svg": 0},
+           "save": {"fig1.json": 0, "fig2.png": 1, "fig3.svg": 2}}
+```
+
+`matches` is the quick answer - do they all agree. `groups` numbers them when they do not, and
+**the same number means the same figure**: above, the first two are the same chart, all three were
+built from the same data, and each came from its own save.
+
+Items may be saved files in any format, or Altair charts you have not saved yet - so
+`ds.verify(["published.json", chart])` asks whether the figure your script builds today still
+matches the one you published. A chart in memory has no export identity, so `"save"` comes back
+`None` for the whole call. `what=` narrows it: `what="data"` asks only about the data.
+
+Reach for `"spec"` first when you want "is this the same chart". Two saves of an identical chart
+agree on it but get *different* export identifiers, so `"save"` alone reports a difference for a
+figure that was merely re-exported.
+
+:::note
+Comparing reads what each file *recorded*, which is what lets a PNG be compared with a JSON - a PNG
+carries no spec to re-hash. The cost is that an edited file still compares as the chart it claims
+to be; checking a figure on its own is what detects an edit.
+:::
+
+## Reproducible exports
+
+Re-running a build script rewrites every figure even when nothing changed, because `timestamp` and
+`exportIdentifier` are the only non-deterministic bytes in an export - the checksums are already
+stable. For figures committed alongside a manuscript that means every rebuild dirties every file.
+
+Set [`SOURCE_DATE_EPOCH`](https://reproducible-builds.org/specs/source-date-epoch/), the
+cross-tool convention for this, to an integer count of UTC seconds:
+
+```bash
+SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) uv run python build_figures.py
+```
+
+Repeated saves of an unchanged figure are then byte-identical. Anchoring it to the last commit is
+the idiom worth copying: the recorded time becomes *the commit the figure was built from*, so it
+moves when the code moves and holds still when it does not.
+
+Nothing else about the metadata changes - same fields, same shapes. Two values differ:
+
+| | default | pinned |
+| --- | --- | --- |
+| `timestamp` | the real save time | the instant you supplied |
+| `exportIdentifier` | a random UUID, new every save | a UUID derived from the figure's timestamp, spec, and data |
+
+What you give up is real and worth stating: the figure no longer records when the export actually
+ran, and two separate saves of identical inputs now share an identifier - identical inputs
+producing identical outputs is the whole point. A malformed value raises rather than quietly
+falling back to the clock, since a silent fallback would hand you a non-reproducible file while you
+believed it was pinned.
 
 ## Rebuilding the chart
 
@@ -222,6 +332,18 @@ spec  = ds.load("figure.json", raw=True)  # the untouched Vega-Lite spec dict
 
 `load()` is JSON-only (it needs the full spec) and re-applies the baked theme so the reconstructed
 chart renders identically.
+
+The rebuilt Altair object carries **no metadata**: `load()` strips `usermeta` along with `config`,
+because Altair's schema rejects some of the theme's config values. So loading a figure and then
+checking it does not work - there are no checksums left on the object to check. Verify the file
+itself, which is what `ds.verify()` expects anyway:
+
+```python
+ds.verify("figure.json", df=df)                    # yes - reads the file
+ds.verify(ds.load("figure.json"))                  # no - the object has no metadata
+```
+
+`ds.load("figure.json", raw=True)` does keep `usermeta`, since it returns the spec untouched.
 
 ## Statistics without a file
 
