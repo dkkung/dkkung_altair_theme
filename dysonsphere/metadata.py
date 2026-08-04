@@ -646,6 +646,9 @@ class VerifyResult:
     computedDataChecksums: list[str]
     exportIdentifier: str | None
     timestamp: str | None
+    sameChart: bool | None = None
+    sameSave: bool | None = None
+    sameData: bool | None = None
 
     @property
     def ok(self) -> bool:
@@ -653,7 +656,13 @@ class VerifyResult:
         return self.specValid is not False and self.dataMatches is not False
 
 
-def verify(path: str, df: Any = None) -> VerifyResult:
+def _both(a: dict[str, Any], b: dict[str, Any], key: str) -> bool | None:
+    """Compare one provenance field across two files; ``None`` when either lacks it."""
+    x, y = a.get(key), b.get(key)
+    return None if x is None or y is None else x == y
+
+
+def verify(path: str, df: Any = None, against: str | None = None) -> VerifyResult:
     """Check a saved figure against its own embedded checksums, and optionally against its data.
 
     Two independent questions, neither of which needs the original script:
@@ -677,6 +686,15 @@ def verify(path: str, df: Any = None) -> VerifyResult:
     file.  ``frame_checksum(df)`` returns the same value for the same rows forever, so a dataframe
     can still be matched against an intact sibling export or a checksum recorded elsewhere.
 
+    A third question needs a second file rather than the data.  ``against`` compares the two,
+    reporting ``sameChart`` (identical ``vegaliteChecksum`` - the same chart however it was
+    exported), ``sameSave`` (identical ``exportIdentifier`` - both produced by one ``save()``
+    call), and ``sameData``.  Comparison reads the values each file RECORDED, so it works across
+    formats: a PNG can be compared with an SVG or a JSON.  Reach for ``sameChart`` first - two
+    saves of an identical chart share it but get different identifiers, so ``sameSave`` alone
+    reports "different" for a figure that was merely re-exported.  These three never affect
+    ``ok``: two files legitimately differing is not a failure of either one.
+
     Parameters
     ----------
     path:
@@ -684,6 +702,9 @@ def verify(path: str, df: Any = None) -> VerifyResult:
     df:
         Optional dataframe, or list of dataframes, that the figure should have been built from.
         Polars or pandas.  Omit to check only the spec.
+    against:
+        Optional path to a second dysonsphere export to compare this one with.  Any combination
+        of formats.  Omit to leave ``sameChart``/``sameSave``/``sameData`` as ``None``.
 
     Returns
     -------
@@ -720,6 +741,16 @@ def verify(path: str, df: Any = None) -> VerifyResult:
         computed = sorted(frame_checksum(f) for f in frames)
         data_matches = computed == stored
 
+    # Comparison reads what each file RECORDED, so it works across formats - an SVG carries the
+    # checksums even though it cannot re-hash its own spec.
+    same_chart = same_save = same_data = None
+    if against is not None:
+        other = _read_dysonsphere_block(against).get("provenance") or {}
+        same_chart = _both(prov, other, "vegaliteChecksum")
+        same_save = _both(prov, other, "exportIdentifier")
+        a_data, b_data = prov.get("dataChecksum"), other.get("dataChecksum")
+        same_data = None if a_data is None or b_data is None else sorted(a_data) == sorted(b_data)
+
     return VerifyResult(
         path=str(path),
         specValid=spec_valid,
@@ -728,4 +759,7 @@ def verify(path: str, df: Any = None) -> VerifyResult:
         computedDataChecksums=computed,
         exportIdentifier=prov.get("exportIdentifier"),
         timestamp=prov.get("timestamp"),
+        sameChart=same_chart,
+        sameSave=same_save,
+        sameData=same_data,
     )

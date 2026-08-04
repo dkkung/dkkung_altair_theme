@@ -1127,3 +1127,75 @@ class TestVerify:
         (tmp_path / "plain.json").write_text('{"mark":"point"}')
         with pytest.raises(ValueError, match="no dysonsphere metadata"):
             ds.verify(str(tmp_path / "plain.json"))
+
+
+class TestVerifyAgainst:
+    """`verify(against=)` compares two exports instead of one file with its own data."""
+
+    @pytest.fixture
+    def bar(self):
+        df = pl.DataFrame({"x": ["A", "B", "C"], "y": [1.0, 2.0, 3.0]})
+        return alt.Chart(df).mark_bar().encode(x="x:N", y="y:Q"), df
+
+    @pytest.fixture
+    def point(self):
+        df = pl.DataFrame({"x": ["A", "B", "C"], "y": [1.0, 2.0, 3.0]})
+        return alt.Chart(df).mark_point().encode(x="x:N", y="y:Q"), df
+
+    def test_same_save_compares_across_formats(self, bar, tmp_path):
+        # The checksums are recorded in all three formats, so a PNG compares with an SVG.
+        import dysonsphere as ds
+
+        chart, _ = bar
+        ds.save(chart, str(tmp_path / "a"), format=["json", "svg", "png"], background=["light"])
+        for one, two in (("a.json", "a.png"), ("a.svg", "a.png"), ("a.json", "a.svg")):
+            r = ds.verify(str(tmp_path / one), against=str(tmp_path / two))
+            assert (r.sameChart, r.sameSave, r.sameData) == (True, True, True), f"{one} vs {two}"
+
+    def test_same_chart_re_saved_is_a_different_save(self, bar, tmp_path):
+        # The distinction that makes three fields worth having rather than one bool.
+        import dysonsphere as ds
+
+        chart, _ = bar
+        ds.save(chart, str(tmp_path / "a"), format="json", background=["light"])
+        ds.save(chart, str(tmp_path / "b"), format="json", background=["light"])
+        r = ds.verify(str(tmp_path / "a.json"), against=str(tmp_path / "b.json"))
+        assert r.sameChart is True
+        assert r.sameSave is False
+        assert r.sameData is True
+
+    def test_different_chart_same_data(self, bar, point, tmp_path):
+        import dysonsphere as ds
+
+        ds.save(bar[0], str(tmp_path / "a"), format="json", background=["light"])
+        ds.save(point[0], str(tmp_path / "b"), format="json", background=["light"])
+        r = ds.verify(str(tmp_path / "a.json"), against=str(tmp_path / "b.json"))
+        assert r.sameChart is False
+        assert r.sameData is True
+
+    def test_none_without_against(self, bar, tmp_path):
+        import dysonsphere as ds
+
+        chart, df = bar
+        ds.save(chart, str(tmp_path / "a"), format="json", background=["light"])
+        r = ds.verify(str(tmp_path / "a.json"), df=df)
+        assert (r.sameChart, r.sameSave, r.sameData) == (None, None, None)
+        assert r.ok is True
+
+    def test_comparison_never_affects_ok(self, bar, point, tmp_path):
+        # Two different figures are not a failure of either one.
+        import dysonsphere as ds
+
+        ds.save(bar[0], str(tmp_path / "a"), format="json", background=["light"])
+        ds.save(point[0], str(tmp_path / "b"), format="json", background=["light"])
+        r = ds.verify(str(tmp_path / "a.json"), df=bar[1], against=str(tmp_path / "b.json"))
+        assert r.sameChart is False
+        assert r.ok is True
+
+    def test_other_file_without_metadata_raises(self, bar, tmp_path):
+        import dysonsphere as ds
+
+        ds.save(bar[0], str(tmp_path / "a"), format="json", background=["light"])
+        (tmp_path / "plain.json").write_text('{"mark":"bar"}')
+        with pytest.raises(ValueError, match="no dysonsphere metadata"):
+            ds.verify(str(tmp_path / "a.json"), against=str(tmp_path / "plain.json"))
