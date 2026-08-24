@@ -612,16 +612,19 @@ class TestViewPadding:
         vx = next(lyr for lyr in violin["layer"] if lyr["encoding"]["x"].get("field") == "__x")
         assert vx["encoding"]["x"]["scale"]["padding"] == 0
 
+        # add_labels deliberately does NOT pin padding: its geometry is pixel offsets from each
+        # marker, so viewPadding insets marker and label together and alignment survives. Forcing
+        # padding=0 here would override the user's viewPadding on the shared scale.
         pts = pl.DataFrame({"x": [1.0, 2, 3], "y": [1.0, 2, 3], "n": ["a", "b", "c"]})
         labels = add_labels(pts, "x", "y", "n").to_dict()
-        pinned = [
+        scales = [
             lyr["encoding"][ch]["scale"]
             for lyr in labels["layer"]
             for ch in ("x", "y")
             if isinstance(lyr.get("encoding", {}).get(ch), dict) and "scale" in lyr["encoding"][ch]
             if isinstance(lyr["encoding"][ch]["scale"], dict) and "domain" in lyr["encoding"][ch]["scale"]
         ]
-        assert pinned and all(sc.get("padding") == 0 for sc in pinned)
+        assert scales and all("padding" not in sc for sc in scales)
 
 
 class TestBandPaddingByMark:

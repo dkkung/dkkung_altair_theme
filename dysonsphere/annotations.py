@@ -863,19 +863,14 @@ def add_labels(
     requested label is shown (never dropped); in an impossibly dense region labels settle at their
     least-overlapping positions. Returns a layer to compose onto the base chart with ``+``.
 
-    Label placement is a pixel-space problem solved before Vega renders, so the connectors align
-    with the points only if the shared scale matches. ``add_labels`` handles that itself: the label
-    layers pin the x/y scale to the data extent rounded outward to nice tick bounds (``nice=False``,
-    ``zero=False``, explicit nice domain), so you do NOT need to touch the base chart's scale - just
-    compose ``base + ds.add_labels(df, ...)``. (This retightens the axes around the data - with
-    round bounds, but without Vega's default ``zero`` - which is required for alignment.)
+    Placement is solved in pixels before Vega renders, but each label is emitted as a pixel offset
+    from its own marker, so it lands correctly on whatever scale the base chart uses and the base's
+    axes are left alone. Just compose ``base + ds.add_labels(df, ...)``.
 
     Parameters
     ----------
     df:
-        The plotted data (polars or pandas) - pass the same frame as the base chart. The axis
-        domain is inferred from its full extent, so the connectors line up without you pinning the
-        base scale (the label layers pin it themselves; see below).
+        The plotted data (polars or pandas) - pass the same frame as the base chart.
     xCol, yCol:
         Quantitative coordinate columns (must match the base chart's x / y encodings).
     labelCol:
@@ -891,14 +886,10 @@ def add_labels(
         selecting: obstacles and the axis domain both span all of ``df``, so the labels dodge EVERY
         plotted point (not just the labelled subset) and selecting a subset never clips the axes.
     xDomain, yDomain:
-        ``(min, max)`` axis domains, forced onto the shared scale (``nice=False``, ``zero=False``).
-        Default: the **extent of the passed ``df``'s ``xCol`` / ``yCol``, rounded outward to nice
-        tick bounds** (d3-style nice, so the axes end on round numbers; filtering ``df`` just moves
-        the axes with it - always inferred). An explicit value is used exactly as given (no
-        rounding). Pass explicitly only when you want the axes to span a range the passed ``df``
-        does not cover - i.e. the base chart plots more than you hand ``add_labels`` (a deliberate
-        subset, or **derived positions** like cluster centroids whose extent is tighter than the
-        scatter).
+        ``(min, max)`` the placement solver assumes the base chart will render. Default: the
+        extent of ``df``'s ``xCol`` / ``yCol``. A mismatch only degrades collision avoidance -
+        labels stay attached to their markers either way. Pass explicitly when the base chart's
+        domain differs from ``df``'s extent (a zoomed axis, or derived positions like centroids).
     fontSize:
         Label font size. ``None`` -> the theme's ``fontSize`` (the primary chart font size).
     fontStyle:
@@ -1022,47 +1013,26 @@ def add_labels(
         # Match Vega's linear map with a pinned domain: x -> [0, width], y inverted -> [height, 0].
         return ((x - x0) / xspan * width, height - (y - y0) / yspan * height)
 
-    def px_to_x(px: float) -> float:
-        return x0 + px / width * xspan
-
-    def px_to_y(py: float) -> float:
-        return y0 + (height - py) / height * yspan
-
     anchors = [to_px(x, y) for x, y in zip(xs, ys)]
     obstacles = [to_px(x, y) for x, y in zip(all_x, all_y)]  # ALL plotted points, so labels avoid them
     sizes = [(len(t) * fs * 0.6, fs * 1.2) for t in label_texts]  # rough text-box estimate
     label_pos = _repel_labels(anchors, sizes, width=width, height=height, obstacles=obstacles)
 
-    # Self-pin: the FIRST label layer carries the scale pin (domain=..., nice=False, zero=False) on
-    # its datum encodings, forcing the shared x/y scale to the assumed domain so the connectors
-    # align with the points WITHOUT the caller pinning the base chart's scale - and without any
-    # invisible sidecar mark (the pin rides on real label marks, so nothing extra lands in the SVG).
-    # All label geometry is emitted in DATA coordinates via alt.datum (the exact inverse of the
-    # pinned pixel map): a datum contributes no axis title and does not extend the scale domain, so
-    # the base chart's axes survive intact and the explicit pin is the only domain influence. NOTE
-    # the domain is the label df's (niced) extent or an explicit xDomain/yDomain - when labeling a
-    # SUBSET of a larger scatter, pass xDomain/yDomain covering the full data or the axes will clip
-    # to the labeled points.
-    # padding=0: placement runs in pixel space assuming the domain spans the full
-    # [0, chartWidth]/[0, chartHeight] range; the pin wins the shared scale, so a
-    # theme(viewPadding=...) chart with labels renders unpadded rather than misaligned
-    x_scale = alt.Scale(domain=[x0, x1], nice=False, zero=False, padding=0)
-    y_scale = alt.Scale(domain=[y0, y1], nice=False, zero=False, padding=0)
-    pinned = False
+    # Labels anchor at their marker's data coordinate and carry every offset in pixels, so nothing
+    # depends on the rendered domain. The domain here is the raw extent - a no-op union against the
+    # base's own scale - stated only to suppress Vega-Lite's default nice:true, which would re-nice a
+    # base that opted out. A base zoomed inside its data still widens; pass xDomain/yDomain to match.
+    raw_x = alt.Scale(domain=[min(all_x), max(all_x)] if xDomain is None else list(xDomain))
+    raw_y = alt.Scale(domain=[min(all_y), max(all_y)] if yDomain is None else list(yDomain))
 
-    def datum_xy(px: float, py: float) -> dict[str, Any]:
-        # x/y datum encodings for a pixel position; the first call attaches the scale pin.
-        nonlocal pinned
-        if pinned:
-            return {"x": alt.XDatum(px_to_x(px)), "y": alt.YDatum(px_to_y(py))}
-        pinned = True
-        return {"x": alt.XDatum(px_to_x(px), scale=x_scale), "y": alt.YDatum(px_to_y(py), scale=y_scale)}
+    def anchor_xy(x: float, y: float) -> dict[str, Any]:
+        return {"x": alt.XDatum(x, scale=raw_x), "y": alt.YDatum(y, scale=raw_y)}
 
     fill_c, stroke_c = _resolve_text_bg(fill, stroke)
     bg = (fill_c, stroke_c, fillOpacity, cornerRadius) if fill_c is not None else None  # chip gated on fill
 
     layers: list[alt.Chart] = []
-    for (ax, ay), (lx, ly), (w, h), text in zip(anchors, label_pos, sizes, label_texts):
+    for (ax, ay), (lx, ly), (w, h), text, datax, datay in zip(anchors, label_pos, sizes, label_texts, xs, ys):
         hw, hh = w / 2, h / 2
         dx, dy = ax - lx, ay - ly  # label centre -> point
         # Attach the connector on the box side facing the point (aspect-aware: which edge a straight
@@ -1140,20 +1110,24 @@ def add_labels(
                     sx, sy, tx, ty = ax, ay, ex, ey
                 layers.append(
                     alt.Chart(_internal_data([{}]))
-                    .mark_rule(**rule_kwargs)
-                    .encode(**datum_xy(sx, sy), x2=alt.X2Datum(px_to_x(tx)), y2=alt.Y2Datum(px_to_y(ty)))
+                    .mark_rule(**rule_kwargs, xOffset=sx - ax, yOffset=sy - ay, x2Offset=tx - ax, y2Offset=ty - ay)
+                    .encode(**anchor_xy(datax, datay), x2=alt.X2Datum(datax), y2=alt.Y2Datum(datay))
                 )
         if bg is not None:  # background rect behind the label (drawn after its connector, under the text)
             rk, xsh, ysh = _text_bg_props(text, fs, align, "middle", 0, 0, *bg)
             layers.append(
                 alt.Chart(_internal_data([{}]))
                 .mark_rect(**rk)
-                .encode(**datum_xy(text_x, ly), xOffset=alt.value(xsh), yOffset=alt.value(ysh))
+                .encode(
+                    **anchor_xy(datax, datay),
+                    xOffset=alt.value(text_x - ax + xsh),
+                    yOffset=alt.value(ly - ay + ysh),
+                )
             )
         layers.append(
             alt.Chart(_internal_data([{}]))
-            .mark_text(align=align, **text_kwargs)
-            .encode(**datum_xy(text_x, ly), text=alt.value(text))
+            .mark_text(align=align, dx=text_x - ax, dy=ly - ay, **text_kwargs)
+            .encode(**anchor_xy(datax, datay), text=alt.value(text))
         )
     return cast(alt.LayerChart, alt.layer(*layers))
 
