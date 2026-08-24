@@ -267,7 +267,7 @@
  {
   "key": "viewPadding",
   "default": "true",
-  "hint": null
+  "hint": "auto: min(chartWidth, chartHeight) / 20 (closed plots)"
  },
  {
   "key": "xAxis",
