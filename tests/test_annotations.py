@@ -1,3 +1,5 @@
+import re
+
 import altair as alt
 import polars as pl
 import pytest
@@ -122,7 +124,12 @@ class TestAddLabels:
 
         def _aligns(fill):
             spec = add_labels(ring, "x", "y", "g", fill=fill).to_dict()
-            return [lyr["mark"].get("align") for lyr in spec["layer"] if lyr["mark"]["type"] == "text"]
+            return [  # expr aligns: read the standard-orientation arm
+                a if isinstance(a, str) else re.findall(r"'(left|right)'", a["expr"])[0]
+                for lyr in spec["layer"]
+                if lyr["mark"]["type"] == "text"
+                for a in [lyr["mark"].get("align")]
+            ]
 
         assert set(_aligns(False)) & {"left", "right"}  # no chip: side justification preserved
         assert all(a == "center" for a in _aligns(True))  # chip: all centred
@@ -135,8 +142,8 @@ class TestAddLabels:
         texts = [lyr for lyr in spec["layer"] if lyr["mark"]["type"] == "text"]
         assert len(rects) == len(texts) == 8
         for r, t in zip(rects, texts):
-            assert r["encoding"]["xOffset"]["value"] == pytest.approx(t["mark"]["dx"])
-            assert r["encoding"]["yOffset"]["value"] == pytest.approx(t["mark"]["dy"])
+            assert _off(r["mark"]["xOffset"]) == pytest.approx(_off(t["mark"]["dx"]))
+            assert _off(r["mark"]["yOffset"]) == pytest.approx(_off(t["mark"]["dy"]))
 
     def test_no_invisible_pin_mark(self, df):
         # the scale pin must ride on the label marks themselves - no invisible point may land in
@@ -187,7 +194,7 @@ class TestAddLabels:
         def total_len(chart):
             # connector geometry is PIXEL offsets on the mark, so this is scale-free outright
             return sum(
-                math.dist((m["xOffset"], m["yOffset"]), (m["x2Offset"], m["y2Offset"]))
+                math.dist((_off(m["xOffset"]), _off(m["yOffset"])), (_off(m["x2Offset"]), _off(m["y2Offset"])))
                 for lyr in chart.to_dict()["layer"]
                 if lyr["mark"]["type"] == "rule"
                 for m in [lyr["mark"]]
@@ -223,7 +230,7 @@ class TestAddLabels:
             if lyr["mark"]["type"] == "rule"
         ]
         assert marks  # at least one connector must be drawn for the assertion to mean anything
-        assert all(math.hypot(m["xOffset"], m["yOffset"]) == pytest.approx(gap) for m in marks)
+        assert all(math.hypot(_off(m["xOffset"]), _off(m["yOffset"])) == pytest.approx(gap) for m in marks)
         # the TEXT end keeps only the whitespace term (2*axisWidth = 0.5px at the default theme) -
         # asymmetric by design, there is no marker to clear at the label. Offsets are relative to
         # each label's OWN anchor, so a connector may only be compared with its own text layer
@@ -235,12 +242,44 @@ class TestAddLabels:
             if lyr["mark"]["type"] == "rule":
                 pending = lyr["mark"]
             elif lyr["mark"]["type"] == "text" and pending is not None:
-                if lyr["mark"].get("align") != "center":  # centred labels attach mid-edge, not at the anchor
-                    end = (pending["x2Offset"], pending["y2Offset"])
-                    assert math.dist(end, (lyr["mark"]["dx"], lyr["mark"]["dy"])) == pytest.approx(daylight)
-                    checked += 1
+                if lyr["mark"].get("align") == "center":  # center labels attach mid-edge, not the anchor
+                    pending = None
+                    continue
+                end = (_off(pending["x2Offset"]), _off(pending["y2Offset"]))
+                assert math.dist(end, (_off(lyr["mark"]["dx"]), _off(lyr["mark"]["dy"]))) == pytest.approx(daylight)
+                checked += 1
                 pending = None
         assert checked
+
+    def test_reversed_axis_labels_stay_in_panel(self):
+        # reversed axis mirrors markers at render; offsets must mirror too (3.13.0 spilled labels)
+        import re
+
+        import vl_convert as vlc
+
+        df = pl.DataFrame({"x": [10.0, 30.0, 50.0], "y": [8.0, 8.5, 7.5], "g": ["aa", "bb", "cc"]})
+        base = (
+            alt.Chart(df)
+            .mark_point()
+            .encode(
+                x=alt.X("x:Q", scale=alt.Scale(domain=[0, 100])),
+                y=alt.Y("y:Q", scale=alt.Scale(domain=[0, 10], reverse=True)),
+            )
+        )
+        svg = vlc.vegalite_to_svg((base + add_labels(df, "x", "y", "g")).to_dict())
+        h = alt.theme.options["chartHeight"]
+        for m in re.finditer(r"translate\(([-\d.e]+),([-\d.e]+)\)[^>]*>(aa|bb|cc)<", svg):
+            assert -1.0 <= float(m.group(2)) <= h + 1.0
+
+    def test_offsets_carry_render_time_sign(self, df):
+        # each offset is an ExprRef whose sign reads the real scale
+        spec = add_labels(df, "x", "y", "g").to_dict()
+        rules = [lyr["mark"] for lyr in spec["layer"] if lyr["mark"]["type"] == "rule"]
+        assert rules
+        for m in rules:
+            for k in ("xOffset", "yOffset", "x2Offset", "y2Offset"):
+                v = m.get(k, 0.0)
+                assert v == 0.0 or "scale(" in v["expr"]
 
     def test_all_labels_shown(self, df):
         # force-show: every requested label appears (never dropped)
@@ -580,6 +619,11 @@ class TestAddRuleSpan:
         layer = add_rule(5.0, span=(2.0, 8.0), data=df)
         layer.to_dict()  # must not raise
         assert layer.to_dict()["encoding"]["x"] == {"datum": 2.0}
+
+
+def _off(v):
+    """Numeric part of a pixel offset: raw float, or the trailing factor of a sign ExprRef."""
+    return float(v) if isinstance(v, (int, float)) else float(v["expr"].rsplit("* ", 1)[-1])
 
 
 class TestAddText:

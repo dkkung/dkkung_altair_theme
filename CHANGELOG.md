@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixes
+
+- **`ds.add_labels()` works on reversed axes again** - a 3.13.0 regression. Labels on a `reverse=True` scale were placed for the unreversed orientation, spilling outside the panel. Every pixel offset now carries a render-time sign read from the real scale, so a reversed axis mirrors the layout; standard-orientation charts are pixel-identical.
+
 ## [3.13.0] - 2026-08-24
 
 ### Changes
