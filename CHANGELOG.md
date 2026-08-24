@@ -1,16 +1,14 @@
 # Changelog
 
-## [Unreleased]
+## [3.13.0] - 2026-08-24
 
 ### Changes
 
-- **`ds.add_labels()` avoids very long leader lines.** Leader length now costs superlinearly past 12px, so the worst-case leader shortens (~17% in benchmarks) and slightly fewer labels sit on data points, while dense layouts keep their round-1 spacing. The refinement stage was also rewritten to evaluate swaps from incrementally-updated cost matrices, making placement ~7x faster at large label counts.
-
-- **`ds.add_labels()` places labels with more breathing room.** The placement engine now prefers the roomiest clear spot instead of the first one found, penalizes labels that sit closer than 5px to each other, and adds a relocation pass the old slot-swapping refinement lacked - so dense label sets spread out instead of packing at the legal minimum. Fewer labels land on data points and fewer leaders cross; runtime and determinism are unchanged.
+- **`ds.add_labels()` places labels with more breathing room and shorter leaders.** Placement prefers the roomiest clear spot, keeps labels at least 5px apart, relocates labels the old slot-swapping refinement could not, and resists long leader lines - and runs ~7x faster at large label counts. Fully deterministic as before.
 
 ### Fixes
 
-- **`ds.add_labels()` no longer overrides the base chart's x/y scale.** The label layers pinned the domain to make their absolute coordinates land, which moved the base's marks on auto-domained, log and `nice=False` scales - and against a base that set its own `domain=` the pin lost the merge, leaving labels placed for a domain that never rendered. Each label now anchors at its own marker and offsets in pixels, so `xDomain` / `yDomain` are the domain placement assumes rather than a pin.
+- **`ds.add_labels()` no longer overrides the base chart's x/y scale.** Labels now anchor at their own marker and offset in pixels; the old shared-scale pin moved the base chart's marks on auto-domained, log and `nice=False` scales, and misplaced labels on charts that set their own `domain=`. `xDomain` / `yDomain` are now the domain placement assumes rather than a pin.
 
 ## [3.12.0] - 2026-08-23
 
