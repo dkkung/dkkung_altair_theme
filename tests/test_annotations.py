@@ -127,11 +127,16 @@ class TestAddLabels:
         assert set(_aligns(False)) & {"left", "right"}  # no chip: side justification preserved
         assert all(a == "center" for a in _aligns(True))  # chip: all centred
 
-        # concentric: chip rect xOffset is 0 for every chip label (text and rect share the x datum,
-        # so the estimate error can't push the text off the chip centre)
-        spec = add_labels(ring, "x", "y", "g", fill=True, connector=False).to_dict()
-        offsets = [lyr["encoding"]["xOffset"]["value"] for lyr in spec["layer"] if lyr["mark"]["type"] == "rect"]
-        assert offsets and all(o == 0 for o in offsets)
+        # concentric: for every chip label the rect and the text carry the SAME pixel offset from
+        # their shared datum anchor, so the chip is centred on the glyphs however wrong the width
+        # estimate is (the off-centre NK label).
+        spec = add_labels(ring, "x", "y", "g", fill=True).to_dict()
+        rects = [lyr for lyr in spec["layer"] if lyr["mark"]["type"] == "rect"]
+        texts = [lyr for lyr in spec["layer"] if lyr["mark"]["type"] == "text"]
+        assert len(rects) == len(texts) == 8
+        for r, t in zip(rects, texts):
+            assert r["encoding"]["xOffset"]["value"] == pytest.approx(t["mark"]["dx"])
+            assert r["encoding"]["yOffset"]["value"] == pytest.approx(t["mark"]["dy"])
 
     def test_no_invisible_pin_mark(self, df):
         # the scale pin must ride on the label marks themselves - no invisible point may land in
@@ -180,15 +185,13 @@ class TestAddLabels:
         import math
 
         def total_len(chart):
-            # connector ends are datum (data coords); the comparison is scale-free since both
-            # charts pin the same domain
-            segs = [
-                (e["x"]["datum"], e["y"]["datum"], e["x2"]["datum"], e["y2"]["datum"])
+            # connector geometry is PIXEL offsets on the mark, so this is scale-free outright
+            return sum(
+                math.dist((m["xOffset"], m["yOffset"]), (m["x2Offset"], m["y2Offset"]))
                 for lyr in chart.to_dict()["layer"]
                 if lyr["mark"]["type"] == "rule"
-                for e in [lyr["encoding"]]
-            ]
-            return sum(math.dist((x, y), (x2, y2)) for x, y, x2, y2 in segs)
+                for m in [lyr["mark"]]
+            )
 
         # a bigger gap leaves shorter visible connectors; gap=0 leaves the full length
         assert total_len(add_labels(df, "x", "y", "g", connectorGap=3)) < total_len(
@@ -208,40 +211,36 @@ class TestAddLabels:
     def test_marker_gap_is_uniform(self):
         # every DRAWN connector starts exactly connectorGap px off its point centre - the gap never
         # shrinks (the old seg*0.25 shrink made short connectors pierce the dot while long ones
-        # cleared it: nonuniform touching-vs-gapped dots on one chart). Domains pinned to the chart
-        # pixel size so data units == px and distances survive the datum round-trip; points spread
-        # wide so each connector start is nearest its OWN anchor.
+        # cleared it: nonuniform touching-vs-gapped dots on one chart). The offsets ARE pixels, so
+        # this needs no pinned domain and holds on whatever scale the base chart renders.
         import math
 
         df = pl.DataFrame({"x": [10.0, 50.0, 90.0], "y": [20.0, 80.0, 40.0], "g": ["a", "b", "c"]})
         gap = 1.0
-        chart = add_labels(df, "x", "y", "g", connectorGap=gap, xDomain=(0.0, 100.0), yDomain=(0.0, 100.0))
-        spec = chart.to_dict()
-        anchors = [(x * 1.0, y * 1.0) for x, y in zip(df["x"], df["y"])]
-        gaps = [
-            min(math.dist((e["x"]["datum"], e["y"]["datum"]), a) for a in anchors)
-            for lyr in spec["layer"]
+        marks = [
+            lyr["mark"]
+            for lyr in add_labels(df, "x", "y", "g", connectorGap=gap).to_dict()["layer"]
             if lyr["mark"]["type"] == "rule"
-            for e in [lyr["encoding"]]
         ]
-        assert gaps  # at least one connector must be drawn for the assertion to mean anything
-        assert all(g == pytest.approx(gap) for g in gaps)
+        assert marks  # at least one connector must be drawn for the assertion to mean anything
+        assert all(math.hypot(m["xOffset"], m["yOffset"]) == pytest.approx(gap) for m in marks)
         # the TEXT end keeps only the whitespace term (2*axisWidth = 0.5px at the default theme) -
-        # asymmetric by design, there is no marker to clear at the label. (Assumes side-attached
-        # labels, where the text anchor IS the connector attachment point; these spread points
-        # place all labels beside their dots, deterministically.)
-        text_anchors = [
-            (lyr["encoding"]["x"]["datum"], lyr["encoding"]["y"]["datum"])
-            for lyr in spec["layer"]
-            if lyr["mark"]["type"] == "text"
-        ]
-        text_gaps = [
-            min(math.dist((e["x2"]["datum"], e["y2"]["datum"]), t) for t in text_anchors)
-            for lyr in spec["layer"]
-            if lyr["mark"]["type"] == "rule"
-            for e in [lyr["encoding"]]
-        ]
-        assert all(g == pytest.approx(0.5) for g in text_gaps)
+        # asymmetric by design, there is no marker to clear at the label. Offsets are relative to
+        # each label's OWN anchor, so a connector may only be compared with its own text layer
+        # (emitted right after it); side-attached labels only, where the text anchor IS the
+        # connector's attachment point.
+        daylight = 2.0 * alt.theme.options["axisWidth"]
+        pending, checked = None, 0
+        for lyr in add_labels(df, "x", "y", "g", connectorGap=gap).to_dict()["layer"]:
+            if lyr["mark"]["type"] == "rule":
+                pending = lyr["mark"]
+            elif lyr["mark"]["type"] == "text" and pending is not None:
+                if lyr["mark"].get("align") != "center":  # centred labels attach mid-edge, not at the anchor
+                    end = (pending["x2Offset"], pending["y2Offset"])
+                    assert math.dist(end, (lyr["mark"]["dx"], lyr["mark"]["dy"])) == pytest.approx(daylight)
+                    checked += 1
+                pending = None
+        assert checked
 
     def test_all_labels_shown(self, df):
         # force-show: every requested label appears (never dropped)
@@ -285,24 +284,27 @@ class TestAddLabels:
         assert set(got) == {"a", "b", "c"}
 
     def test_domain_spans_full_df_when_labeling_subset(self, df):
-        # even labeling one point, the pinned scale must span the full df (no axis clipping);
-        # exactly ONE layer carries the pin ((1, 3) nices to itself, so the extent is unchanged)
+        # even labeling one point the emitted domain spans the full df, so the union against the
+        # base chart's own scale stays a no-op rather than clipping it to the labeled point
         spec = add_labels(df, "x", "y", "g", labels=["a"]).to_dict()
-        domains = [
-            lyr["encoding"]["x"]["scale"]["domain"]
+        domains = {
+            tuple(lyr["encoding"]["x"]["scale"]["domain"])
             for lyr in spec["layer"]
             if lyr.get("encoding", {}).get("x", {}).get("scale")
-        ]
-        assert domains == [[1.0, 3.0]]  # full extent, not the single labeled point's
+        }
+        assert domains == {(1.0, 3.0)}
 
-    def test_default_domain_niced_to_round_bounds(self):
-        # the inferred domain is the extent rounded OUTWARD to nice tick multiples (d3 nice), so
-        # the pinned axes end on round numbers instead of the raw data extent
+    def test_emitted_domain_is_raw_extent_and_states_no_nice(self):
+        # the emitted domain is the RAW extent - it must union to nothing against the base's scale,
+        # so NOT the niced bounds the placement solver assumes internally. It exists only to stop
+        # Vega-Lite emitting nice:true from this layer, which would re-nice a base that opted out,
+        # so a nice key here (of any value) would defeat the point.
         df = pl.DataFrame({"x": [1.13, 2.7, 3.42], "y": [4.2, 6.1, 8.9], "g": ["a", "b", "c"]})
         spec = add_labels(df, "x", "y", "g").to_dict()
-        pin = next(lyr["encoding"] for lyr in spec["layer"] if lyr["encoding"]["x"].get("scale"))
-        assert pin["x"]["scale"]["domain"] == [1.0, 3.6]
-        assert pin["y"]["scale"]["domain"] == [4.0, 9.0]
+        enc = next(lyr["encoding"] for lyr in spec["layer"] if lyr["encoding"]["x"].get("scale"))
+        assert enc["x"]["scale"]["domain"] == [1.13, 3.42]
+        assert enc["y"]["scale"]["domain"] == [4.2, 8.9]
+        assert "nice" not in enc["x"]["scale"] and "nice" not in enc["y"]["scale"]
 
     def test_explicit_domain_used_exactly(self, df):
         # an explicit xDomain/yDomain is forced as given - no nice rounding

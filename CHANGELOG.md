@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixes
+
+- **`ds.add_labels()` no longer overrides the base chart's x/y scale.** The label layers pinned the domain to make their absolute coordinates land, which moved the base's marks on auto-domained, log and `nice=False` scales - and against a base that set its own `domain=` the pin lost the merge, leaving labels placed for a domain that never rendered. Each label now anchors at its own marker and offsets in pixels, so `xDomain` / `yDomain` are the domain placement assumes rather than a pin.
+
 ## [3.12.0] - 2026-08-23
 
 ### Changes
