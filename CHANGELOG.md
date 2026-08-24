@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changes
+
+- **`theme(viewPadding=True)` now scales the closed-plot data inset with the chart** - 5% of the smaller of `chartWidth` / `chartHeight` (5px at the default 100x100), where it was a fixed 1px request. The old value was the minimum Vega-Lite could express, which on a scale with an explicit `domain=` landed literally at 1px and left marks at the domain bounds sitting on the frame. Resolved in the theme like `markSize`, so the pixel value is readable from `alt.theme.options` and baked into exports. An explicit `viewPadding=n` is still that many pixels and `viewPadding=False` is still flush; auto-domained scales still nice-round the request up to a whole tick step, so only charts pinning a domain see the full change.
+
 ## [3.11.0] - 2026-08-03
 
 ### New features

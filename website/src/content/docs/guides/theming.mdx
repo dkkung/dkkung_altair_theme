@@ -88,10 +88,12 @@ order; `ds.create_config()` scaffolds a starter file.
 
 ## Frame and grid
 
-`closed=True` draws a full frame around the plot (all four spines). Closed plots also give
-the data a minimal inset from the frame (`viewPadding`, on by default) so marks at the domain
-edge don't sit on the border - pass `viewPadding=False` for a flush frame, or a pixel value
-for more room (Vega-Lite rounds any request up to the next nice tick step):
+`closed=True` draws a full frame around the plot (all four spines). Closed plots also inset
+the data from the frame (`viewPadding`, on by default) so marks at the domain edge don't sit
+on the border. The default scales with the chart - 5% of the smaller dimension, 5px at the
+default 100x100 - or pass a pixel value, or `viewPadding=False` for a flush frame. On an
+auto-domained scale Vega-Lite rounds the request up to the next nice tick step; it lands
+exactly where the domain is explicit:
 
 <Example name="closed_frame" alt="Scatter plot with a closed frame" />
 

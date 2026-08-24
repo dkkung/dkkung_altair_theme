@@ -562,13 +562,22 @@ class TestLineCap:
 
 class TestViewPadding:
     # theme(viewPadding=...) -> config.scale.continuousPadding on CLOSED plots only.
-    # float | bool like cornerRadius/boxplotOutliers: True (default) -> a 1px request =
-    # the MINIMAL effective inset (Vega-Lite nice-rounds any padding up to one nice step),
-    # False -> flush, a float -> that request (same quantization applies).
+    # float | bool like cornerRadius/boxplotOutliers: True (default) -> 5% of the smaller
+    # chart dimension, False -> flush, a float -> that many pixels. Vega-Lite nice-rounds
+    # the padded domain, so the request only lands exactly where the domain is explicit.
 
-    def test_default_true_requests_minimal_inset_when_closed(self):
+    def test_default_true_scales_with_chart_size_when_closed(self):
         theme(closed=True)
-        assert _dysonsphere_theme()["config"]["scale"]["continuousPadding"] == 1
+        assert _dysonsphere_theme()["config"]["scale"]["continuousPadding"] == 5.0  # 100 x 100
+
+    def test_default_true_tracks_the_smaller_dimension(self):
+        theme(closed=True, chartWidth=400, chartHeight=200)
+        assert _dysonsphere_theme()["config"]["scale"]["continuousPadding"] == 10.0
+
+    def test_resolved_value_is_readable_from_theme_options(self):
+        # resolved in _compute_derived like markSize, so it is baked into exports
+        theme(closed=True, chartWidth=200, chartHeight=200)
+        assert alt.theme.options["viewPadding"] == 10.0
 
     def test_false_is_flush(self):
         theme(closed=True, viewPadding=False)
@@ -587,7 +596,7 @@ class TestViewPadding:
 
     def test_applies_under_inward_ticks(self):
         theme(inwardTicks=True)  # implies closed
-        assert _dysonsphere_theme()["config"]["scale"]["continuousPadding"] == 1
+        assert _dysonsphere_theme()["config"]["scale"]["continuousPadding"] == 5.0
 
     def test_internal_scales_pinned_against_padding(self):
         # violin x:Q and add_labels' pinned scales carry padding=0 so viewPadding cannot

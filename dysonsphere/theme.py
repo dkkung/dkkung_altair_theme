@@ -266,6 +266,8 @@ def _compute_derived(p: dict[str, Any]) -> None:
         p["cornerRadius"] = min(p["chartWidth"], p["chartHeight"]) / 100
     if p["boxplotOutliers"] is True:  # True → show at markSize/10; a number is an explicit size; False → hidden
         p["boxplotOutliers"] = p["markSize"] / 10
+    if p["viewPadding"] is True:  # closed-plot data inset, chart-scaled like markSize
+        p["viewPadding"] = min(p["chartWidth"], p["chartHeight"]) * 0.05
     # chartFill=None is resolved at config-build time in _dysonsphere_theme(), NOT here, so it
     # follows darkmode live (save() toggles darkmode per background without re-running theme()).
     # Offset axis + legend from the plot by 1.5x tick length (Prism-style detached axis). Resolved
@@ -632,15 +634,8 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "bandWithNestedOffsetPaddingOuter": opts["groupPadding"],
                 "offsetBandPaddingInner": opts["subgroupPadding"],
                 "offsetBandPaddingOuter": opts["subgroupPadding"],
-                # Closed plots only (an open plot's detached axes already give the marks
-                # room). True -> a 1px request, i.e. the MINIMAL effective inset: Vega-Lite
-                # extends the domain and nice-rounds it, so any small request quantizes up
-                # to exactly one nice step. False/0 -> omitted (flush, Vega-Lite defaults).
-                **(
-                    {"continuousPadding": 1 if opts["viewPadding"] is True else opts["viewPadding"]}
-                    if opts["viewPadding"] and opts["closed"]
-                    else {}
-                ),
+                # Closed plots only. Exact only under an explicit domain, with auto domains nice-rounded
+                **({"continuousPadding": opts["viewPadding"]} if opts["viewPadding"] and opts["closed"] else {}),
                 "round": False,
             },
             "rect": {

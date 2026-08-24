@@ -42,6 +42,7 @@ AUTO_HINTS = {
     "ordinalPalette": "auto: greys",
     "rampPalette": "auto: built-in default",
     "viewFill": "auto: none",
+    "viewPadding": "auto: min(chartWidth, chartHeight) / 20 (closed plots)",
 }
 
 
