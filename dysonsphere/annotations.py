@@ -1028,6 +1028,22 @@ def add_labels(
     def anchor_xy(x: float, y: float) -> dict[str, Any]:
         return {"x": alt.XDatum(x, scale=raw_x), "y": alt.YDatum(y, scale=raw_y)}
 
+    # Render-time sign via scale(): a reversed base axis mirrors the offsets.
+    xsign = f"(scale('x', {x0}) < scale('x', {x1}) ? 1 : -1)" if x1 != x0 else "1"
+    ysign = f"(scale('y', {y0}) > scale('y', {y1}) ? 1 : -1)" if y1 != y0 else "1"
+
+    def _mx(v: float) -> "float | dict[str, str]":
+        return 0.0 if v == 0 else {"expr": f"{xsign} * {v}"}
+
+    def _my(v: float) -> "float | dict[str, str]":
+        return 0.0 if v == 0 else {"expr": f"{ysign} * {v}"}
+
+    def _malign(align: str) -> "str | dict[str, str]":
+        if align == "center":
+            return align
+        other = "right" if align == "left" else "left"
+        return {"expr": f"{xsign} == 1 ? '{align}' : '{other}'"}
+
     fill_c, stroke_c = _resolve_text_bg(fill, stroke)
     bg = (fill_c, stroke_c, fillOpacity, cornerRadius) if fill_c is not None else None  # chip gated on fill
 
@@ -1110,23 +1126,25 @@ def add_labels(
                     sx, sy, tx, ty = ax, ay, ex, ey
                 layers.append(
                     alt.Chart(_internal_data([{}]))
-                    .mark_rule(**rule_kwargs, xOffset=sx - ax, yOffset=sy - ay, x2Offset=tx - ax, y2Offset=ty - ay)
+                    .mark_rule(
+                        **rule_kwargs,
+                        xOffset=_mx(sx - ax),
+                        yOffset=_my(sy - ay),
+                        x2Offset=_mx(tx - ax),
+                        y2Offset=_my(ty - ay),
+                    )
                     .encode(**anchor_xy(datax, datay), x2=alt.X2Datum(datax), y2=alt.Y2Datum(datay))
                 )
         if bg is not None:  # background rect behind the label (drawn after its connector, under the text)
             rk, xsh, ysh = _text_bg_props(text, fs, align, "middle", 0, 0, *bg)
             layers.append(
                 alt.Chart(_internal_data([{}]))
-                .mark_rect(**rk)
-                .encode(
-                    **anchor_xy(datax, datay),
-                    xOffset=alt.value(text_x - ax + xsh),
-                    yOffset=alt.value(ly - ay + ysh),
-                )
+                .mark_rect(**rk, xOffset=_mx(text_x - ax + xsh), yOffset=_my(ly - ay + ysh))
+                .encode(**anchor_xy(datax, datay))
             )
         layers.append(
             alt.Chart(_internal_data([{}]))
-            .mark_text(align=align, dx=text_x - ax, dy=ly - ay, **text_kwargs)
+            .mark_text(align=_malign(align), dx=_mx(text_x - ax), dy=_my(ly - ay), **text_kwargs)
             .encode(**anchor_xy(datax, datay), text=alt.value(text))
         )
     return cast(alt.LayerChart, alt.layer(*layers))
