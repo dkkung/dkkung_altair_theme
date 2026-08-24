@@ -6,6 +6,17 @@ outside the renderer (like ggrepel / adjustText / d3-labeler) because Vega-Lite 
 label-repel primitive; the wrapper feeds the results back to Altair as static positions.
 """
 
+TARGET_GAP = 5.0
+W_CROWD = 3.0
+W_MARKER = 400.0
+W_LABEL = 5000.0
+W_DIR = 10.0
+POINT_R = 3.0
+W_OCCL = 0.0  # leader passing through another label's box
+W_CROSS = 0.0  # leader-leader crossing
+W_LEN2 = 0.15  # superlinear leader-length cost beyond LEN_FREE px
+LEN_FREE = 12.0
+
 
 def _repel_labels(
     anchors: list[tuple[float, float]],
@@ -18,26 +29,16 @@ def _repel_labels(
 ) -> list[tuple[float, float]]:
     """Nearest-clear-spot label placement (deterministic) - the engine behind :func:`add_labels`.
 
-    ``anchors`` are the pixel positions of the points being labelled and ``sizes`` each label's
-    ``(width, height)`` box in pixels (origin top-left, y growing downward, matching a rendered SVG).
-    ``obstacles`` are the pixel positions of ALL plotted points to avoid covering (default: just the
-    ``anchors``). Returns one label-CENTRE pixel position per anchor.
+    ``anchors`` are the pixel positions of the points being labelled, ``sizes`` each label's
+    ``(width, height)`` box, ``obstacles`` all plotted points to avoid covering (default:
+    ``anchors``). Origin top-left, y growing downward. Returns one label-CENTRE position per anchor.
 
-    Each label is placed at the position of **minimal displacement** from its point (so the connector
-    is as short as possible) whose box still clears the markers and the already-placed labels - found
-    by a ring search stepping outward from the point that, at each radius, tries candidate angles in
-    OUTWARD order (mark - data centroid) as a **soft directionality tiebreak** (left mark -> left
-    label), never forcing a longer connector. Labels are placed in order of local sparsity, so the
-    easy isolated ones lock in their short connectors first and the crowded ones search among what
-    remains. A final **2-opt pass** then swaps which label owns which slot whenever that lowers the
-    total cost (connector length + marker/label-overlap penalties + a small inward penalty ``w_dir``
-    that keeps the soft outward lean): by the uncrossing lemma, minimizing length removes crossing
-    leaders for free. Connector length is therefore **dynamic**: tiny where there is open space beside
-    the point, longer only where the point is genuinely buried. Fully deterministic (no RNG). **Never
-    drops a label** (force-show): if nothing fully clears within the panel, the label takes its
-    least-overlapping candidate (label-label overlap is weighted far above marker overlap). Directionality
-    is deliberately SOFT (a tiebreak/bias, not a hard outward rule) so it stays general beyond volcano-
-    shaped data. ``iterations`` is unused (kept for call compatibility).
+    Greedy takes the nearest ring with a clear spot and the roomiest candidate in it; 2-opt then
+    swaps slot ownership and a move pass relocates single labels, alternating to convergence. Cost
+    is connector length plus penalties for covering a marker (``W_MARKER``), crowding another label
+    (``W_CROWD`` below ``TARGET_GAP``), a leader passing through another label's box (``W_OCCL``),
+    leader-leader crossings (``W_CROSS``), and sitting inward of the mark (``W_DIR``). Never drops
+    a label. ``iterations`` is unused (kept for call compatibility).
     """
     import numpy as np
 
@@ -46,113 +47,280 @@ def _repel_labels(
         return []
     a = np.array(anchors, dtype=float)
     obs = np.array(obstacles if obstacles is not None else anchors, dtype=float)
-    half = np.array(sizes, dtype=float) / 2.0 + 2.0  # +2px padding so boxes gap, not just touch
-    point_r = 3.0  # marker clearance radius (a label box within this of a marker "covers" it)
-    centroid = obs.mean(axis=0)  # data centre; a SOFT outward bias (below) leans labels away from it
-    w_dir = 10.0  # (left mark -> left label, right mark -> right) as a tiebreak, never forcing length.
-
-    # Placement order: sparsest anchors first (few nearby markers -> short connectors lock in early),
-    # so the crowded ones search among what is left. Deterministic (stable argsort, no RNG).
+    half = np.array(sizes, dtype=float) / 2.0 + 2.0
+    centroid = obs.mean(axis=0)
     near_r = 0.3 * min(width, height)
     local = np.array([int((np.hypot(obs[:, 0] - a[i, 0], obs[:, 1] - a[i, 1]) < near_r).sum()) for i in range(n)])
     order = list(np.argsort(local, kind="stable"))
+    radii = np.arange(0.0, 0.6 * float(np.hypot(width, height)), 1.5)
+    base_ang = np.linspace(0.0, 2.0 * np.pi, 36, endpoint=False)
 
-    # Ring search: radii step outward in pixels; at each radius try 24 angles, ordered per label so
-    # the OUTWARD side (toward the margins) is tried first. First zero-cost (fully clear) candidate wins.
-    radii = np.arange(0.0, 0.6 * float(np.hypot(width, height)), 2.0)
-    base_ang = np.linspace(0.0, 2.0 * np.pi, 24, endpoint=False)
-
-    result: list[tuple[float, float]] = [(0.0, 0.0)] * n
-    placed: list[tuple[float, float, float, float]] = []  # (cx, cy, hw, hh) of already-placed labels
-
-    for idx in order:
-        ax, ay = float(a[idx, 0]), float(a[idx, 1])
-        hw, hh = float(half[idx, 0]), float(half[idx, 1])
-        # Preferred direction: OUTWARD from the data centroid (a left mark faces left, a right mark
-        # right), so labels lean toward the margins. For a mark near the centroid (no clear outward
-        # side) fall back to "away from the distance-weighted local crowd". SOFT tiebreak only - the
-        # label still takes the NEAREST clear spot below; outward just orders the angles tried.
+    def angles_for(idx):
         v = a[idx] - centroid
         if np.hypot(v[0], v[1]) < 0.05 * min(width, height):
             d = a[idx] - obs
             dist = np.hypot(d[:, 0], d[:, 1])
             m = (dist > 1e-9) & (dist < near_r)
             v = (d[m] * (1.0 / dist[m] ** 2)[:, None]).sum(axis=0) if m.any() else np.array([0.0, -1.0])
-        open_ang = float(np.arctan2(v[1], v[0])) if np.hypot(v[0], v[1]) > 1e-9 else -np.pi / 2.0
-        diff = np.abs((base_ang - open_ang + np.pi) % (2.0 * np.pi) - np.pi)
-        angs = base_ang[np.argsort(diff, kind="stable")]
+        oa = float(np.arctan2(v[1], v[0])) if np.hypot(v[0], v[1]) > 1e-9 else -np.pi / 2.0
+        diff = np.abs((base_ang - oa + np.pi) % (2.0 * np.pi) - np.pi)
+        return base_ang[np.argsort(diff, kind="stable")]
 
-        chosen: tuple[float, float] | None = None
-        best: tuple[float, float] | None = None
-        best_cost = None
-        for r in radii:
-            for ang in angs:
-                cx = ax + r * float(np.cos(ang))
-                cy = ay + r * float(np.sin(ang))
-                if cx - hw < 0 or cx + hw > width or cy - hh < 0 or cy + hh > height:
-                    continue
-                markers = int(((np.abs(obs[:, 0] - cx) < hw + point_r) & (np.abs(obs[:, 1] - cy) < hh + point_r)).sum())
-                labels_hit = sum(
-                    1 for (px, py, phw, phh) in placed if abs(px - cx) < hw + phw and abs(py - cy) < hh + phh
-                )
-                cost = markers + labels_hit * 1000  # a label-label overlap is far worse than a marker
-                if cost == 0:
-                    chosen = (cx, cy)
-                    break
-                if best_cost is None or cost < best_cost:
-                    best_cost = cost
-                    best = (cx, cy)
-            if chosen is not None:
-                break
-        c = chosen if chosen is not None else (best if best is not None else (ax, ay))
-        result[idx] = c
-        placed.append((c[0], c[1], hw, hh))
+    # candidate grid per label, precomputed once (deterministic, outward-ordered)
+    cand = {}
+    for k in range(n):
+        angs = angles_for(k)
+        cx = a[k, 0] + np.outer(radii, np.cos(angs)).ravel()
+        cy = a[k, 1] + np.outer(radii, np.sin(angs)).ravel()
+        hw, hh = half[k]
+        ok = (cx - hw >= 0) & (cx + hw <= width) & (cy - hh >= 0) & (cy + hh <= height)
+        cand[k] = (cx[ok], cy[ok])
 
-    # 2-opt assignment refinement. The greedy fixes a good CENTRE per label, but a label can end up
-    # owning a slot that makes its leader long or cross another label's. Swapping which label owns
-    # which slot, whenever that lowers the total cost, shortens leaders and - by the uncrossing lemma
-    # (swapping the far ends of two crossing segments always shortens the pair) - removes crossings,
-    # while the overlap penalties stop a swap that would collide boxes. n is small (top-N labels), so
-    # a full-cost recompute per candidate swap is cheap.
-    def _config_cost(assign: list[tuple[float, float]]) -> float:
-        total = 0.0
+    def marker_hits_vec(k, cx, cy):
+        hw, hh = half[k, 0] + POINT_R, half[k, 1] + POINT_R
+        return ((np.abs(obs[None, :, 0] - cx[:, None]) < hw) & (np.abs(obs[None, :, 1] - cy[:, None]) < hh)).sum(1)
+
+    def unary_vec(k, cx, cy):
+        L = np.hypot(cx - a[k, 0], cy - a[k, 1])
+        t = L + W_LEN2 * np.maximum(L - LEN_FREE, 0.0) ** 2 + W_MARKER * marker_hits_vec(k, cx, cy)
+        ox, oy = a[k, 0] - centroid[0], a[k, 1] - centroid[1]
+        onrm = float(np.hypot(ox, oy))
+        if onrm > 1e-9:
+            inward = -((cx - a[k, 0]) * ox + (cy - a[k, 1]) * oy) / onrm
+            t = t + W_DIR * np.maximum(inward, 0.0)
+        return t
+
+    def _seg_box(p0x, p0y, p1x, p1y, bcx, bcy, bhx, bhy):
+        """segment p0->p1 (arrays) vs AABB centre b, half-extents h (arrays) -> bool, broadcast."""
+        dx = (p1x - p0x) / 2.0
+        dy = (p1y - p0y) / 2.0
+        mx = (p0x + p1x) / 2.0 - bcx
+        my = (p0y + p1y) / 2.0 - bcy
+        adx, ady = np.abs(dx), np.abs(dy)
+        out = (np.abs(mx) <= bhx + adx) & (np.abs(my) <= bhy + ady)
+        return out & (np.abs(dx * my - dy * mx) <= bhx * ady + bhy * adx + 1e-9)
+
+    def _seg_seg(p0x, p0y, p1x, p1y, q0x, q0y, q1x, q1y):
+        """proper segment-segment intersection (arrays, broadcast) -> bool."""
+
+        def orient(ax_, ay_, bx_, by_, cx_, cy_):
+            return (bx_ - ax_) * (cy_ - ay_) - (by_ - ay_) * (cx_ - ax_)
+
+        d1 = orient(q0x, q0y, q1x, q1y, p0x, p0y)
+        d2 = orient(q0x, q0y, q1x, q1y, p1x, p1y)
+        d3 = orient(p0x, p0y, p1x, p1y, q0x, q0y)
+        d4 = orient(p0x, p0y, p1x, p1y, q1x, q1y)
+        return ((d1 > 0) != (d2 > 0)) & ((d3 > 0) != (d4 > 0))
+
+    def pair_one(k, cp, q, cq):
+        """full pair cost (crowding + occlusion both ways + crossing) of k at cp vs q at cq. Scalar
+        Python on purpose: 2-opt calls this per swap trial, where length-1 numpy is all overhead."""
+        khx, khy = float(half[k, 0]), float(half[k, 1])
+        qhx, qhy = float(half[q, 0]), float(half[q, 1])
+        g = max(abs(cp[0] - cq[0]) - (khx + qhx), abs(cp[1] - cq[1]) - (khy + qhy))
+        c = W_LABEL if g < 0.0 else (W_CROWD * (TARGET_GAP - g) ** 2 if g < TARGET_GAP else 0.0)
+        if not (W_OCCL or W_CROSS):
+            return c
+
+        def seg_box(p0x, p0y, p1x, p1y, bx, by, bhx, bhy):
+            dx = (p1x - p0x) / 2.0
+            dy = (p1y - p0y) / 2.0
+            mx = (p0x + p1x) / 2.0 - bx
+            my = (p0y + p1y) / 2.0 - by
+            adx, ady = abs(dx), abs(dy)
+            if abs(mx) > bhx + adx or abs(my) > bhy + ady:
+                return False
+            return abs(dx * my - dy * mx) <= bhx * ady + bhy * adx + 1e-9
+
+        akx, aky = float(a[k, 0]), float(a[k, 1])
+        aqx, aqy = float(a[q, 0]), float(a[q, 1])
+        if seg_box(akx, aky, cp[0], cp[1], cq[0], cq[1], qhx, qhy):
+            c += W_OCCL
+        if seg_box(aqx, aqy, cq[0], cq[1], cp[0], cp[1], khx, khy):
+            c += W_OCCL
+
+        def orient(ax_, ay_, bx_, by_, cx_, cy_):
+            return (bx_ - ax_) * (cy_ - ay_) - (by_ - ay_) * (cx_ - ax_)
+
+        d1 = orient(aqx, aqy, cq[0], cq[1], akx, aky)
+        d2 = orient(aqx, aqy, cq[0], cq[1], cp[0], cp[1])
+        d3 = orient(akx, aky, cp[0], cp[1], aqx, aqy)
+        d4 = orient(akx, aky, cp[0], cp[1], cq[0], cq[1])
+        if ((d1 > 0) != (d2 > 0)) and ((d3 > 0) != (d4 > 0)):
+            c += W_CROSS
+        return c
+
+    def pair_vec(k, cx, cy, others, opos):
+        """crowding + occlusion + crossing cost of candidates for k against fixed labels `others`"""
+        if not others:
+            return np.zeros(len(cx))
+        oc = np.array([opos[q] for q in others])
+        oh = half[list(others)]
+        gx = np.abs(cx[:, None] - oc[None, :, 0]) - (half[k, 0] + oh[None, :, 0])
+        gy = np.abs(cy[:, None] - oc[None, :, 1]) - (half[k, 1] + oh[None, :, 1])
+        g = np.maximum(gx, gy)
+        c = np.where(g < 0.0, W_LABEL, W_CROWD * np.maximum(TARGET_GAP - g, 0.0) ** 2)
+        tot = c.sum(1)
+        if not (W_OCCL or W_CROSS):
+            return tot
+        # k's candidate leader a[k]->(cx,cy) through other boxes
+        occl_a = _seg_box(
+            a[k, 0], a[k, 1], cx[:, None], cy[:, None], oc[None, :, 0], oc[None, :, 1], oh[None, :, 0], oh[None, :, 1]
+        )
+        # others' fixed leaders a[q]->opos[q] through k's candidate box
+        oa = a[list(others)]
+        occl_b = _seg_box(
+            oa[None, :, 0],
+            oa[None, :, 1],
+            oc[None, :, 0],
+            oc[None, :, 1],
+            cx[:, None],
+            cy[:, None],
+            half[k, 0],
+            half[k, 1],
+        )
+        # leader-leader crossings
+        cross = _seg_seg(
+            a[k, 0], a[k, 1], cx[:, None], cy[:, None], oa[None, :, 0], oa[None, :, 1], oc[None, :, 0], oc[None, :, 1]
+        )
+        return tot + W_OCCL * (occl_a.sum(1) + occl_b.sum(1)) + W_CROSS * cross.sum(1)
+
+    # ---- greedy: roomiest clear candidate at the smallest radius that has one ----
+    result = [(0.0, 0.0)] * n
+    placed_pos, placed_ids = {}, []
+    per_ang = len(base_ang)
+    for idx in order:
+        cx_all, cy_all = cand[idx]
+        mk = marker_hits_vec(idx, cx_all, cy_all)
+        if placed_ids:
+            oc = np.array([placed_pos[q] for q in placed_ids])
+            oh = half[placed_ids]
+            gx = np.abs(cx_all[:, None] - oc[None, :, 0]) - (half[idx, 0] + oh[None, :, 0])
+            gy = np.abs(cy_all[:, None] - oc[None, :, 1]) - (half[idx, 1] + oh[None, :, 1])
+            g = np.maximum(gx, gy)
+            hits = (g < 0.0).sum(1)
+            room = g.min(1)
+        else:
+            hits = np.zeros(len(cx_all), int)
+            room = np.full(len(cx_all), 1e9)
+        clear = (mk == 0) & (hits == 0)
+        if clear.any():
+            first = int(np.argmax(clear))  # candidates are radius-major
+            band = (np.arange(len(cx_all)) // per_ang) == (first // per_ang)
+            sel = np.where(clear & band)[0]
+            pick = sel[int(np.argmax(np.minimum(room[sel], TARGET_GAP * 3)))]  # roomiest in that ring
+        else:
+            pick = int(np.argmin(mk + hits * 1000))
+        result[idx] = (float(cx_all[pick]), float(cy_all[pick]))
+        placed_pos[idx] = result[idx]
+        placed_ids.append(idx)
+
+    def cost_of(k, pos, assign):
+        cx = np.array([pos[0]])
+        cy = np.array([pos[1]])
+        others = [q for q in range(n) if q != k]
+        return float(unary_vec(k, cx, cy)[0] + pair_vec(k, cx, cy, others, assign)[0])
+
+    def pair_all(mv, pos, Px, Py):
+        """pair cost of every label k at every slot s against label mv fixed at pos -> (n, n)."""
+        hx = half[:, 0][:, None]
+        hy = half[:, 1][:, None]
+        gx = np.abs(Px[None, :] - pos[0]) - (hx + half[mv, 0])
+        gy = np.abs(Py[None, :] - pos[1]) - (hy + half[mv, 1])
+        g = np.maximum(gx, gy)
+        c = np.where(g < 0.0, W_LABEL, W_CROWD * np.maximum(TARGET_GAP - g, 0.0) ** 2)
+        if not (W_OCCL or W_CROSS):
+            return c
+        occ_a = _seg_box(
+            a[:, 0][:, None], a[:, 1][:, None], Px[None, :], Py[None, :], pos[0], pos[1], half[mv, 0], half[mv, 1]
+        )
+        occ_b = _seg_box(a[mv, 0], a[mv, 1], pos[0], pos[1], Px[None, :], Py[None, :], hx, hy)
+        crs = _seg_seg(a[:, 0][:, None], a[:, 1][:, None], Px[None, :], Py[None, :], a[mv, 0], a[mv, 1], pos[0], pos[1])
+        return c + W_OCCL * (occ_a + occ_b) + W_CROSS * crs
+
+    P: list[tuple[float, float]] = []  # slot positions during a two_opt run (fixed; swaps permute assignment)
+
+    def two_opt():
+        """first-improvement 2-opt over slot assignments, evaluated from incremental matrices.
+
+        U2[k, s]: unary cost of label k at slot s. R[k, s]: pair cost of label k at slot s
+        against every OTHER label at its current position. Both stay valid across accepted
+        swaps except R's terms involving the two swapped labels, which are patched in place.
+        """
+        nonlocal result
+        if n < 2:
+            return False
+        P[:] = list(result)
+        Px = np.array([p_[0] for p_ in P])
+        Py = np.array([p_[1] for p_ in P])
+        slot_of = list(range(n))  # label k currently occupies slot slot_of[k]
+        U2 = np.stack([unary_vec(k, Px, Py) for k in range(n)])
+        R = np.zeros((n, n))
         for k in range(n):
-            cx, cy = assign[k]
-            hw_k, hh_k = float(half[k, 0]), float(half[k, 1])
-            total += float(np.hypot(cx - a[k, 0], cy - a[k, 1]))  # connector length
-            total += 50.0 * int(
-                ((np.abs(obs[:, 0] - cx) < hw_k + point_r) & (np.abs(obs[:, 1] - cy) < hh_k + point_r)).sum()
-            )
-            # soft outward preference: penalise a label sitting INWARD of its mark (toward the
-            # centroid), biasing the 2-opt to keep left marks left / right marks right.
-            ox, oy = float(a[k, 0] - centroid[0]), float(a[k, 1] - centroid[1])
-            onrm = float(np.hypot(ox, oy))
-            if onrm > 1e-9:
-                inward = -((cx - a[k, 0]) * ox + (cy - a[k, 1]) * oy) / onrm
-                if inward > 0.0:
-                    total += w_dir * inward
-        for p in range(n):
-            for q in range(p + 1, n):
-                (cx1, cy1), (cx2, cy2) = assign[p], assign[q]
-                if abs(cx1 - cx2) < half[p, 0] + half[q, 0] and abs(cy1 - cy2) < half[p, 1] + half[q, 1]:
-                    total += 5000.0  # label-label overlap: effectively forbidden
-        return total
+            others = [q for q in range(n) if q != k]
+            R[k] = pair_vec(k, Px, Py, others, {q: P[slot_of[q]] for q in others})
+        moved = False
+        for _ in range(20):
+            improved = False
+            for i_ in range(n):
+                for j_ in range(i_ + 1, n):
+                    si, sj = slot_of[i_], slot_of[j_]
+                    # R rows include the partner at its OLD slot; swap both terms out/in
+                    old_c = U2[i_, si] + U2[j_, sj] + R[i_, si] + R[j_, sj] - pair_one(i_, P[si], j_, P[sj])
+                    new_c = (
+                        U2[i_, sj]
+                        + U2[j_, si]
+                        + R[i_, sj]
+                        - pair_one(i_, P[sj], j_, P[sj])
+                        + 0.0
+                        + R[j_, si]
+                        - pair_one(j_, P[si], i_, P[si])
+                        + pair_one(i_, P[sj], j_, P[si])
+                    )
+                    if new_c < old_c - 1e-6:
+                        # patch every R row at once: labels i_ and j_ moved slots
+                        for mv, s_old, s_new in ((i_, si, sj), (j_, sj, si)):
+                            delta = pair_all(mv, P[s_new], Px, Py) - pair_all(mv, P[s_old], Px, Py)
+                            delta[[i_, j_], :] = 0.0
+                            R += delta
+                        slot_of[i_], slot_of[j_] = sj, si
+                        # the swapped labels' own rows contain the partner at its OLD slot in every
+                        # entry - the patch above skipped them, so rebuild both outright
+                        for mv in (i_, j_):
+                            others = [q for q in range(n) if q != mv]
+                            R[mv] = pair_vec(mv, Px, Py, others, {q: P[slot_of[q]] for q in others})
+                        improved = True
+                        moved = True
+            if not improved:
+                break
+        result = [P[slot_of[k]] for k in range(n)]
+        return moved
 
-    for _ in range(20):
-        improved = False
-        base = _config_cost(result)
-        for i in range(n):
-            for j in range(i + 1, n):
-                result[i], result[j] = result[j], result[i]
-                new = _config_cost(result)
-                if new < base - 1e-6:
-                    base = new
-                    improved = True
-                else:
-                    result[i], result[j] = result[j], result[i]  # revert
-        if not improved:
+    _unary_cache: dict[int, "np.ndarray"] = {}
+
+    def unary_cached(k):
+        if k not in _unary_cache:
+            cx_all, cy_all = cand[k]
+            _unary_cache[k] = unary_vec(k, cx_all, cy_all)
+        return _unary_cache[k]
+
+    def move_pass():
+        moved = False
+        for k in range(n):
+            cx_all, cy_all = cand[k]
+            others = [q for q in range(n) if q != k]
+            tot = unary_cached(k) + pair_vec(k, cx_all, cy_all, others, result)
+            b = int(np.argmin(tot))
+            if tot[b] < cost_of(k, result[k], result) - 1e-6:
+                result[k] = (float(cx_all[b]), float(cy_all[b]))
+                moved = True
+        return moved
+
+    for _ in range(8):
+        m = move_pass()
+        t = two_opt()
+        if not (m or t):
             break
-
     return [(float(cx), float(cy)) for cx, cy in result]
 
 
