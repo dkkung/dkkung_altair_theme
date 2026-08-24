@@ -4,6 +4,8 @@
 
 ### Changes
 
+- **`ds.add_labels()` avoids very long leader lines.** Leader length now costs superlinearly past 12px, so the worst-case leader shortens (~17% in benchmarks) and slightly fewer labels sit on data points, while dense layouts keep their round-1 spacing. The refinement stage was also rewritten to evaluate swaps from incrementally-updated cost matrices, making placement ~7x faster at large label counts.
+
 - **`ds.add_labels()` places labels with more breathing room.** The placement engine now prefers the roomiest clear spot instead of the first one found, penalizes labels that sit closer than 5px to each other, and adds a relocation pass the old slot-swapping refinement lacked - so dense label sets spread out instead of packing at the legal minimum. Fewer labels land on data points and fewer leaders cross; runtime and determinism are unchanged.
 
 ### Fixes
