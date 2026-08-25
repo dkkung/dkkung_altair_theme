@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixes
+
+- `ds.add_labels()` could place labels outside the panel or on top of axis titles in concatenated (faceted) charts and on nonlinear scales (3.13.0/3.13.1). Positions are data coordinates again, so labels stay inside the panel on any axis.
+
 ## [3.13.1] - 2026-08-24
 
 ### Fixes
