@@ -1013,42 +1013,30 @@ def add_labels(
         # Match Vega's linear map with a pinned domain: x -> [0, width], y inverted -> [height, 0].
         return ((x - x0) / xspan * width, height - (y - y0) / yspan * height)
 
+    def px_to_x(px: float) -> float:
+        return x0 + px / width * xspan
+
+    def px_to_y(py: float) -> float:
+        return y0 + (height - py) / height * yspan
+
     anchors = [to_px(x, y) for x, y in zip(xs, ys)]
     obstacles = [to_px(x, y) for x, y in zip(all_x, all_y)]  # ALL plotted points, so labels avoid them
     sizes = [(len(t) * fs * 0.6, fs * 1.2) for t in label_texts]  # rough text-box estimate
     label_pos = _repel_labels(anchors, sizes, width=width, height=height, obstacles=obstacles)
 
-    # Labels anchor at their marker's data coordinate and carry every offset in pixels, so nothing
-    # depends on the rendered domain. The domain here is the raw extent - a no-op union against the
-    # base's own scale - stated only to suppress Vega-Lite's default nice:true, which would re-nice a
-    # base that opted out. A base zoomed inside its data still widens; pass xDomain/yDomain to match.
+    # Positions are data coordinates: contained in the panel on any scale. The stated domain
+    # matches the base's, kept only to suppress Vega-Lite's default nice:true.
     raw_x = alt.Scale(domain=[min(all_x), max(all_x)] if xDomain is None else list(xDomain))
     raw_y = alt.Scale(domain=[min(all_y), max(all_y)] if yDomain is None else list(yDomain))
 
-    def anchor_xy(x: float, y: float) -> dict[str, Any]:
-        return {"x": alt.XDatum(x, scale=raw_x), "y": alt.YDatum(y, scale=raw_y)}
-
-    # Render-time sign via scale(): a reversed base axis mirrors the offsets.
-    xsign = f"(scale('x', {x0}) < scale('x', {x1}) ? 1 : -1)" if x1 != x0 else "1"
-    ysign = f"(scale('y', {y0}) > scale('y', {y1}) ? 1 : -1)" if y1 != y0 else "1"
-
-    def _mx(v: float) -> "float | dict[str, str]":
-        return 0.0 if v == 0 else {"expr": f"{xsign} * {v}"}
-
-    def _my(v: float) -> "float | dict[str, str]":
-        return 0.0 if v == 0 else {"expr": f"{ysign} * {v}"}
-
-    def _malign(align: str) -> "str | dict[str, str]":
-        if align == "center":
-            return align
-        other = "right" if align == "left" else "left"
-        return {"expr": f"{xsign} == 1 ? '{align}' : '{other}'"}
+    def datum_xy(px: float, py: float) -> dict[str, Any]:
+        return {"x": alt.XDatum(px_to_x(px), scale=raw_x), "y": alt.YDatum(px_to_y(py), scale=raw_y)}
 
     fill_c, stroke_c = _resolve_text_bg(fill, stroke)
     bg = (fill_c, stroke_c, fillOpacity, cornerRadius) if fill_c is not None else None  # chip gated on fill
 
     layers: list[alt.Chart] = []
-    for (ax, ay), (lx, ly), (w, h), text, datax, datay in zip(anchors, label_pos, sizes, label_texts, xs, ys):
+    for (ax, ay), (lx, ly), (w, h), text in zip(anchors, label_pos, sizes, label_texts):
         hw, hh = w / 2, h / 2
         dx, dy = ax - lx, ay - ly  # label centre -> point
         # Attach the connector on the box side facing the point (aspect-aware: which edge a straight
@@ -1126,26 +1114,20 @@ def add_labels(
                     sx, sy, tx, ty = ax, ay, ex, ey
                 layers.append(
                     alt.Chart(_internal_data([{}]))
-                    .mark_rule(
-                        **rule_kwargs,
-                        xOffset=_mx(sx - ax),
-                        yOffset=_my(sy - ay),
-                        x2Offset=_mx(tx - ax),
-                        y2Offset=_my(ty - ay),
-                    )
-                    .encode(**anchor_xy(datax, datay), x2=alt.X2Datum(datax), y2=alt.Y2Datum(datay))
+                    .mark_rule(**rule_kwargs)
+                    .encode(**datum_xy(sx, sy), x2=alt.X2Datum(px_to_x(tx)), y2=alt.Y2Datum(px_to_y(ty)))
                 )
         if bg is not None:  # background rect behind the label (drawn after its connector, under the text)
             rk, xsh, ysh = _text_bg_props(text, fs, align, "middle", 0, 0, *bg)
             layers.append(
                 alt.Chart(_internal_data([{}]))
-                .mark_rect(**rk, xOffset=_mx(text_x - ax + xsh), yOffset=_my(ly - ay + ysh))
-                .encode(**anchor_xy(datax, datay))
+                .mark_rect(**rk)
+                .encode(**datum_xy(text_x, ly), xOffset=alt.value(xsh), yOffset=alt.value(ysh))
             )
         layers.append(
             alt.Chart(_internal_data([{}]))
-            .mark_text(align=_malign(align), dx=_mx(text_x - ax), dy=_my(ly - ay), **text_kwargs)
-            .encode(**anchor_xy(datax, datay), text=alt.value(text))
+            .mark_text(align=align, **text_kwargs)
+            .encode(**datum_xy(text_x, ly), text=alt.value(text))
         )
     return cast(alt.LayerChart, alt.layer(*layers))
 

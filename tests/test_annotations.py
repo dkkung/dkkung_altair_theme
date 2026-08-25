@@ -142,8 +142,9 @@ class TestAddLabels:
         texts = [lyr for lyr in spec["layer"] if lyr["mark"]["type"] == "text"]
         assert len(rects) == len(texts) == 8
         for r, t in zip(rects, texts):
-            assert _off(r["mark"]["xOffset"]) == pytest.approx(_off(t["mark"]["dx"]))
-            assert _off(r["mark"]["yOffset"]) == pytest.approx(_off(t["mark"]["dy"]))
+            assert r["encoding"]["x"]["datum"] == pytest.approx(t["encoding"]["x"]["datum"])
+            assert r["encoding"]["y"]["datum"] == pytest.approx(t["encoding"]["y"]["datum"])
+            assert r["encoding"]["xOffset"]["value"] == 0.0  # centred chip: no horizontal shift
 
     def test_no_invisible_pin_mark(self, df):
         # the scale pin must ride on the label marks themselves - no invisible point may land in
@@ -192,12 +193,12 @@ class TestAddLabels:
         import math
 
         def total_len(chart):
-            # connector geometry is PIXEL offsets on the mark, so this is scale-free outright
+            # connector endpoints are datum coords; same domains both charts, so comparison is fair
             return sum(
-                math.dist((_off(m["xOffset"]), _off(m["yOffset"])), (_off(m["x2Offset"]), _off(m["y2Offset"])))
+                math.dist((e["x"]["datum"], e["y"]["datum"]), (e["x2"]["datum"], e["y2"]["datum"]))
                 for lyr in chart.to_dict()["layer"]
                 if lyr["mark"]["type"] == "rule"
-                for m in [lyr["mark"]]
+                for e in [lyr["encoding"]]
             )
 
         # a bigger gap leaves shorter visible connectors; gap=0 leaves the full length
@@ -216,37 +217,36 @@ class TestAddLabels:
         assert self._n_connectors(add_labels(df, "x", "y", "g", connectorGap=1000, alwaysShowConnectors=True)) == 3
 
     def test_marker_gap_is_uniform(self):
-        # every DRAWN connector starts exactly connectorGap px off its point centre - the gap never
-        # shrinks (the old seg*0.25 shrink made short connectors pierce the dot while long ones
-        # cleared it: nonuniform touching-vs-gapped dots on one chart). The offsets ARE pixels, so
-        # this needs no pinned domain and holds on whatever scale the base chart renders.
+        # every DRAWN connector starts exactly connectorGap px off its point centre. Domains pinned
+        # to the chart pixel size so data units == px and distances survive the datum round-trip.
         import math
 
         df = pl.DataFrame({"x": [10.0, 50.0, 90.0], "y": [20.0, 80.0, 40.0], "g": ["a", "b", "c"]})
         gap = 1.0
-        marks = [
-            lyr["mark"]
-            for lyr in add_labels(df, "x", "y", "g", connectorGap=gap).to_dict()["layer"]
+        spec = add_labels(df, "x", "y", "g", connectorGap=gap, xDomain=(0.0, 100.0), yDomain=(0.0, 100.0)).to_dict()
+        anchors = [(10.0, 20.0), (50.0, 80.0), (90.0, 40.0)]
+        starts = [
+            (e["x"]["datum"], e["y"]["datum"])
+            for lyr in spec["layer"]
             if lyr["mark"]["type"] == "rule"
+            for e in [lyr["encoding"]]
         ]
-        assert marks  # at least one connector must be drawn for the assertion to mean anything
-        assert all(math.hypot(_off(m["xOffset"]), _off(m["yOffset"])) == pytest.approx(gap) for m in marks)
-        # the TEXT end keeps only the whitespace term (2*axisWidth = 0.5px at the default theme) -
-        # asymmetric by design, there is no marker to clear at the label. Offsets are relative to
-        # each label's OWN anchor, so a connector may only be compared with its own text layer
-        # (emitted right after it); side-attached labels only, where the text anchor IS the
-        # connector's attachment point.
+        assert starts
+        assert all(min(math.dist(st, a) for a in anchors) == pytest.approx(gap) for st in starts)
+        # the TEXT end keeps only the whitespace term (2*axisWidth); side-attached labels only,
+        # each connector compared with its own text layer (emitted directly after it)
         daylight = 2.0 * alt.theme.options["axisWidth"]
         pending, checked = None, 0
-        for lyr in add_labels(df, "x", "y", "g", connectorGap=gap).to_dict()["layer"]:
+        for lyr in spec["layer"]:
             if lyr["mark"]["type"] == "rule":
-                pending = lyr["mark"]
+                pending = lyr["encoding"]
             elif lyr["mark"]["type"] == "text" and pending is not None:
-                if lyr["mark"].get("align") == "center":  # center labels attach mid-edge, not the anchor
+                if lyr["mark"].get("align") == "center":
                     pending = None
                     continue
-                end = (_off(pending["x2Offset"]), _off(pending["y2Offset"]))
-                assert math.dist(end, (_off(lyr["mark"]["dx"]), _off(lyr["mark"]["dy"]))) == pytest.approx(daylight)
+                end = (pending["x2"]["datum"], pending["y2"]["datum"])
+                anchor = (lyr["encoding"]["x"]["datum"], lyr["encoding"]["y"]["datum"])
+                assert math.dist(end, anchor) == pytest.approx(daylight)
                 checked += 1
                 pending = None
         assert checked
@@ -271,15 +271,17 @@ class TestAddLabels:
         for m in re.finditer(r"translate\(([-\d.e]+),([-\d.e]+)\)[^>]*>(aa|bb|cc)<", svg):
             assert -1.0 <= float(m.group(2)) <= h + 1.0
 
-    def test_offsets_carry_render_time_sign(self, df):
-        # each offset is an ExprRef whose sign reads the real scale
+    def test_positions_are_datum_never_offsets(self, df):
+        # containment invariant: every label/connector position is a data coordinate; no pixel
+        # offsets, no scale() expressions - those broke on reversed axes and inside concat
         spec = add_labels(df, "x", "y", "g").to_dict()
-        rules = [lyr["mark"] for lyr in spec["layer"] if lyr["mark"]["type"] == "rule"]
-        assert rules
-        for m in rules:
-            for k in ("xOffset", "yOffset", "x2Offset", "y2Offset"):
-                v = m.get(k, 0.0)
-                assert v == 0.0 or "scale(" in v["expr"]
+        for lyr in spec["layer"]:
+            m, e = lyr["mark"], lyr.get("encoding", {})
+            for k in ("xOffset", "yOffset", "x2Offset", "y2Offset", "dx", "dy", "align"):
+                assert not isinstance(m.get(k), dict), f"expr in mark.{k}"
+            if m["type"] in ("rule", "text"):
+                assert "datum" in e["x"] and "datum" in e["y"]
+                assert "xOffset" not in m and "yOffset" not in m
 
     def test_all_labels_shown(self, df):
         # force-show: every requested label appears (never dropped)
