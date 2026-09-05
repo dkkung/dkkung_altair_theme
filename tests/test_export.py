@@ -1381,11 +1381,18 @@ class TestSuppressNice:
             assert spec[key][0]["encoding"]["y"]["scale"]["nice"] is False
         assert spec["spec"]["encoding"]["y"]["scale"]["nice"] is False
 
-    def test_gate_applies_only_to_closed_plots(self):
+    def test_gate_follows_emitted_padding_not_closed(self):
         theme(closed=True)
         assert _apply_spec_fixes(self._chart().to_dict())["encoding"]["y"]["scale"]["nice"] is False
         theme()  # open - viewPadding is not emitted, so nothing to correct
         assert "scale" not in _apply_spec_fixes(self._chart().to_dict())["encoding"]["y"]
+
+    def test_gate_fires_for_padded_open_plots(self):
+        """Padding is what nice conflicts with; the gate must not be tied to `closed`."""
+        theme(axisOffset=0)  # open, but padded (a config theme.py may emit in future)
+        spec = self._chart().to_dict()
+        spec["config"].setdefault("scale", {})["continuousPadding"] = 5
+        assert _apply_spec_fixes(spec)["encoding"]["y"]["scale"]["nice"] is False
 
     def test_gate_respects_view_padding_off(self):
         theme(closed=True, viewPadding=False)

@@ -97,8 +97,13 @@ def _apply_spec_fixes(spec: dict[str, Any]) -> dict[str, Any]:
 
     Kept as one call so ``save``'s JSON/HTML spec and ``_render_fixed_svg``'s SVG/PNG spec -
     resolved separately from the same chart - cannot drift apart.
+
+    The nice-suppression is gated on ``continuousPadding`` being present IN THE SPEC, not on the
+    theme flags that currently imply it (``viewPadding and closed``). Padding is what ``nice``
+    conflicts with, so reading the emitted value tracks whatever ``theme.py`` decides to emit -
+    including a future default that pads open plots - with no condition to keep in sync.
     """
-    if _opt("viewPadding") and _opt("closed"):
+    if spec.get("config", {}).get("scale", {}).get("continuousPadding"):
         _suppress_nice(spec)
     return spec
 
