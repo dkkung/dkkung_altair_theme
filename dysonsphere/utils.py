@@ -313,6 +313,11 @@ def frame_checksum(df: "pl.DataFrame | Any") -> str:
 # Miss one, and that sidecar leaks as a phantom "user" dataframe on read.  See CLAUDE.md.
 _INTERNAL_COL = "__dysonsphere__"
 
+# Marks an `add_shade` background rect so `export._layer_axes_below_marks` can sink it behind the
+# grid and axes. Deliberately NOT the `__dysonsphere_` prefix: `metadata._strip_markers` deletes
+# that from written output, which would break the fixer after a `ds.load()` round trip.
+_SHADE_PREFIX = "__dsshade_"
+
 # Unicode superscript digits 0-9 - the SINGLE source for every notation label that renders an
 # exponent: nonlinear.log_label_expr (10ⁿ / bⁿ log labels), inference._superscript (p-value
 # ×10ⁿ), and table.py power/scientific columns all index this string. export._fix_superscript_labels

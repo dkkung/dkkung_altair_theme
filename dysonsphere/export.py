@@ -14,7 +14,7 @@ import altair as alt
 
 from . import discovery, metadata
 from .theme import _opt
-from .utils import _SUP, _json_safe
+from .utils import _SHADE_PREFIX, _SUP, _json_safe
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
@@ -87,6 +87,7 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
         _flip_ticks_inward(root)
     _align_figure_labels(root)  # before _simplify_svg, which flattens the transforms it reads
     _layer_axes_below_marks(root)
+    _sink_border_below_shade(root)  # after the re-order, which moves the shade to its group's front
     _simplify_svg(root)
     _typeset_scripts(root)
     _italicize_stat_symbols(root)
@@ -657,6 +658,51 @@ def _align_figure_labels(root: ET.Element) -> None:
                 text.set("x", str(float(text.get("x") or 0) + shift))
 
 
+_IDENTITY_TRANSFORMS = (None, "", "translate(0,0)", "translate(0, 0)")
+
+
+def _sink_border_below_shade(root: ET.Element) -> None:
+    """Move a closed plot's border so it paints AFTER the ``add_shade`` background.
+
+    Vega emits the stroked view border as a sibling of the group that holds the marks, and the
+    border comes first - so an opaque shade rect paints straight over it. The left and bottom
+    edges survive only because the x/y axis domain lines repaint them; ``axisRight``/``axisTop``
+    are off by default, so the top and right edges are drawn by the border alone and vanish.
+
+    ``_layer_axes_below_marks`` cannot fix this: it re-orders within one group, and these two
+    live at different depths. The border is instead moved INTO the group holding the shade,
+    directly after the last shade rect - above the shading, still below the axes and the data.
+    Only done when the intervening groups carry no transform, so the border's coordinates stay
+    in the same space; otherwise it is left alone.
+    """
+    parents = {child: parent for parent in root.iter() for child in parent}
+
+    def stroked_border(el: ET.Element) -> bool:
+        return (
+            el.tag == f"{{{_SVG_NS}}}path"
+            and el.get("class") == "background"
+            and el.get("stroke") not in (None, "none")
+            and el.get("display") != "none"
+        )
+
+    for group in list(root.iter(f"{{{_SVG_NS}}}g")):
+        shade = [c for c in group if _SHADE_PREFIX in (c.get("class") or "")]
+        if not shade:
+            continue
+        # Walk up while the path back to the border is geometrically neutral.
+        node = group
+        while node in parents:
+            if node.get("transform") not in _IDENTITY_TRANSFORMS:
+                break  # a transform between border and shade would move the border - leave it
+            parent = parents[node]
+            border = next((c for c in parent if stroked_border(c)), None)
+            if border is not None:
+                parent.remove(border)
+                group.insert(list(group).index(shade[-1]) + 1, border)
+                break
+            node = parent
+
+
 def _layer_axes_below_marks(root: ET.Element) -> None:
     """Re-order SVG children into fill -> grid -> axes and border -> data marks.
 
@@ -686,9 +732,13 @@ def _layer_axes_below_marks(root: ET.Element) -> None:
 
     def reorder(el: ET.Element) -> None:
         to_place = []  # axis groups + border strokes, re-inserted after the grid block
+        shade = []  # add_shade backgrounds, sunk behind the grid (never over an axis or border)
         for child in list(el):
             cls = child.get("class", "")
-            if cls == "mark-group role-axis" and not _is_grid_axis(child):
+            if _SHADE_PREFIX in cls:
+                el.remove(child)
+                shade.append(child)
+            elif cls == "mark-group role-axis" and not _is_grid_axis(child):
                 el.remove(child)
                 to_place.append(child)
             elif (
@@ -723,6 +773,17 @@ def _layer_axes_below_marks(root: ET.Element) -> None:
                 break
             for offset, item in enumerate(to_place):
                 el.insert(index + offset, item)
+        if shade:
+            # Straight after the background fill, so the shading sits under the grid, the axes and
+            # the data - a background rect must never paint over the frame it sits inside.
+            at = 0
+            for i, child in enumerate(el):
+                if child.tag == f"{{{_SVG_NS}}}path" and child.get("class", "") == "background":
+                    at = i + 1
+                else:
+                    break
+            for offset, item in enumerate(shade):
+                el.insert(at + offset, item)
         for child in el:
             reorder(child)
 
