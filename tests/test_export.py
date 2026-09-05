@@ -3,6 +3,7 @@ import math
 import re
 import textwrap
 import xml.etree.ElementTree as ET
+from typing import Any
 
 import altair as alt
 import polars as pl
@@ -10,6 +11,7 @@ import pytest
 
 from dysonsphere.export import (
     _align_grid_to_content,
+    _apply_spec_fixes,
     _fix_font_for_illustrator,
     _fix_subscript_labels,
     _fix_superscript_labels,
@@ -19,6 +21,7 @@ from dysonsphere.export import (
     _layer_axes_below_marks,
     _simplify_svg,
     _sink_border_below_shade,
+    _suppress_nice,
     _typeset_scripts,
     save,
 )
@@ -1336,3 +1339,71 @@ class TestShadeBehindAxes:
         _sink_border_below_shade(root)
         outer = root[0]
         assert outer[0].get("class") == "background", "border should not have moved"
+
+
+class TestSuppressNice:
+    """viewPadding lands exactly only if Vega does not re-nice the padded domain."""
+
+    def _chart(self):
+        df = pl.DataFrame({"x": [0.0, 1.0], "y": [0.0, 8.343]})
+        return alt.Chart(df).mark_point().encode(alt.X("x:Q", title="x"), alt.Y("y:Q", title="y"))
+
+    def test_sets_nice_false_on_continuous_position_scales(self):
+        spec: dict[str, Any] = {"encoding": {"x": {"type": "quantitative"}, "y": {"type": "quantitative"}}}
+        enc: Any = _suppress_nice(spec)["encoding"]
+        assert enc["x"]["scale"]["nice"] is False
+        assert enc["y"]["scale"]["nice"] is False
+
+    def test_leaves_explicit_user_nice_alone(self):
+        spec: dict[str, Any] = {"encoding": {"y": {"type": "quantitative", "scale": {"nice": True}}}}
+        _suppress_nice(spec)
+        assert spec["encoding"]["y"]["scale"]["nice"] is True
+
+    def test_skips_non_continuous_channels(self):
+        spec: dict[str, Any] = {"encoding": {"x": {"type": "nominal"}, "y": {"type": "ordinal"}}}
+        _suppress_nice(spec)
+        assert "scale" not in spec["encoding"]["x"]
+        assert "scale" not in spec["encoding"]["y"]
+
+    def test_recurses_into_every_container(self):
+        def leaf() -> dict[str, Any]:
+            return {"encoding": {"y": {"type": "quantitative"}}}
+
+        spec: dict[str, Any] = {
+            "layer": [leaf()],
+            "hconcat": [leaf()],
+            "vconcat": [leaf()],
+            "concat": [leaf()],
+            "spec": leaf(),
+        }
+        _suppress_nice(spec)
+        for key in ("layer", "hconcat", "vconcat", "concat"):
+            assert spec[key][0]["encoding"]["y"]["scale"]["nice"] is False
+        assert spec["spec"]["encoding"]["y"]["scale"]["nice"] is False
+
+    def test_gate_applies_only_to_closed_plots(self):
+        theme(closed=True)
+        assert _apply_spec_fixes(self._chart().to_dict())["encoding"]["y"]["scale"]["nice"] is False
+        theme()  # open - viewPadding is not emitted, so nothing to correct
+        assert "scale" not in _apply_spec_fixes(self._chart().to_dict())["encoding"]["y"]
+
+    def test_gate_respects_view_padding_off(self):
+        theme(closed=True, viewPadding=False)
+        assert "scale" not in _apply_spec_fixes(self._chart().to_dict())["encoding"]["y"]
+
+    def test_svg_and_json_agree(self, tmp_path):
+        """The two spec resolutions in save() must not drift apart."""
+        theme(closed=True, chartWidth=300, chartHeight=300)
+        save(self._chart(), str(tmp_path / "fig"), format=["svg", "json"], background="light")
+        spec = json.loads((tmp_path / "fig.json").read_text())
+        assert spec["encoding"]["y"]["scale"]["nice"] is False
+        labels = re.findall(r"<text[^>]*>([^<]*)</text>", (tmp_path / "fig.svg").read_text())
+        ticks = [t for t in labels if re.fullmatch(r"[\u2212-]?[\d.]+", t)]
+        assert not any(t.startswith("\u2212") for t in ticks[ticks.index("0") :]), ticks
+
+    def test_removes_negative_tick_on_non_negative_data(self, tmp_path):
+        """A padded, niced domain invents a -1 tick under data that never goes below zero."""
+        theme(closed=True, chartWidth=300, chartHeight=300)
+        save(self._chart(), str(tmp_path / "fig"), format="svg", background="light")
+        labels = re.findall(r"<text[^>]*>([^<]*)</text>", (tmp_path / "fig.svg").read_text())
+        assert "\u22121" not in labels

@@ -5,6 +5,7 @@
 ### Fixes
 
 - **`ds.add_shade()` renders behind the grid, axes and plot border.**
+- **`viewPadding` now insets by exactly the amount requested on closed plots.** Vega padded the domain and then re-niced it, so the rounding compounded: a 15px `viewPadding` rendered as 19.7px at one end and 30px at the other, and a non-negative field could gain a `-1` tick where the padded bound crossed zero. `nice` is now suppressed on continuous x/y scales while padding is active, so the padding alone sets the bounds. Open plots, ordinal and band axes, and any scale with an explicit `nice=` are untouched.
 
 ## [3.13.2] - 2026-08-25
 
