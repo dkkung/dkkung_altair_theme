@@ -33,6 +33,7 @@ from pathlib import Path
 import altair as alt
 
 import dysonsphere as ds
+from dysonsphere.utils import _apply_spec_fixes
 
 # The specs must reflect the LIBRARY's defaults, not whoever runs this. ds.theme() merges a
 # user-wide ~/.config/dysonsphere/dysonsphere.toml over the built-ins, so a personal [default]
@@ -69,7 +70,7 @@ def build(path: Path, dark: bool) -> dict:
         chart = ns.get("chart")
         if chart is None:
             raise SystemExit(f"{path}: does not define a variable named 'chart'")
-        spec = chart.to_dict()
+        spec = _apply_spec_fixes(chart.to_dict())
         ds.clear_stats()
         return spec
 
@@ -106,7 +107,9 @@ def build(path: Path, dark: bool) -> dict:
     chart = ns.get("chart")
     if chart is None:
         raise SystemExit(f"{path}: does not define a variable named 'chart'")
-    spec = chart.to_dict()
+    # The site renders these specs directly, so they must carry the same spec-level transforms
+    # save()/show() apply - otherwise a live chart ticks differently from the exported figure.
+    spec = _apply_spec_fixes(chart.to_dict())
     # The stats registry is per-process; clear between examples so records never cross charts.
     ds.clear_stats()
     return spec

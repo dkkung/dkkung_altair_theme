@@ -14,7 +14,7 @@ import altair as alt
 
 from . import discovery, metadata
 from .theme import _opt
-from .utils import _SHADE_PREFIX, _SUP, _json_safe
+from .utils import _SHADE_PREFIX, _SUP, _apply_spec_fixes, _json_safe
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
@@ -50,62 +50,6 @@ def _resolve_choice(value, default, valid: tuple[str, ...], name: str) -> list[s
     if invalid:
         raise ValueError(f"{name} must be one of {valid}, got {invalid!r}")
     return items
-
-
-_CONTINUOUS_TYPES = ("quantitative", "temporal")
-_SPEC_CONTAINERS = ("layer", "hconcat", "vconcat", "concat")
-
-
-def _suppress_nice(spec: dict[str, Any]) -> dict[str, Any]:
-    """Turn ``nice`` off on continuous x/y scales so ``viewPadding`` lands exactly.
-
-    Vega pads the domain and *then* nices it, so the rounding compounds the inset: a
-    ``viewPadding`` of 15 px renders as 19.7 px at one end and 30 px at the other, and a
-    non-negative field can gain a ``-1`` tick where the padded bound crossed zero. Dropping
-    ``nice`` while padding is active makes the padding alone set the bounds, so the inset is
-    exactly what was asked for and the axis stops where the data does.
-
-    Only applied when ``viewPadding`` is actually emitted (see ``theme.py``'s
-    ``continuousPadding`` gate), and never over an explicit user ``nice``. Mutates *spec* in
-    place and returns it.
-    """
-    encoding = spec.get("encoding")
-    if isinstance(encoding, dict):
-        for channel in ("x", "y"):
-            channel_def = encoding.get(channel)
-            if not isinstance(channel_def, dict) or channel_def.get("type") not in _CONTINUOUS_TYPES:
-                continue
-            scale = channel_def.get("scale")
-            if scale is None:
-                scale = channel_def["scale"] = {}
-            if isinstance(scale, dict) and "nice" not in scale:
-                scale["nice"] = False
-    for key in _SPEC_CONTAINERS:
-        children = spec.get(key)
-        if isinstance(children, list):
-            for child in children:
-                if isinstance(child, dict):
-                    _suppress_nice(child)
-    child_spec = spec.get("spec")
-    if isinstance(child_spec, dict):
-        _suppress_nice(child_spec)
-    return spec
-
-
-def _apply_spec_fixes(spec: dict[str, Any]) -> dict[str, Any]:
-    """Run the spec-level transforms shared by every output format.
-
-    Kept as one call so ``save``'s JSON/HTML spec and ``_render_fixed_svg``'s SVG/PNG spec -
-    resolved separately from the same chart - cannot drift apart.
-
-    The nice-suppression is gated on ``continuousPadding`` being present IN THE SPEC, not on the
-    theme flags that currently imply it (``viewPadding and closed``). Padding is what ``nice``
-    conflicts with, so reading the emitted value tracks whatever ``theme.py`` decides to emit -
-    including a future default that pads open plots - with no condition to keep in sync.
-    """
-    if spec.get("config", {}).get("scale", {}).get("continuousPadding"):
-        _suppress_nice(spec)
-    return spec
 
 
 def _render_fixed_svg(base_obj, svg_path: str) -> str:

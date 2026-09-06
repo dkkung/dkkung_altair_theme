@@ -11,7 +11,6 @@ import pytest
 
 from dysonsphere.export import (
     _align_grid_to_content,
-    _apply_spec_fixes,
     _fix_font_for_illustrator,
     _fix_subscript_labels,
     _fix_superscript_labels,
@@ -21,11 +20,11 @@ from dysonsphere.export import (
     _layer_axes_below_marks,
     _simplify_svg,
     _sink_border_below_shade,
-    _suppress_nice,
     _typeset_scripts,
     save,
 )
 from dysonsphere.theme import theme
+from dysonsphere.utils import _apply_spec_fixes, _suppress_nice
 
 NS = "http://www.w3.org/2000/svg"
 
