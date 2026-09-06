@@ -14,6 +14,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # hatch-vcs reads the tag; a shallow clone without it builds 0.1.dev1
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5

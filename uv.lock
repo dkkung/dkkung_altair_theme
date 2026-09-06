@@ -109,7 +109,6 @@ wheels = [
 
 [[package]]
 name = "dysonsphere"
-version = "3.13.2"
 source = { editable = "." }
 dependencies = [
     { name = "altair" },

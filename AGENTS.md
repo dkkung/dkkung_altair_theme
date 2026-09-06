@@ -379,12 +379,13 @@ The packages live under `src/` (`src/dysonsphere/`, `dysonsphere-biology/src/dys
 2. `uv run ruff format src/ tests/ scripts/` — format
 3. `uv run ty check src/ tests/ scripts/` — all type checks must pass
 4. `uv run pytest tests/` — all tests must pass
-5. Bump version in `pyproject.toml`
-6. `uv lock` — updates `uv.lock` to reflect the new version
-7. **(legacy - skip)** `uv run python scripts/build_all.py` rebuilt the old `docs/` gallery assets, but Pages now deploys the Astro site from `website/` (see below), so `docs/` is no longer served. Website assets need NO release-time regeneration since 2026-07-11: `pages.yml` reruns the four `website/scripts/gen_*.py` generators against the checked-out library on every deploy, so the live site tracks main automatically (committed copies serve local dev only). The Studio/playground still install dysonsphere from PyPI at runtime, so LIVE studio execution of new APIs starts working once the release publishes - no action needed.
-8. Commit everything to a release branch (e.g. `release-vX.Y.Z`) and push it — **`main` is a protected branch: direct pushes are rejected (PRs required, admins included), so a release lands via PR like any other change**
-9. Open a PR into `main` (title e.g. "Release vX.Y.Z") and merge it (0 approvals required, self-merge is fine) — the merge triggers the GitHub Pages deploy (of the Astro `website/`)
-10. `git checkout main && git pull`, then `git tag vX.Y.Z && git push origin vX.Y.Z` — tag the MERGE commit on main (tag pushes are not blocked by branch protection); triggers PyPI publish via OIDC
-11. Draft a new release on GitHub: go to Releases → Draft a new release, select the tag, paste release notes, publish
+5. Finalize + date the `[Unreleased]` section in `CHANGELOG.md`
+6. **(legacy - skip)** `uv run python scripts/build_all.py` rebuilt the old `docs/` gallery assets, but Pages now deploys the Astro site from `website/` (see below), so `docs/` is no longer served. Website assets need NO release-time regeneration since 2026-07-11: `pages.yml` reruns the four `website/scripts/gen_*.py` generators against the checked-out library on every deploy, so the live site tracks main automatically (committed copies serve local dev only). The Studio/playground still install dysonsphere from PyPI at runtime, so LIVE studio execution of new APIs starts working once the release publishes - no action needed.
+7. Commit everything to a release branch (e.g. `release-vX.Y.Z`) and push it — **`main` is a protected branch: direct pushes are rejected (PRs required, admins included), so a release lands via PR like any other change**
+8. Open a PR into `main` (title e.g. "Release vX.Y.Z") and merge it (0 approvals required, self-merge is fine) — the merge triggers the GitHub Pages deploy (of the Astro `website/`)
+9. `git checkout main && git pull`, then `git tag vX.Y.Z && git push origin vX.Y.Z` — tag the MERGE commit on main (tag pushes are not blocked by branch protection); triggers PyPI publish via OIDC
+10. Draft a new release on GitHub: go to Releases → Draft a new release, select the tag, paste release notes, publish
+
+**The version comes from the git tag** (`hatch-vcs`), so there is nothing to bump in `pyproject.toml` and no `uv lock` step - step 9's tag IS the release version. A dev checkout reports `3.x.y.devN+g<sha>` (and a `.dYYYYMMDD` suffix when the tree is dirty), which is why a figure exported from this repo records a dev string in `provenance.environment.dysonsphere` while a PyPI install records the clean version. `publish.yml` checks out with `fetch-depth: 0`: without the tag, hatch-vcs builds `0.1.dev1`, which fails `dysonsphere-biology`'s `>=3.0.0` floor rather than publishing quietly.
 
 GitHub Pages deploys the Astro site (built from `website/`, artifact `website/dist/`) on every push to `main` - see `.github/workflows/pages.yml`; the old `docs/` gallery is legacy and no longer served. PyPI publishes on every `v*` tag push via `publish.yml`. Branch protection on `main` (since 2026-07-05): pull requests required with 0 approvals, `enforce_admins` on (no direct pushes for anyone), force pushes and deletions blocked.
