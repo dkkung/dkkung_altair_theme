@@ -180,7 +180,9 @@ def render_page(mod, title: str, order: int, description: str) -> str:
 
 
 def main() -> None:
-    pkg = griffe.load("dysonsphere", search_paths=["."], docstring_parser="numpy")
+    # src layout: griffe reads the source directly (this runs under --no-project, so the
+    # package is not installed), so the search path is the src dir, not the repo root.
+    pkg = griffe.load("dysonsphere", search_paths=["src"], docstring_parser="numpy")
     OUT.mkdir(parents=True, exist_ok=True)
     for name, title, order, description in MODULES:
         page = render_page(pkg[name], title, order, description)
@@ -189,7 +191,7 @@ def main() -> None:
 
     # Extension packages live in their own distributions; load each and document one submodule.
     for pkg_name, submodule, title, order, description in EXTENSION_MODULES:
-        search = [str(Path("dysonsphere-biology"))] if pkg_name == "dysonsphere_biology" else ["."]
+        search = [str(Path("dysonsphere-biology") / "src")] if pkg_name == "dysonsphere_biology" else ["src"]
         ext_pkg = griffe.load(pkg_name, search_paths=search, docstring_parser="numpy")
         page = render_page(ext_pkg[submodule], title, order, description)
         (EXT_OUT / f"{submodule}.md").write_text(page, encoding="utf-8")
