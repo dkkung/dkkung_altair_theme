@@ -77,7 +77,7 @@ _TEST_DISPLAY = {
 # chart, finds which markers are actually present, and embeds ONLY those records — so a
 # record from a chart that's built but never saved can't contaminate a later save().
 # Module-level state is the only channel available because Altair strips custom metadata
-# when layers are combined with ``+`` (see CLAUDE.md); the marker (a Vega-Lite view
+# when layers are combined with ``+`` (see AGENTS.md); the marker (a Vega-Lite view
 # ``name``, which DOES survive ``+``) is what ties a queued record back to its chart.
 _MARKER_PREFIX = "__dysonsphere_"
 _REPORTS: dict[str, dict[str, Any]] = {}  # content-hash -> record

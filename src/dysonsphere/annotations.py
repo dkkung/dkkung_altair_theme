@@ -203,7 +203,7 @@ def _datum_base(src: Any) -> alt.Chart:
     collapses N rows to one so constant ``alt.datum`` / ``alt.value`` marks don't overplot N times.
     Build the mark + a datum/value-only encoding on the result; **never reference a data field**
     (that would reintroduce a sidecar dataset and break faceting).  See the facet-safe datum-mode
-    discipline in CLAUDE.md.
+    discipline in AGENTS.md.
     """
     # Altair's transform_aggregate **kwds form isn't stubbed, hence the ty ignore.
     return alt.Chart(src).transform_aggregate(**{_DATUM_AGG: "count()"})  # ty: ignore[invalid-argument-type]
