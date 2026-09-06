@@ -262,11 +262,24 @@ class TestColors:
         assert log2fc_mark["mark"].get("color") == "#000000"
         assert "color" not in log2fc_mark.get("encoding", {})
 
+    def test_header_is_bold_by_default(self, df):
+        """headerFontStyle="bold" was a no-op - Vega takes bold as a WEIGHT, not a style."""
+        marks = [layer["mark"] for layer in self._text_marks(mark_table(df).to_dict())]
+        assert any(m.get("fontWeight") == "bold" for m in marks)
+        assert not any(m.get("fontStyle") == "bold" for m in marks)
+
+    def test_header_weight_and_style_are_separate(self, df):
+        marks = [
+            layer["mark"]
+            for layer in self._text_marks(mark_table(df, headerFontWeight="normal", headerFontStyle="italic").to_dict())
+        ]
+        assert any(m.get("fontStyle") == "italic" and m.get("fontWeight") == "normal" for m in marks)
+
     def test_header_color(self, df):
         spec = mark_table(df, headerColor="#123456").to_dict()
-        # Header labels ride as literal text values with fontStyle bold.
+        # Header labels ride as literal text values at bold weight.
         header_colors = {
-            layer["mark"].get("color") for layer in self._text_marks(spec) if layer["mark"].get("fontStyle") == "bold"
+            layer["mark"].get("color") for layer in self._text_marks(spec) if layer["mark"].get("fontWeight") == "bold"
         }
         assert "#123456" in header_colors
 
@@ -285,7 +298,7 @@ class TestColors:
         # With a fill and no explicit headerColor, header text auto-contrasts (a color is set).
         spec = mark_table(df, headerFill=True).to_dict()
         header_colors = {
-            layer["mark"].get("color") for layer in self._text_marks(spec) if layer["mark"].get("fontStyle") == "bold"
+            layer["mark"].get("color") for layer in self._text_marks(spec) if layer["mark"].get("fontWeight") == "bold"
         }
         assert header_colors <= {"black", "white"} and header_colors  # exactly black or white
 
