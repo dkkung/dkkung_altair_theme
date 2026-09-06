@@ -37,7 +37,7 @@ jobs:
           enable-cache: true
 
       - name: Regenerate site inputs from the library
-        # The same commands documented in website/CLAUDE.md; uv resolves the workspace
+        # The same commands documented in website/AGENTS.md; uv resolves the workspace
         # (dysonsphere + dysonsphere-biology, needed by the volcano example) on demand.
         run: |
           uv run --no-project --with griffe python website/scripts/gen_api.py

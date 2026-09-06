@@ -310,7 +310,7 @@ def frame_checksum(df: "pl.DataFrame | Any") -> str:
 #
 # DISCIPLINE: any NEW code that builds a dysonsphere-generated data source for a chart layer
 # MUST route it through `_internal_data(...)` (i.e. `alt.Chart(_internal_data(rows_or_df))`).
-# Miss one, and that sidecar leaks as a phantom "user" dataframe on read.  See CLAUDE.md.
+# Miss one, and that sidecar leaks as a phantom "user" dataframe on read.  See AGENTS.md.
 _INTERNAL_COL = "__dysonsphere__"
 
 # Marks an `add_shade` background rect so `export._layer_axes_below_marks` can sink it behind the
