@@ -14,6 +14,8 @@
 
 ### Fixes
 
+- **`ds.mark_table()` headers are bold again.** `headerFontStyle="bold"` set a font style, which Vega ignores for weight, so headers rendered at regular weight. Bold is now `headerFontWeight`; `headerFontStyle` keeps its own meaning (italic / normal).
+
 - **`ds.add_shade()` renders behind the grid, axes and plot border.**
 - **`viewPadding` insets by exactly the amount requested**, and no longer adds a negative tick to non-negative data. Affects padded (closed) plots only.
 

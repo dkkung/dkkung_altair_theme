@@ -148,7 +148,8 @@ def mark_table(
     textColor: "str | dict[str, str] | None" = None,
     fontStyle: "str | dict[str, str] | None" = None,
     fontSize: float | None = None,
-    headerFontStyle: str = "bold",
+    headerFontStyle: str | None = None,
+    headerFontWeight: "str | int" = "bold",
     headerColor: str | None = None,
     headerFill: str | bool = False,
     cellPadding: float | None = None,
@@ -233,14 +234,16 @@ def mark_table(
         per-column colour is taken as deliberate; a global string does not override the
         heatmap's contrast).
     fontStyle:
-        Body cell font style (e.g. ``"italic"``, ``"bold"``, ``"normal"``). ``None`` (default)
+        Body cell font style (``"italic"`` / ``"normal"``; bold is a weight, not a style). ``None`` (default)
         inherits. A single string styles every body cell; a ``{column: style}`` dict styles per
         column (unlisted columns inherit) - e.g. ``{"gene": "italic"}`` for italic gene names.
     fontSize:
         Cell font size. ``None`` (default) reads ``theme(fontSize=…)``.
     headerFontStyle:
-        Font style for header labels (e.g. ``"bold"``, ``"normal"``, ``"italic"``). Default
-        ``"bold"``.
+        Font style for header labels (``"italic"`` / ``"normal"``). ``None`` (default) inherits.
+    headerFontWeight:
+        Font weight for header labels. Default ``"bold"``; pass ``"normal"`` or a number for
+        regular weight.
     headerColor:
         Header text colour. ``None`` (default) inherits the theme's text colour, or - when
         ``headerFill`` is set - auto-contrasts (black/white) against the fill. A string sets a
@@ -583,7 +586,11 @@ def mark_table(
     # --- header text (per column) ---
     if header:
         header_center = header_h / 2
-        hdr_kwargs: dict[str, Any] = {"fontSize": fs, "fontStyle": headerFontStyle, "baseline": "middle"}
+        # bold is fontWeight, NOT fontStyle - Vega only takes normal/italic/oblique there, so the
+        # old headerFontStyle="bold" default rendered a regular-weight header.
+        hdr_kwargs: dict[str, Any] = {"fontSize": fs, "fontWeight": headerFontWeight, "baseline": "middle"}
+        if headerFontStyle is not None:
+            hdr_kwargs["fontStyle"] = headerFontStyle
         if header_text_c is not None:
             hdr_kwargs["color"] = header_text_c
         for i, p in enumerate(plans):
