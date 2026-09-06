@@ -19,6 +19,10 @@
 - **`ds.add_shade()` renders behind the grid, axes and plot border.**
 - **`viewPadding` insets by exactly the amount requested**, and no longer adds a negative tick to non-negative data. Affects padded (closed) plots only.
 
+### Internal
+
+- The version now comes from the git tag (`hatch-vcs`) rather than `pyproject.toml`.
+
 ## [3.13.2] - 2026-08-25
 
 ### Fixes

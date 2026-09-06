@@ -1,6 +1,6 @@
 [project]
 name = "dysonsphere"
-version = "3.13.2"
+dynamic = ["version"]
 description = "An Altair theme and chart utility library for publication-ready scientific figures."
 readme = "README.md"
 license = "MIT"
@@ -49,8 +49,13 @@ dysonsphere-biology = { workspace = true }
 Repository = "https://github.com/dkkung/dysonsphere"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+# The git tag is the single source of truth for the version; there is no version to
+# bump in this file. A dev checkout reports 3.x.y.devN+g<sha>, a tag build the tag.
+[tool.hatch.version]
+source = "vcs"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/dysonsphere"]
