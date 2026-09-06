@@ -12,6 +12,7 @@ from dysonsphere.utils import (
     count_n,
     ensure_polars,
     frame_checksum,
+    stripe_colors,
 )
 
 
@@ -273,3 +274,44 @@ class TestNestedBandCenters:
         outer = band_geometry(4, 100.0, scale="band", bandPadding=0.2)
         got = _nested_band_centers(4, 1, 100.0)
         assert [row[0] for row in got] == pytest.approx(list(outer.centers))
+
+
+class TestStripeColors:
+    """Row-striping fills: the lightest n stops, or the darkest in darkmode."""
+
+    def test_light_takes_the_lightest_stops(self):
+        from dysonsphere.palettes import colors
+
+        assert stripe_colors("greys", 2, darkmode=False) == colors["greys"][:2]
+
+    def test_dark_takes_the_darkest_stops(self):
+        from dysonsphere.palettes import colors
+
+        assert stripe_colors("greys", 2, darkmode=True) == colors["greys"][-2:]
+
+    def test_hex_list_passes_through(self):
+        assert stripe_colors(["#111111", "#222222", "#333333"], 2, darkmode=False) == ["#111111", "#222222"]
+
+    def test_unknown_palette_raises(self):
+        with pytest.raises(ValueError, match="unknown palette"):
+            stripe_colors("not-a-palette", 2, darkmode=False)
+
+    def test_zero_raises(self):
+        with pytest.raises(ValueError, match="must be >= 1"):
+            stripe_colors("greys", 0, darkmode=False)
+
+    def test_matches_what_mark_table_emits(self):
+        """The helper must reproduce mark_table's stripe fills exactly."""
+        import polars as pl
+
+        from dysonsphere.table import mark_table
+        from dysonsphere.theme import theme
+
+        theme()
+        spec = mark_table(pl.DataFrame({"a": [1, 2, 3, 4], "b": [1.0, 2.0, 3.0, 4.0]})).to_dict()
+        fills = {
+            layer["mark"]["fill"]
+            for layer in spec["layer"]
+            if isinstance(layer.get("mark"), dict) and layer["mark"].get("type") == "rect" and "fill" in layer["mark"]
+        }
+        assert set(stripe_colors("greys", 2, darkmode=False)) <= fills

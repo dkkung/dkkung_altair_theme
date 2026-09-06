@@ -8,7 +8,7 @@ import altair as alt
 import polars as pl
 
 from .theme import _opt
-from .utils import _SUP, _internal_data, ensure_polars
+from .utils import _SUP, _internal_data, ensure_polars, resolve_palette, stripe_colors
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
@@ -118,17 +118,6 @@ def _contrast_expr(col: str, hexes: list[str], domain: tuple[float, float]) -> s
             prev = text_for[i]
     expr = "".join(f"datum[{col!r}] < {thr} ? '{c}' : " for thr, c in segments)
     return expr + f"'{prev}'"
-
-
-def _resolve_palette(name_or_list: "str | list[str]") -> list[str]:
-    """A palette name → its hex list (via ``colors``), or a hex list passed straight through."""
-    if isinstance(name_or_list, list):
-        return name_or_list
-    from .palettes import colors
-
-    if name_or_list not in colors:
-        raise ValueError(f"unknown palette {name_or_list!r}")
-    return colors[name_or_list]
 
 
 def mark_table(
@@ -492,8 +481,7 @@ def mark_table(
     # One rect PER CELL (per column span), never a full-width per-row rect, so every cell
     # background is an independent <rect> - individually editable in Illustrator.
     if striping:
-        pal = _resolve_palette(palette)
-        stripe_cols = pal[-nStripes:] if dark else pal[:nStripes]
+        stripe_cols = stripe_colors(palette, nStripes, darkmode=dark)
         for i in range(len(cols)):
             for k, color in enumerate(stripe_cols):
                 layers.append(
@@ -509,7 +497,7 @@ def mark_table(
         col = p["col"]
         if col not in cellColor:
             continue
-        hexes = _resolve_palette(cellColor[col])
+        hexes = resolve_palette(cellColor[col])
         series = df[col].drop_nulls()
         lo = float(series.min()) if series.len() else 0.0
         hi = float(series.max()) if series.len() else 1.0
