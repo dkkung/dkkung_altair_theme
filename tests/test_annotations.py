@@ -5,7 +5,7 @@ import polars as pl
 import pytest
 
 from dysonsphere.annotations import (
-    _EDGE_INSET,
+    _EDGE_OFFSET,
     _default_flush,
     _rule_label_geometry,
     _rule_mark_kwargs,
@@ -510,7 +510,7 @@ class TestAddRule:
 
 
 class TestRuleLabelInset:
-    # An edge-anchored rule label hugs a FLUSH spine, so it is inset by _EDGE_INSET (the same 1px
+    # An edge-anchored rule label hugs a FLUSH spine, so it is inset by _EDGE_OFFSET (the same 1px
     # add_text uses). A detached axis already provides the gap. Center anchors are untouched.
     def test_detached_axis_label_at_content_edge(self):
         theme(chartWidth=100, chartHeight=100, axisOffset=True)
@@ -521,17 +521,17 @@ class TestRuleLabelInset:
     def test_flush_default_left_label_inset(self):
         theme(chartWidth=100, chartHeight=100)  # axes are flush by default
         _, perp_anchor, _ = _rule_label_geometry("y", "left", "top", 0, 0, 7, None)
-        assert perp_anchor == {"value": _EDGE_INSET}
+        assert perp_anchor == {"value": _EDGE_OFFSET}
 
     def test_closed_left_label_inset(self):
         theme(chartWidth=100, chartHeight=100, closed=True)
         _, perp_anchor, _ = _rule_label_geometry("y", "left", "top", 0, 0, 7, None)
-        assert perp_anchor == {"value": _EDGE_INSET}
+        assert perp_anchor == {"value": _EDGE_OFFSET}
 
     def test_closed_right_label_inset_from_right_edge(self):
         theme(chartWidth=100, chartHeight=100, closed=True)
         _, perp_anchor, _ = _rule_label_geometry("y", "right", "top", 0, 0, 7, None)
-        assert perp_anchor == {"value": 100 - _EDGE_INSET}
+        assert perp_anchor == {"value": 100 - _EDGE_OFFSET}
 
     def test_closed_center_label_not_inset(self):
         theme(chartWidth=100, chartHeight=100, closed=True)
@@ -542,15 +542,15 @@ class TestRuleLabelInset:
         theme(chartWidth=100, chartHeight=100, closed=True)
         perp_ch, perp_anchor, _ = _rule_label_geometry("x", "top", "right", 0, 0, 7, None)
         assert perp_ch == "y"
-        assert perp_anchor == {"value": _EDGE_INSET}
+        assert perp_anchor == {"value": _EDGE_OFFSET}
 
     def test_matches_add_text_edge_padding(self):
         """add_rule and add_text must inset edge-anchored text by the same amount."""
         theme(chartWidth=100, chartHeight=100)
         _, perp_anchor, _ = _rule_label_geometry("y", "left", "top", 0, 0, 7, None)
         text = add_text("t", position="middleLeft").to_dict()
-        assert perp_anchor == {"value": _EDGE_INSET}
-        assert text["encoding"]["x"]["value"] == _EDGE_INSET
+        assert perp_anchor == {"value": _EDGE_OFFSET}
+        assert text["encoding"]["x"]["value"] == _EDGE_OFFSET
 
 
 class TestShadeFlushDefault:

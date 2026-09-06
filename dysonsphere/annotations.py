@@ -110,8 +110,9 @@ def _span_label_anchor(la: str, triple: tuple[str, float, float], axis: str) -> 
     return wrap(pick)
 
 
-# Pixel inset for a label anchored at a flush plot edge; matches add_text's preset padding.
-_EDGE_INSET = 1
+# Pixel inset for text anchored at a flush plot edge - shared by add_rule's edge labels and
+# add_text's corner presets, which both sit against the spine when the axis is not detached.
+_EDGE_OFFSET = 2
 
 
 def _default_flush() -> bool:
@@ -154,9 +155,9 @@ def _rule_label_geometry(
             # A flush spine sits at the content edge, so a left/right-anchored label would hug it;
             # inset by the same 1px add_text uses. A detached axis already clears it. (Center is far
             # from either edge, so it is left alone.)
-            edge_inset = _EDGE_INSET if (_opt("closed") or not _opt("axisOffset")) else 0
+            edge_offset = _EDGE_OFFSET if (_opt("closed") or not _opt("axisOffset")) else 0
             perp_anchor = alt.value(
-                {"left": edge_inset, "center": chart_width / 2, "right": chart_width - edge_inset}[la]
+                {"left": edge_offset, "center": chart_width / 2, "right": chart_width - edge_offset}[la]
             )
         else:
             perp_anchor = _span_label_anchor(la, span_triple, "y")
@@ -175,9 +176,9 @@ def _rule_label_geometry(
         if span_triple is None:
             chart_height = _opt("chartHeight")
             # See the axis="y" branch.
-            edge_inset = _EDGE_INSET if (_opt("closed") or not _opt("axisOffset")) else 0
+            edge_offset = _EDGE_OFFSET if (_opt("closed") or not _opt("axisOffset")) else 0
             perp_anchor = alt.value(
-                {"top": edge_inset, "center": chart_height / 2, "bottom": chart_height - edge_inset}[la]
+                {"top": edge_offset, "center": chart_height / 2, "bottom": chart_height - edge_offset}[la]
             )
         else:
             perp_anchor = _span_label_anchor(la, span_triple, "x")
@@ -735,7 +736,7 @@ def add_text(
         # (x_frac=0.5, y_frac=0.5) are unaffected.
         _closed = _opt("closed")
         _axis_offset = _opt("axisOffset")
-        _pad = 1 if (_closed or _axis_offset == 0) else 0
+        _pad = _EDGE_OFFSET if (_closed or _axis_offset == 0) else 0
         if x is None:
             x_px = p["x_frac"] * cw
             if p["x_frac"] == 0:
