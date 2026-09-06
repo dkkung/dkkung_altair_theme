@@ -560,8 +560,63 @@ class TestLineCap:
         assert cfg["rule"]["strokeCap"] == "square"
 
 
+class TestIdentityScalesPinPadding:
+    """A scale whose domain equals its range maps data 1:1 to pixels, so `viewPadding` would
+    compress it. Every such scale must pin `padding=0`."""
+
+    @staticmethod
+    def _identity_scales(spec: Any) -> list[dict[str, Any]]:
+        found = []
+
+        def walk(node):
+            if isinstance(node, dict):
+                enc = node.get("encoding")
+                if isinstance(enc, dict):
+                    for channel in ("x", "y"):
+                        ch = enc.get(channel)
+                        sc = ch.get("scale") if isinstance(ch, dict) else None
+                        if (
+                            isinstance(sc, dict)
+                            and sc.get("domain") is not None
+                            and sc.get("domain") == sc.get("range")
+                        ):
+                            found.append(sc)
+                for v in node.values():
+                    walk(v)
+            elif isinstance(node, list):
+                for v in node:
+                    walk(v)
+
+        walk(spec)
+        return found
+
+    @pytest.mark.parametrize("name", ["multilabel", "table"])
+    def test_every_identity_scale_pins_padding(self, name):
+        import numpy as np
+        import polars as pl
+
+        from dysonsphere.multilabel import add_multilabel
+        from dysonsphere.table import mark_table
+
+        theme()
+        cats = ["a", "b", "c"]
+        rng = np.random.default_rng(0)
+        grp = pl.DataFrame({"g": np.repeat(cats, 12), "v": rng.normal(5, 1, 36)})
+        builders = {
+            "multilabel": lambda: add_multilabel(
+                alt.Chart(grp).mark_point().encode(alt.X("g:N", title=None), alt.Y("v:Q", title="v")),
+                {"r1": [True, False, True]},
+                cats,
+            ),
+            "table": lambda: mark_table(pl.DataFrame({"gene": ["A", "B"], "fc": [1.5, -2.0]})),
+        }
+        scales = self._identity_scales(builders[name]().to_dict())
+        assert scales, f"{name}: no identity scale found - update this test if the construction changed"
+        assert all(s.get("padding") == 0 for s in scales), scales
+
+
 class TestViewPadding:
-    # theme(viewPadding=...) -> config.scale.continuousPadding on CLOSED plots only.
+    # theme(viewPadding=...) -> config.scale.continuousPadding on every plot.
     # float | bool like cornerRadius/boxplotOutliers: True (default) -> 5% of the smaller
     # chart dimension, False -> flush, a float -> that many pixels. Vega-Lite nice-rounds
     # the padded domain, so the request only lands exactly where the domain is explicit.
@@ -587,12 +642,20 @@ class TestViewPadding:
         theme(closed=True, viewPadding=8)
         assert _dysonsphere_theme()["config"]["scale"]["continuousPadding"] == 8
 
-    def test_ignored_on_open_plots(self):
-        # an open plot's detached axes already give the marks room; the inset would double-pad
+    def test_axis_offset_none_is_a_deprecated_alias_for_true(self):
+        theme(axisOffset=None)  # pre-3.14 spelling - remove with the alias at 4.0.0
+        assert alt.theme.options["axisOffset"] == 4.5
+        theme(axisOffset=True)
+        assert alt.theme.options["axisOffset"] == 4.5
         theme()
-        assert "continuousPadding" not in _dysonsphere_theme()["config"]["scale"]
+        assert alt.theme.options["axisOffset"] == 0
+
+    def test_applies_on_open_plots(self):
+        # the inset is the gap mechanism everywhere now - axes are flush by default
+        theme()
+        assert _dysonsphere_theme()["config"]["scale"]["continuousPadding"] == 5.0
         theme(viewPadding=8)
-        assert "continuousPadding" not in _dysonsphere_theme()["config"]["scale"]
+        assert _dysonsphere_theme()["config"]["scale"]["continuousPadding"] == 8
 
     def test_applies_under_inward_ticks(self):
         theme(inwardTicks=True)  # implies closed
@@ -766,7 +829,7 @@ class TestOptAccessor:
         alt.theme.options = {}
         try:
             assert _opt("markSize") == 10.0  # min(100, 100) * 0.1
-            assert _opt("axisOffset") == 4.5  # tickSize 3 * 1.5
+            assert _opt("axisOffset") == 0  # flush by default; True would give tickSize 3 * 1.5
             assert _opt("markStrokeWidth") == 0.25  # axisWidth
             assert _opt("closed") is False
         finally:

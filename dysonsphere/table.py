@@ -451,7 +451,9 @@ def mark_table(
     # identity linear y scale (range == domain) maps the pixel field straight through, shared by
     # every df-driven layer so they align; the header/stroke marks use alt.value pixels directly.
     _seam = 0.5
-    y_scale = alt.Scale(domain=[0, total_h], range=[0, total_h], nice=False, zero=False)
+    # padding=0: the row spans are precomputed pixels, so viewPadding would compress the
+    # identity mapping and shrink every row.
+    y_scale = alt.Scale(domain=[0, total_h], range=[0, total_h], nice=False, zero=False, padding=0)
 
     def _y(field: str) -> alt.Y:
         return alt.Y(field=field, type="quantitative", scale=y_scale, axis=None)

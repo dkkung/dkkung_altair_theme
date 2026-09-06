@@ -28,7 +28,7 @@ _BUILTIN_STYLES: dict[str, dict[str, Any]] = {
 
 # Keys are alphabetical (case-insensitive), with the exception of padding and palette configs.
 _BUILTIN_DEFAULTS: dict[str, Any] = {
-    "axisOffset": None,
+    "axisOffset": False,
     "axisWidth": 0.25,
     "boxplotOutliers": False,
     "chartFill": None,
@@ -270,10 +270,14 @@ def _compute_derived(p: dict[str, Any]) -> None:
         p["viewPadding"] = min(p["chartWidth"], p["chartHeight"]) * 0.05
     # chartFill=None is resolved at config-build time in _dysonsphere_theme(), NOT here, so it
     # follows darkmode live (save() toggles darkmode per background without re-running theme()).
-    # Offset axis + legend from the plot by 1.5x tick length (Prism-style detached axis). Resolved
-    # once here so the axis/legend config and save()'s grid-span fix read one consistent value.
-    if p["axisOffset"] is None:
+    # Axes are flush by default; the gap between axis and data comes from viewPadding instead.
+    # True restores the Prism-style detached axis at 1.5x tick length - a sentinel rather than a
+    # literal 4.5 so it keeps tracking tickSize. Resolved once here so the axis config and
+    # save()'s grid-span fix read one consistent value.
+    if p["axisOffset"] is True or p["axisOffset"] is None:  # DEPRECATED spelling of True
         p["axisOffset"] = p["tickSize"] * 1.5
+    elif p["axisOffset"] is False:
+        p["axisOffset"] = 0
     if p["legendOffset"] is None:
         p["legendOffset"] = p["tickSize"] * 1.5
     # smallestFontSize is a fixed floor (5) and a minimize switch: True drops the whole
@@ -309,7 +313,7 @@ def _opt(key: str) -> Any:
     could silently drift from ``_BUILTIN_DEFAULTS``. After ``ds.theme()`` every option is
     present in ``alt.theme.options``, so the fallback only matters when a chart helper is
     called before any ``theme()``; it then sees the fully derived built-in defaults
-    (``markSize`` 10.0, ``axisOffset`` 4.5, …), computed once and cached. Unknown keys
+    (``markSize`` 10.0, ``axisOffset`` 0, …), computed once and cached. Unknown keys
     raise ``KeyError``.
     """
     try:
@@ -634,8 +638,9 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "bandWithNestedOffsetPaddingOuter": opts["groupPadding"],
                 "offsetBandPaddingInner": opts["subgroupPadding"],
                 "offsetBandPaddingOuter": opts["subgroupPadding"],
-                # Closed plots only. Exact only under an explicit domain, with auto domains nice-rounded
-                **({"continuousPadding": opts["viewPadding"]} if opts["viewPadding"] and opts["closed"] else {}),
+                # The data inset that keeps marks off the axes. export._suppress_nice drops `nice`
+                # wherever this is emitted, so the inset lands at exactly this many pixels.
+                **({"continuousPadding": opts["viewPadding"]} if opts["viewPadding"] else {}),
                 "round": False,
             },
             "rect": {

@@ -495,11 +495,19 @@ class TestExactTickPositions:
             float(m.group(1)) for m in re.finditer(r'<line transform="translate\(0,([\d.]+)\)"[^/]*x2="-3"', svg)
         )
         assert len(ys) >= 3, "no y-axis ticks found"
-        # Vega picks the tick count; whatever it picks, each tick must sit on the exact
-        # (fractional) scale position of an integer data value - not an integer pixel.
-        exact = [100 - v / 7 * 100 for v in range(8)]
+        # The scale mapping is recovered from the rendered marks rather than assumed, so this
+        # holds whatever inset viewPadding applies. Marks are the y=0 and y=7 rows of the data.
+        marks = sorted(
+            float(m.group(2))
+            for m in re.finditer(r'aria-roledescription="point"[^>]*transform="translate\(([-\d.]+),([-\d.]+)\)"', svg)
+        )
+        px_hi, px_lo = marks[0], marks[-1]  # y=7 renders highest (smallest pixel), y=0 lowest
+        # Whatever tick count Vega picks, each tick must land on the exact fractional scale
+        # position of an integer data value - never snapped to a whole pixel.
         for y in ys:
-            assert min(abs(y - e) for e in exact) < 1e-6, f"tick {y} integer-rounded off the scale position"
+            value = 7.0 * (px_lo - y) / (px_lo - px_hi)
+            assert abs(value - round(value)) < 1e-6, f"tick {y} integer-rounded off the scale position"
+        assert any(abs(y - round(y)) > 1e-9 for y in ys), "every tick landed on a whole pixel"
 
     def test_log_minor_ticks_exact(self, tmp_path):
         from dysonsphere.nonlinear import add_log_ticks
@@ -1383,7 +1391,9 @@ class TestSuppressNice:
     def test_gate_follows_emitted_padding_not_closed(self):
         theme(closed=True)
         assert _apply_spec_fixes(self._chart().to_dict())["encoding"]["y"]["scale"]["nice"] is False
-        theme()  # open - viewPadding is not emitted, so nothing to correct
+        theme()  # open, but padded by default - the gate follows the padding, not `closed`
+        assert _apply_spec_fixes(self._chart().to_dict())["encoding"]["y"]["scale"]["nice"] is False
+        theme(viewPadding=False)  # no padding emitted, so nothing to correct
         assert "scale" not in _apply_spec_fixes(self._chart().to_dict())["encoding"]["y"]
 
     def test_gate_fires_for_padded_open_plots(self):

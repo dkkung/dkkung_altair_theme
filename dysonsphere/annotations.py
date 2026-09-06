@@ -69,7 +69,7 @@ def _resolve_rule_span(
         n = len(categories)
         span_len = _opt("chartWidth") if run_ch == "x" else _opt("chartHeight")
         geo = band_geometry(n, span_len)
-        f = _opt("closed") if flush is None else flush
+        f = _default_flush() if flush is None else flush
         si, ei = cat_index[start], cat_index[end]
         lo = 0.0 if (f and si == 0) else geo.starts[si]
         hi = span_len if (f and ei == n - 1) else geo.ends[ei]
@@ -110,6 +110,18 @@ def _span_label_anchor(la: str, triple: tuple[str, float, float], axis: str) -> 
     return wrap(pick)
 
 
+# Pixel inset for a label anchored at a flush plot edge; matches add_text's preset padding.
+_EDGE_INSET = 1
+
+
+def _default_flush() -> bool:
+    """Extend outermost shade/span rects to the plot edge when the spine is flush.
+
+    A detached axis puts a gap there already; a flush spine (closed, or axisOffset 0 - the
+    default) would leave a sliver of unshaded plot between the band and the axis."""
+    return bool(_opt("closed") or not _opt("axisOffset"))
+
+
 def _rule_label_geometry(
     axis: str,
     labelAlign: str | None,
@@ -139,11 +151,10 @@ def _rule_label_geometry(
         perp_ch = "x"
         if span_triple is None:
             chart_width = _opt("chartWidth")
-            # A closed plot's spine sits flush at the content edge, so a left/right-anchored label
-            # hugs the border; inset it by axisOffset to match the gap an open plot gets for free
-            # from its detached axis, so opened and closed look the same. (Center is far from either
-            # edge, so it is left alone.)
-            edge_inset = _opt("axisOffset") if _opt("closed") else 0
+            # A flush spine sits at the content edge, so a left/right-anchored label would hug it;
+            # inset by the same 1px add_text uses. A detached axis already clears it. (Center is far
+            # from either edge, so it is left alone.)
+            edge_inset = _EDGE_INSET if (_opt("closed") or not _opt("axisOffset")) else 0
             perp_anchor = alt.value(
                 {"left": edge_inset, "center": chart_width / 2, "right": chart_width - edge_inset}[la]
             )
@@ -163,9 +174,8 @@ def _rule_label_geometry(
         baseline = {"top": "top", "center": "middle", "bottom": "bottom"}[la]
         if span_triple is None:
             chart_height = _opt("chartHeight")
-            # See the axis="y" branch: inset a top/bottom-anchored label off the flush closed spine
-            # by axisOffset so opened and closed match.
-            edge_inset = _opt("axisOffset") if _opt("closed") else 0
+            # See the axis="y" branch.
+            edge_inset = _EDGE_INSET if (_opt("closed") or not _opt("axisOffset")) else 0
             perp_anchor = alt.value(
                 {"top": edge_inset, "center": chart_height / 2, "bottom": chart_height - edge_inset}[la]
             )
@@ -1350,7 +1360,7 @@ def add_shade(
             x_geo = band_geometry(n, chart_width) if n else None
             y_geo = band_geometry(n, chart_height) if n else None
             if flush is None:
-                flush = _opt("closed")
+                flush = _default_flush()
 
             def _half(ch: str, start, end, geo, span) -> tuple[Any, ...]:
                 # A string range → pixel span via the band scale; a numeric range → data span.
@@ -1381,7 +1391,7 @@ def add_shade(
             cat_index = {cat: i for i, cat in enumerate(categories)}
 
             if flush is None:
-                flush = _opt("closed")
+                flush = _default_flush()
 
             for k, (start, end) in enumerate(positions):
                 si, ei = cat_index[start], cat_index[end]
@@ -1414,7 +1424,7 @@ def add_shade(
     geo = band_geometry(n, chart_width)
 
     if flush is None:
-        flush = _opt("closed")
+        flush = _default_flush()
 
     # Merge consecutive same-color categories so there is no coincident edge
     # between two rects of the same fill — that edge would show as a faint seam
