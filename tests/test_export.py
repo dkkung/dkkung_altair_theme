@@ -18,6 +18,7 @@ from dysonsphere.export import (
     _italicize_stat_symbols,
     _layer_axes_below_marks,
     _simplify_svg,
+    _sink_border_below_shade,
     _typeset_scripts,
     save,
 )
@@ -1274,3 +1275,64 @@ class TestFixFontForIllustrator:
         assert families == {self.FIXED}, families
         # the SVG-only fix must NOT mutate the theme option (HTML/JSON keep the full stack)
         assert alt.theme.options["font"] == self.THEME_STACK
+
+
+class TestShadeBehindAxes:
+    """add_shade draws a background - it must never paint over the axes or the frame."""
+
+    def _chart(self, closed):
+        cats = ["a", "b", "c", "d"]
+        df = pl.DataFrame({"g": cats, "v": [5.0, 6.0, 4.0, 7.0]})
+        theme(closed=closed, chartWidth=200, chartHeight=200)
+        import dysonsphere as ds
+
+        return ds.add_shade(categories=cats) + alt.Chart(df).mark_bar().encode(
+            alt.X("g:N", title="g"), alt.Y("v:Q", title="v")
+        )
+
+    def _paint_order(self, path):
+        """Classify every painted path in document order."""
+        xml = path.read_text().split("?>", 1)[-1]
+        seq = []
+        for el in ET.fromstring(xml).iter(f"{{{NS}}}path"):
+            d = el.get("d") or ""
+            stroke, fill = el.get("stroke"), el.get("fill")
+            if not d:
+                continue
+            if stroke in (None, "none") and fill in ("#F1F1F1", "#DBDBDB") and "h200" not in d:
+                seq.append("shade")
+            elif stroke not in (None, "none") and d.startswith("M0,0h200v200"):
+                seq.append("border")
+        return seq
+
+    def test_border_paints_after_the_shade(self, tmp_path):
+        save(self._chart(True), str(tmp_path / "fig"), format="svg", background="light")
+        order = self._paint_order(tmp_path / "fig.svg")
+        assert "border" in order, order
+        assert order.index("border") > max(i for i, v in enumerate(order) if v == "shade"), order
+
+    def test_no_shade_leaves_the_tree_alone(self):
+        """The border relocation must be inert on charts with no shade."""
+        svg = (
+            f'<svg xmlns="{NS}"><g>'
+            f'<path class="background" stroke="black" d="M0,0h10v10h-10Z"/>'
+            f'<g><g class="mark-rect role-mark other_marks"/></g>'
+            "</g></svg>"
+        )
+        root = ET.fromstring(svg)
+        before = ET.tostring(root)
+        _sink_border_below_shade(root)
+        assert ET.tostring(root) == before
+
+    def test_transform_between_border_and_shade_blocks_the_move(self):
+        """Moving the border across a transform would displace it - leave it where it is."""
+        svg = (
+            f'<svg xmlns="{NS}"><g>'
+            f'<path class="background" stroke="black" d="M0,0h10v10h-10Z"/>'
+            f'<g transform="translate(5,5)"><g class="mark-rect role-mark __dsshade_1_marks"/></g>'
+            "</g></svg>"
+        )
+        root = ET.fromstring(svg)
+        _sink_border_below_shade(root)
+        outer = root[0]
+        assert outer[0].get("class") == "background", "border should not have moved"

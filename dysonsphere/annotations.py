@@ -15,7 +15,7 @@ import altair as alt
 import polars as pl
 
 from .theme import _opt
-from .utils import _empty_layer, _internal_data, _resolve_dash, band_geometry
+from .utils import _SHADE_PREFIX, _empty_layer, _internal_data, _resolve_dash, band_geometry
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
@@ -1135,6 +1135,19 @@ def add_labels(
 # Background shading
 
 
+# Shade rects are BACKGROUND; `export._layer_axes_below_marks` sinks them behind the grid and axes
+# by the view-`name` marker Vega copies into the SVG group class.
+_shade_counter = 0
+
+
+def _tag_shade(chart: alt.Chart) -> alt.Chart:
+    """Name a shade layer so the SVG fixer can sink it. Names must be unique - Vega compiles a
+    view name into a dataset name and rejects collisions."""
+    global _shade_counter
+    _shade_counter += 1
+    return chart.properties(name=f"{_SHADE_PREFIX}{_shade_counter}")
+
+
 def add_shade(
     categories: list[str] | None = None,
     xCol: str | None = None,
@@ -1320,7 +1333,7 @@ def add_shade(
             else:  # ("q", ...) data range - datum keeps the base axis title (a field would clobber it)
                 enc[ch], enc[c2] = alt.datum(float(a)), alt.datum(float(b))
         base = _datum_base(src) if datum_mode else alt.Chart(_internal_data(dummy_df))
-        return base.mark_rect(**mark_kwargs, color=color).encode(**enc)
+        return _tag_shade(base.mark_rect(**mark_kwargs, color=color).encode(**enc))
 
     # ── positions mode ────────────────────────────────────────────────────────
     if positions is not None:
@@ -1415,9 +1428,11 @@ def add_shade(
         left = 0 if (flush and i == 0) else geo.starts[i]
         right = chart_width if (flush and j == n) else geo.ends[j - 1]
         run_layers.append(
-            alt.Chart(_internal_data(dummy_df))
-            .mark_rect(**mark_kwargs, color=color_map[i])
-            .encode(x=alt.value(left), x2=alt.value(right))
+            _tag_shade(
+                alt.Chart(_internal_data(dummy_df))
+                .mark_rect(**mark_kwargs, color=color_map[i])
+                .encode(x=alt.value(left), x2=alt.value(right))
+            )
         )
         i = j
 

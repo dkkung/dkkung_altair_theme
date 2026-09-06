@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixes
+
+- **`ds.add_shade()` renders behind the grid, axes and plot border.**
+
 ## [3.13.2] - 2026-08-25
 
 ### Fixes
