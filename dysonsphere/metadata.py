@@ -682,7 +682,11 @@ def _identities(item: Any, index: int) -> tuple[str, dict[str, str | None]]:
             f"Item {index} is a {type(item).__name__}; each figure must be a path to a dysonsphere "
             f"export or an Altair chart."
         )
-    spec = item.to_dict()
+    from .utils import _apply_spec_fixes
+
+    # save() runs the same spec transforms before hashing, so an in-memory chart has to go through
+    # them too or it can never match the file it was saved to.
+    spec = _apply_spec_fixes(item.to_dict())
     # save() strips the statistics markers before hashing, and their names carry a counter that
     # increments per build - leaving them in would make two identical charts look different.
     _strip_markers(spec)

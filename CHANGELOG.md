@@ -5,6 +5,7 @@
 ### Fixes
 
 - **`ds.add_shade()` renders behind the grid, axes and plot border.**
+- **`viewPadding` insets by exactly the amount requested**, and no longer adds a negative tick to non-negative data. Affects padded (closed) plots only.
 
 ## [3.13.2] - 2026-08-25
 

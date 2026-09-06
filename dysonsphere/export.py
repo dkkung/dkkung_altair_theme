@@ -14,7 +14,7 @@ import altair as alt
 
 from . import discovery, metadata
 from .theme import _opt
-from .utils import _SHADE_PREFIX, _SUP, _json_safe
+from .utils import _SHADE_PREFIX, _SUP, _apply_spec_fixes, _json_safe
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
@@ -78,7 +78,7 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
     """
     import vl_convert as vlc
 
-    spec = base_obj.to_dict()  # marker names are in the spec but never render into SVG
+    spec = _apply_spec_fixes(base_obj.to_dict())  # marker names are in the spec but never render into SVG
     root = ET.fromstring(vlc.vegalite_to_svg(spec))  # parsed ONCE; every fixer mutates this tree
     axis_offset = 0 if _opt("closed") else _opt("axisOffset")
     if axis_offset:
@@ -309,7 +309,7 @@ def save(
             base_obj = _resolve_base()
             # Non-finite floats become null before the spec is hashed OR written, so the checksum still
             # revalidates against the file and the JSON never carries a bare NaN (not valid JSON).
-            spec = _json_safe(base_obj.to_dict())
+            spec = _apply_spec_fixes(_json_safe(base_obj.to_dict()))
             _hashes = metadata._scan_marker_hashes(spec) if saveMetadata else set()
             _records = _select_reports(_hashes)
             _exts = discovery._used_extensions(spec) if saveMetadata else {}  # extensions that made it

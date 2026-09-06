@@ -363,3 +363,59 @@ def _resolve_dash(value: "bool | Sequence[int | float] | None") -> "list[int | f
     if value is False:
         return [0, 0]
     return list(value) if value is not None else None
+
+
+_CONTINUOUS_TYPES = ("quantitative", "temporal")
+_SPEC_CONTAINERS = ("layer", "hconcat", "vconcat", "concat")
+
+
+def _suppress_nice(spec: dict[str, Any]) -> dict[str, Any]:
+    """Turn ``nice`` off on continuous x/y scales so ``viewPadding`` lands exactly.
+
+    Vega pads the domain and *then* nices it, so the rounding compounds the inset: a
+    ``viewPadding`` of 15 px renders as 19.7 px at one end and 30 px at the other, and a
+    non-negative field can gain a ``-1`` tick where the padded bound crossed zero. Dropping
+    ``nice`` while padding is active makes the padding alone set the bounds, so the inset is
+    exactly what was asked for and the axis stops where the data does.
+
+    Never overrides an explicit user ``nice``. Mutates *spec* in place and returns it.
+    """
+    encoding = spec.get("encoding")
+    if isinstance(encoding, dict):
+        for channel in ("x", "y"):
+            channel_def = encoding.get(channel)
+            if not isinstance(channel_def, dict) or channel_def.get("type") not in _CONTINUOUS_TYPES:
+                continue
+            scale = channel_def.get("scale")
+            if scale is None:
+                scale = channel_def["scale"] = {}
+            if isinstance(scale, dict) and "nice" not in scale:
+                scale["nice"] = False
+    for key in _SPEC_CONTAINERS:
+        children = spec.get(key)
+        if isinstance(children, list):
+            for child in children:
+                if isinstance(child, dict):
+                    _suppress_nice(child)
+    child_spec = spec.get("spec")
+    if isinstance(child_spec, dict):
+        _suppress_nice(child_spec)
+    return spec
+
+
+def _apply_spec_fixes(spec: dict[str, Any]) -> dict[str, Any]:
+    """Run the spec-level transforms shared by every output format.
+
+    Kept as one call so every path that resolves a chart to a spec applies the same transforms:
+    ``save``'s JSON/HTML spec, ``_render_fixed_svg``'s SVG/PNG spec, ``metadata``'s checksum path
+    and the website's example generator. Lives here rather than in ``export`` so ``metadata`` can
+    call it without importing ``export`` - that dependency runs one way only.
+
+    The nice-suppression is gated on ``continuousPadding`` being present IN THE SPEC, not on the
+    theme flags that currently imply it (``viewPadding and closed``). Padding is what ``nice``
+    conflicts with, so reading the emitted value tracks whatever ``theme.py`` decides to emit -
+    including a future default that pads open plots - with no condition to keep in sync.
+    """
+    if spec.get("config", {}).get("scale", {}).get("continuousPadding"):
+        _suppress_nice(spec)
+    return spec
