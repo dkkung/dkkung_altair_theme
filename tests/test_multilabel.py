@@ -127,6 +127,41 @@ class TestSpans:
         assert with_span._kwds["height"] > no_span._kwds["height"]
 
 
+class TestRowSpacingUnderViewPadding:
+    """The row centres are precomputed pixels - viewPadding must not compress them."""
+
+    def _row_ys(self):
+        import re
+        import xml.etree.ElementTree as ET
+
+        import vl_convert as vlc
+
+        from dysonsphere.utils import _apply_spec_fixes
+
+        ns = "{http://www.w3.org/2000/svg}"
+        cats = ["A", "B", "C"]
+        df = pl.DataFrame({"g": cats * 4, "v": [1.0, 2.0, 3.0] * 4})
+        base = alt.Chart(df).mark_point().encode(alt.X("g:N", title=None), alt.Y("v:Q", title="v"))
+        groups = {"first": [True, False, True], "second": [False, True, True]}
+        spec = _apply_spec_fixes(add_multilabel(base, groups, cats).to_dict())
+        root = ET.fromstring(vlc.vegalite_to_svg(spec))
+        ys = []
+        for t in root.iter(f"{ns}text"):
+            if (t.text or "").strip() in groups:
+                m = re.search(r"translate\(([-\d.]+),\s*([-\d.]+)\)", t.get("transform") or "")
+                if m:
+                    ys.append(float(m.group(2)))
+        return sorted(ys)
+
+    def test_row_gap_matches_with_and_without_padding(self):
+        theme(viewPadding=False)
+        without = self._row_ys()
+        theme()  # default: padding is emitted on every plot
+        with_padding = self._row_ys()
+        assert len(without) == 2
+        assert with_padding == pytest.approx(without), (with_padding, without)
+
+
 class TestAddMultilabel:
     def test_accepts_plain_chart(self):
         theme(chartWidth=100)

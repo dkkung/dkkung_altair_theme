@@ -296,7 +296,9 @@ def _multilabel_layer(
     rows_extent = y0 + rows_h or 1.0
     y_enc = alt.Y(
         "__y:Q",
-        scale=alt.Scale(domain=[0, rows_extent], range=[0, rows_extent], nice=False, zero=False),
+        # padding=0: the row centres are precomputed pixels, so viewPadding
+        # would compress the identity mapping and squeeze the rows together.
+        scale=alt.Scale(domain=[0, rows_extent], range=[0, rows_extent], nice=False, zero=False, padding=0),
         axis=None,
     )
     angle_enc = alt.Angle("__angle:Q", scale=None)
