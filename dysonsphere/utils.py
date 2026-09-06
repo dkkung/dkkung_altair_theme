@@ -419,3 +419,27 @@ def _apply_spec_fixes(spec: dict[str, Any]) -> dict[str, Any]:
     if spec.get("config", {}).get("scale", {}).get("continuousPadding"):
         _suppress_nice(spec)
     return spec
+
+
+def resolve_palette(name_or_list: "str | list[str]") -> list[str]:
+    """A palette name → its hex list (via ``colors``), or a hex list passed straight through."""
+    if isinstance(name_or_list, list):
+        return name_or_list
+    from .palettes import colors
+
+    if name_or_list not in colors:
+        raise ValueError(f"unknown palette {name_or_list!r}")
+    return colors[name_or_list]
+
+
+def stripe_colors(palette: "str | list[str]", n: int, *, darkmode: bool) -> list[str]:
+    """The ``n`` row-striping fills from *palette* - its lightest ``n`` stops, or its darkest in
+    darkmode, since a sequential palette runs light to dark.
+
+    Shared by ``mark_table``'s cell stripes and ``add_multilabel``'s row bands. NOT used by
+    ``add_shade``, whose darkmode deliberately discards the caller's palette for greys.
+    """
+    if n < 1:
+        raise ValueError(f"n must be >= 1, got {n}.")
+    pal = resolve_palette(palette)
+    return pal[-n:] if darkmode else pal[:n]
