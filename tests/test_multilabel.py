@@ -253,7 +253,7 @@ class TestMultilabelXOrder:
         cats = ["USA", "Europe", "Japan"]  # not alphabetical
         df = pl.DataFrame({"g": [c for c in cats for _ in range(5)], "y": [float(i) for i in range(15)]})
         strip = mark_strip(df, "g", "y", cats)
-        chart = add_multilabel(strip, categories=cats, showSampleSize=True, df=df, xCol="g")
+        chart = add_multilabel(strip, categories=cats, showSampleSize=True, data=df, x="g")
         vg = vlc.vegalite_to_vega(chart.to_dict())
         domains = self._x_domains(vg)
         assert domains, "no resolved x domain found"
@@ -294,8 +294,8 @@ class TestRowStylesListWithSampleSize:
             self.GROUPS,
             categories=self.C,
             showSampleSize=True,
-            df=df,
-            xCol="g",
+            data=df,
+            x="g",
             **kwargs,
         )
 
@@ -534,7 +534,7 @@ class TestSampleSizeRowInteraction:
     def _built(self, **kwargs):
         df = self._df()
         base = mark_strip(df, "g", "v", self.C)
-        return add_multilabel(base, self.GROUPS, categories=self.C, showSampleSize=True, df=df, xCol="g", **kwargs)
+        return add_multilabel(base, self.GROUPS, categories=self.C, showSampleSize=True, data=df, x="g", **kwargs)
 
     def test_row_angle_list_survives_the_injected_n_row(self):
         # Regression: the list is sized to the user's rows, but the n-row joins them before
@@ -573,8 +573,8 @@ class TestSampleSizeRowWithExplicitOrder:
             self.GROUPS,
             categories=self.C,
             showSampleSize=True,
-            df=df,
-            xCol="g",
+            data=df,
+            x="g",
             **kwargs,
         )
         seen: list[str] = []
@@ -638,8 +638,8 @@ class TestRowValidation:
             groups,
             categories=self.C,
             showSampleSize=True,
-            df=df,
-            xCol="g",
+            data=df,
+            x="g",
             **kwargs,
         )
 

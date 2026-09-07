@@ -72,15 +72,15 @@ import dysonsphere as ds
 from dysonsphere import ext
 
 
-def yourchart(df, *, xCol="x", yCol="y") -> ext.AltairChart:
-    data = ds.utils.ensure_polars(df)           # accept polars or pandas
+def yourchart(data, *, x="x", y="y") -> ext.AltairChart:
+    data = ds.utils.ensure_polars(data)         # accept polars or pandas
 
     darkmode = bool(ext.opt("darkmode"))        # read the active theme
     accent = ds.palettes.colors["blues2"][10 if darkmode else 2]
 
     points = alt.Chart(data).mark_point().encode(
-        x=alt.X(f"{xCol}:Q"),
-        y=alt.Y(f"{yCol}:Q"),
+        x=alt.X(f"{x}:Q"),
+        y=alt.Y(f"{y}:Q"),
     )
 
     # A generated helper layer (e.g. a reference band) - TAG it (see step 4).

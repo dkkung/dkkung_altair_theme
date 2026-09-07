@@ -13,6 +13,7 @@ sidebar:
 def save(
     chart: _AltairChart | Callable[[], _AltairChart],
     filename: str,
+    *,
     ppi: int = 1200,
     description: str | None = None,
     saveMetadata: bool = True,
@@ -84,6 +85,7 @@ Callable — rebuilt per variant so dark-mode colours are correct::
 ```python
 def show(
     chart: _AltairChart | Callable[[], _AltairChart],
+    *,
     maxRows: int = 5000,
     overrideMaxRows: bool = False,
 ): ...

@@ -168,7 +168,7 @@ def assemble(
     labelFontSize: float = 8,
     labelFontWeight: int = 700,
     labelColor: str | None = None,
-    labelPadding: float | tuple[float, float] = (-5, 0),
+    labelOffset: float | tuple[float, float] = (-5, 0),
 ) -> _AltairChart:
     """
     Compose several charts into one figure, each built at its own size.
@@ -210,11 +210,11 @@ def assemble(
         Gap between charts in pixels - a number for both directions, or
         ``{"row": 40, "column": 10}`` to set them independently. ``None`` uses Vega-Lite's
         default.
-    labelFontSize, labelFontWeight, labelColor, labelPadding:
+    labelFontSize, labelFontWeight, labelColor, labelOffset:
         Figure-label styling. Weight is numeric (700, bold, by default). ``labelColor``
         defaults to the theme's title ink, which follows ``darkmode`` at render, so a
         ``save()`` across both backgrounds gets the right color without a callable.
-        ``labelPadding`` offsets the label from the corner - one number for both axes, or
+        ``labelOffset`` offsets the label from the corner - one number for both axes, or
         ``(x, y)``. It defaults to ``(-5, 0)``, holding the label off the chart the way
         ``axisOffset`` detaches the axes. The label already sits at the figure's leftmost
         point, so a negative x cannot move it further left - it widens the canvas and
@@ -258,7 +258,7 @@ def assemble(
         "fontSize": labelFontSize,
         "fontWeight": labelFontWeight,
         "color": labelColor,
-        "padding": labelPadding,
+        "padding": labelOffset,
     }
     rows = members if isinstance(members[0], list) else [members]
     built: list[_AltairChart] = []

@@ -4,6 +4,17 @@
 
 ### Changes
 
+- **Breaking:** tabular inputs use `data`; plot mappings use `x` and `y`. Grouped comparisons use
+  `xOffset`, correlation uses `groupBy`, and axis-independent dataframe operations use `column`.
+- **Breaking:** point labels and volcano plots use `labels` for the content column and `subset`
+  for selection. Volcano fields are `log2fc` and `pvalue`, with `nonDifferentialColor` for neutral points.
+- **Breaking:** violin box controls are `boxplotWidth` and `boxplotMedianColor`; table palettes are
+  `stripePalette` and `cellPalette`; multilabel placement uses `labelPosition` and `lineOrientation`;
+  figure labels use `labelOffset`; blot image gaps use `stripSpacing`. Standalone report writing
+  uses `saveReport`, distinct from figure export.
+- Optional controls for transforms, palette helpers, save/show, and verification are keyword-only.
+  Former parameter names are not accepted. Defaults, calculations, rendered output, and stored
+  record fields are unchanged by this signature migration.
 - **Breaking:** export inspection and checksums now live under `ds.metadata`; dataframe and
   band-geometry helpers live under `ds.utils`; palette data, categorical construction, and swatch
   export live under `ds.palettes`. Their old root names are removed. `ds.palette()`, `ds.save()`,
@@ -11,13 +22,13 @@
 - **Breaking:** annotation constructors are now `ds.rule()`, `ds.text()`, `ds.shade()`, and
   `ds.labels()`. Offset transforms are `ds.transforms.jitter()`, `ds.transforms.beeswarm()`, and
   `ds.transforms.quasirandom()`. Former `add_*` spellings are removed without aliases;
-  parameters, generated data, and rendering are unchanged.
+  generated data and rendering are unchanged by the namespace move.
 - Display-label helpers moved from `dysonsphere.labels` to `dysonsphere.display_labels` to avoid
   shadowing the new `ds.labels()` constructor. `ds.label_expr()` is unchanged.
 - **Breaking:** statistical annotations now use `ds.stats.comparisons()` and `ds.stats.correlation()`;
   clear retained records with `ds.stats.clear_stats()`. The former top-level functions and
   `dysonsphere.inference` / `dysonsphere.statistics` modules are removed, without aliases.
-  Parameters, calculations, rendering, and embedded metadata are unchanged.
+  Calculations, rendering, and embedded metadata are unchanged by the namespace move.
 
 ### Internal
 

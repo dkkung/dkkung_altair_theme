@@ -18,6 +18,7 @@ Call as `ds.palettes.categorical(...)`.
 ```python
 def categorical(
     members: int = 1,
+    *,
     palette: str = _DEFAULT_QUALITATIVE_PALETTE,
 ) -> list[str]: ...
 ```
@@ -56,6 +57,7 @@ Call as `ds.palette(...)`.
 def palette(
     name: str,
     n: int | None = None,
+    *,
     start: int = 0,
     end: int | None = None,
     step: int = 1,
@@ -109,6 +111,7 @@ Call as `ds.palettes.export_swatches(...)`.
 ```python
 def export_swatches(
     directory: str | Path | None = None,
+    *,
     palettes: list[str] | None = None,
     name: str = 'dysonsphere',
 ) -> None: ...

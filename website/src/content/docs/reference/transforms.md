@@ -11,9 +11,10 @@ sidebar:
 
 ```python
 def beeswarm(
-    df: pl.DataFrame | Any,
-    yCol: str,
+    data: pl.DataFrame | Any,
+    column: str,
     groupBy: list[str],
+    *,
     heightPx: int | None = None,
     spread: float | None = None,
     outCol: str = 'beeswarm_x',
@@ -35,8 +36,8 @@ and grows with n.
 
 **Parameters**
 
-- **`df`** (`pl.DataFrame | Any`) - Input DataFrame.
-- **`yCol`** (`str`) - Name of the column containing y values.
+- **`data`** (`pl.DataFrame | Any`) - Input DataFrame.
+- **`column`** (`str`) - Name of the column containing y values.
 - **`groupBy`** (`list[str]`) - Column name(s) that define each beeswarm group.
 - **`heightPx`** (`int | None`) - Chart height in pixels. Defaults to the theme's ``chartHeight``.
 - **`spread`** (`float | None`) - Collision radius in pixels. Defaults to ``sqrt(markSize / π)`` from the active theme, so points naturally match the rendered mark size.
@@ -51,10 +52,10 @@ and grows with n.
 ```python
 ::
 
-    df = ds.transforms.beeswarm(df, yCol="value", groupBy=["group"])
-    m = df["beeswarm_x"].abs().max()  # pin a symmetric xOffset domain so offset 0 sits on the tick
+    data = ds.transforms.beeswarm(data, column="value", groupBy=["group"])
+    m = data["beeswarm_x"].abs().max()  # pin a symmetric xOffset domain so offset 0 sits on the tick
 
-    alt.Chart(df).mark_circle().encode(
+    alt.Chart(data).mark_circle().encode(
         x=alt.X("group:N"),
         y=alt.Y("value:Q"),
         xOffset=alt.XOffset("beeswarm_x:Q", scale=alt.Scale(domain=[-m, m])),
@@ -68,9 +69,10 @@ so a leaning swarm renders slightly off the tick (``mark_strip`` pins this domai
 
 ```python
 def quasirandom(
-    df: pl.DataFrame | Any,
-    yCol: str,
+    data: pl.DataFrame | Any,
+    column: str,
     groupBy: list[str],
+    *,
     heightPx: int | None = None,
     spread: float | None = None,
     outCol: str = 'quasirandom_x',
@@ -92,8 +94,8 @@ non-overlap matters.
 
 **Parameters**
 
-- **`df`** (`pl.DataFrame | Any`) - Input DataFrame.
-- **`yCol`** (`str`) - Name of the column containing y values.
+- **`data`** (`pl.DataFrame | Any`) - Input DataFrame.
+- **`column`** (`str`) - Name of the column containing y values.
 - **`groupBy`** (`list[str]`) - Column name(s) that define each group.
 - **`heightPx`** (`int | None`) - Chart height in pixels. Defaults to the theme's ``chartHeight``.
 - **`spread`** (`float | None`) - Point radius in pixels - the unit the auto ``width`` is built from. Defaults to ``sqrt(markSize / π)`` from the active theme, matching :func:`beeswarm`.
@@ -110,10 +112,10 @@ non-overlap matters.
 ```python
 ::
 
-    df = ds.transforms.quasirandom(df, yCol="value", groupBy=["group"])
-    m = df["quasirandom_x"].abs().max()  # pin a symmetric xOffset domain so offset 0 sits on the tick
+    data = ds.transforms.quasirandom(data, column="value", groupBy=["group"])
+    m = data["quasirandom_x"].abs().max()  # pin a symmetric xOffset domain so offset 0 sits on the tick
 
-    alt.Chart(df).mark_circle().encode(
+    alt.Chart(data).mark_circle().encode(
         x=alt.X("group:N"),
         y=alt.Y("value:Q"),
         xOffset=alt.XOffset("quasirandom_x:Q", scale=alt.Scale(domain=[-m, m])),
@@ -124,7 +126,8 @@ non-overlap matters.
 
 ```python
 def jitter(
-    df: pl.DataFrame | Any,
+    data: pl.DataFrame | Any,
+    *,
     spread: float | None = None,
     outCol: str = 'jitter_x',
     seed: int | None = 20220701,
@@ -141,7 +144,7 @@ small n where overlap is undesirable.
 
 **Parameters**
 
-- **`df`** (`pl.DataFrame | Any`) - Input DataFrame.
+- **`data`** (`pl.DataFrame | Any`) - Input DataFrame.
 - **`spread`** (`float | None`) - Standard deviation of the jitter in pixels. Defaults to ``min(chartWidth, chartHeight) / 50`` from the active theme (2.0 at the default 100×100 chart size).
 - **`outCol`** (`str`) - Name of the output offset column added to the DataFrame.
 - **`seed`** (`int | None`) - Optional random seed for reproducibility.
@@ -155,9 +158,9 @@ small n where overlap is undesirable.
 ```python
 ::
 
-    df = ds.transforms.jitter(df, spread=5)
+    data = ds.transforms.jitter(data, spread=5)
 
-    alt.Chart(df).mark_circle().encode(
+    alt.Chart(data).mark_circle().encode(
         x=alt.X("group:N"),
         y=alt.Y("value:Q"),
         xOffset=alt.XOffset("jitter_x:Q"),

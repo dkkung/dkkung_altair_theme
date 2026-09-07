@@ -263,9 +263,10 @@ def _grouped_offsets(
 
 
 def beeswarm(
-    df: pl.DataFrame | Any,
-    yCol: str,
+    data: pl.DataFrame | Any,
+    column: str,
     groupBy: list[str],
+    *,
     heightPx: int | None = None,
     spread: float | None = None,
     outCol: str = "beeswarm_x",
@@ -286,9 +287,9 @@ def beeswarm(
 
     Parameters
     ----------
-    df:
+    data:
         Input DataFrame.
-    yCol:
+    column:
         Name of the column containing y values.
     groupBy:
         Column name(s) that define each beeswarm group.
@@ -309,10 +310,10 @@ def beeswarm(
     --------
     ::
 
-        df = ds.transforms.beeswarm(df, yCol="value", groupBy=["group"])
-        m = df["beeswarm_x"].abs().max()  # pin a symmetric xOffset domain so offset 0 sits on the tick
+        data = ds.transforms.beeswarm(data, column="value", groupBy=["group"])
+        m = data["beeswarm_x"].abs().max()  # pin a symmetric xOffset domain so offset 0 sits on the tick
 
-        alt.Chart(df).mark_circle().encode(
+        alt.Chart(data).mark_circle().encode(
             x=alt.X("group:N"),
             y=alt.Y("value:Q"),
             xOffset=alt.XOffset("beeswarm_x:Q", scale=alt.Scale(domain=[-m, m])),
@@ -321,14 +322,17 @@ def beeswarm(
     Without the symmetric ``domain``, Vega-Lite centres the tick on the offset range's midpoint,
     so a leaning swarm renders slightly off the tick (``mark_strip`` pins this domain for you).
     """
-    df = ensure_polars(df)
-    return _grouped_offsets(df, yCol, groupBy, outCol, lambda y: _beeswarm_offsets(y, heightPx=heightPx, spread=spread))
+    data = ensure_polars(data)
+    return _grouped_offsets(
+        data, column, groupBy, outCol, lambda y: _beeswarm_offsets(y, heightPx=heightPx, spread=spread)
+    )
 
 
 def quasirandom(
-    df: pl.DataFrame | Any,
-    yCol: str,
+    data: pl.DataFrame | Any,
+    column: str,
     groupBy: list[str],
+    *,
     heightPx: int | None = None,
     spread: float | None = None,
     outCol: str = "quasirandom_x",
@@ -349,9 +353,9 @@ def quasirandom(
 
     Parameters
     ----------
-    df:
+    data:
         Input DataFrame.
-    yCol:
+    column:
         Name of the column containing y values.
     groupBy:
         Column name(s) that define each group.
@@ -377,19 +381,19 @@ def quasirandom(
     --------
     ::
 
-        df = ds.transforms.quasirandom(df, yCol="value", groupBy=["group"])
-        m = df["quasirandom_x"].abs().max()  # pin a symmetric xOffset domain so offset 0 sits on the tick
+        data = ds.transforms.quasirandom(data, column="value", groupBy=["group"])
+        m = data["quasirandom_x"].abs().max()  # pin a symmetric xOffset domain so offset 0 sits on the tick
 
-        alt.Chart(df).mark_circle().encode(
+        alt.Chart(data).mark_circle().encode(
             x=alt.X("group:N"),
             y=alt.Y("value:Q"),
             xOffset=alt.XOffset("quasirandom_x:Q", scale=alt.Scale(domain=[-m, m])),
         )
     """
-    df = ensure_polars(df)
+    data = ensure_polars(data)
     return _grouped_offsets(
-        df,
-        yCol,
+        data,
+        column,
         groupBy,
         outCol,
         lambda y: _quasirandom_offsets(y, heightPx=heightPx, spread=spread, width=width, bandwidth=bandwidth),
@@ -397,7 +401,8 @@ def quasirandom(
 
 
 def jitter(
-    df: pl.DataFrame | Any,
+    data: pl.DataFrame | Any,
+    *,
     spread: float | None = None,
     outCol: str = "jitter_x",
     seed: int | None = 2022_07_01,
@@ -413,7 +418,7 @@ def jitter(
 
     Parameters
     ----------
-    df:
+    data:
         Input DataFrame.
     spread:
         Standard deviation of the jitter in pixels. Defaults to
@@ -433,18 +438,18 @@ def jitter(
     --------
     ::
 
-        df = ds.transforms.jitter(df, spread=5)
+        data = ds.transforms.jitter(data, spread=5)
 
-        alt.Chart(df).mark_circle().encode(
+        alt.Chart(data).mark_circle().encode(
             x=alt.X("group:N"),
             y=alt.Y("value:Q"),
             xOffset=alt.XOffset("jitter_x:Q"),
         )
     """
-    df = ensure_polars(df)
+    data = ensure_polars(data)
     if spread is None:
         w = _opt("chartWidth")
         h = _opt("chartHeight")
         spread = min(w, h) / 50
     rng = np.random.default_rng(seed)
-    return df.with_columns(pl.Series(outCol, rng.normal(0, spread, len(df))))
+    return data.with_columns(pl.Series(outCol, rng.normal(0, spread, len(data))))

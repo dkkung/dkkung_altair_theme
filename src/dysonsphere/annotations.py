@@ -827,8 +827,8 @@ def _bool_mask(labels: Any, n_rows: int) -> "list[bool] | None":
     length equals ``n_rows`` and whose every element is a boolean (native ``bool``, or a NumPy/Arrow
     boolean that ``to_list``/``tolist`` normalizes to native ``bool``). Anything else - a list of
     label VALUES (strings/ints), a wrong-length sequence, a non-iterable - returns ``None`` so the
-    caller falls back to matching by ``labelCol`` value. This lets ``labels(labels=...)`` select
-    rows positionally (decoupled from the display column), so a non-unique ``labelCol`` can still pick
+    caller falls back to matching by the ``labels`` column. This lets ``labels(subset=...)`` select
+    rows positionally (decoupled from the display column), so a non-unique ``labels`` column can still pick
     exactly the intended rows.
     """
     if hasattr(labels, "to_list"):  # pandas / polars Series -> native bools
@@ -845,12 +845,12 @@ def _bool_mask(labels: Any, n_rows: int) -> "list[bool] | None":
 
 
 def labels(
-    df: "pl.DataFrame | Any",
-    xCol: str,
-    yCol: str,
-    labelCol: str,
+    data: "pl.DataFrame | Any",
+    x: str,
+    y: str,
+    labels: str,
     *,
-    labels: "int | list[Any] | Any | None" = None,
+    subset: "int | list[Any] | Any | None" = None,
     xDomain: tuple[float, float] | None = None,
     yDomain: tuple[float, float] | None = None,
     fontSize: float | None = None,
@@ -876,31 +876,31 @@ def labels(
 
     Placement is solved in pixels before Vega renders, but each label is emitted as a pixel offset
     from its own marker, so it lands correctly on whatever scale the base chart uses and the base's
-    axes are left alone. Just compose ``base + ds.labels(df, ...)``.
+    axes are left alone. Just compose ``base + ds.labels(data, ...)``.
 
     Parameters
     ----------
-    df:
+    data:
         The plotted data (polars or pandas) - pass the same frame as the base chart.
-    xCol, yCol:
+    x, y:
         Quantitative coordinate columns (must match the base chart's x / y encodings).
-    labelCol:
-        Column holding the label text.
     labels:
+        Column holding the label text.
+    subset:
         Which rows to label. ``None`` (default) labels every row; an **int `n`** auto-selects `n`
         rows spread evenly across the plot (unbiased - no cherry-picking, deterministic); a **boolean
         mask** (a pandas/polars ``Series``, NumPy array, or list of bools with one entry per row of
-        ``df``) selects rows **positionally** - decoupled from ``labelCol``, so a non-unique label
-        column still picks exactly the intended rows (e.g. ``labels=df["is_hit"]``); any other
-        **list** labels the rows whose ``labelCol`` value is in it (e.g. ``labels=["TP53", "EGFR"]``,
-        which needs a unique ``labelCol``). Pass the full plotted ``df`` and let ``labels`` do the
-        selecting: obstacles and the axis domain both span all of ``df``, so the labels dodge EVERY
+        ``data``) selects rows **positionally** - decoupled from ``labels``, so a non-unique label
+        column still picks exactly the intended rows (e.g. ``subset=data["is_hit"]``); any other
+        **list** labels the rows whose ``labels`` value is in it (e.g. ``subset=["TP53", "EGFR"]``,
+        which needs a unique ``labels``). Pass the full plotted ``data`` and let ``subset`` do the
+        selecting: obstacles and the axis domain both span all of ``data``, so the labels dodge EVERY
         plotted point (not just the labelled subset) and selecting a subset never clips the axes.
     xDomain, yDomain:
         ``(min, max)`` the placement solver assumes the base chart will render. Default: the
-        extent of ``df``'s ``xCol`` / ``yCol``. A mismatch only degrades collision avoidance -
+        extent of ``data``'s ``x`` / ``y``. A mismatch only degrades collision avoidance -
         labels stay attached to their markers either way. Pass explicitly when the base chart's
-        domain differs from ``df``'s extent (a zoomed axis, or derived positions like centroids).
+        domain differs from ``data``'s extent (a zoomed axis, or derived positions like centroids).
     fontSize:
         Label font size. ``None`` -> the theme's ``fontSize`` (the primary chart font size).
     fontStyle:
@@ -959,31 +959,32 @@ def labels(
         the label font never drops real leaders. ``True`` draws every one (sub-threshold stubs
         shrink their gaps to fit).
     """
+    df, xCol, yCol = data, x, y
     from ._placement import _repel_labels, _sample_spread
     from .utils import _nice_domain, ensure_polars
 
     data = ensure_polars(df)
-    # Domain and obstacles both span the FULL df (so labeling a subset via labels= never clips the
+    # Domain and obstacles both span the FULL data (so labeling a subset via subset= never clips the
     # axes AND the labels dodge every plotted point, not just the labelled ones); the label positions
-    # come from the selected rows. labels=None labels every row; an int auto-selects that many evenly
+    # come from the selected rows. subset=None labels every row; an int auto-selects that many evenly
     # spread across the plot (unbiased, no cherry-picking); a BOOLEAN MASK selects rows positionally -
-    # decoupling selection from the display column, so a non-unique labelCol still selects exactly the
-    # intended rows; any other list selects the rows whose labelCol value is in it.
+    # decoupling selection from the display column, so a non-unique labels column selects exactly the
+    # intended rows; any other list selects the rows whose labels-column value is in it.
     all_x = [float(v) for v in data[xCol].to_list()]
     all_y = [float(v) for v in data[yCol].to_list()]
-    if isinstance(labels, bool):  # bool is an int subclass - reject before the int branch
-        raise ValueError("labels must be None, an int, a boolean mask, or a list of values - not a bool")
-    if isinstance(labels, int):
-        data = data[_sample_spread(all_x, all_y, labels)]
-    elif labels is not None:
-        mask = _bool_mask(labels, len(all_x))
+    if isinstance(subset, bool):  # bool is an int subclass - reject before the int branch
+        raise ValueError("subset must be None, an int, a boolean mask, or a list of values - not a bool")
+    if isinstance(subset, int):
+        data = data[_sample_spread(all_x, all_y, subset)]
+    elif subset is not None:
+        mask = _bool_mask(subset, len(all_x))
         if mask is not None:
             data = data.filter(pl.Series(mask))
         else:
-            data = data.filter(pl.col(labelCol).is_in(labels))
+            data = data.filter(pl.col(labels).is_in(subset))
     xs = [float(v) for v in data[xCol].to_list()]
     ys = [float(v) for v in data[yCol].to_list()]
-    label_texts = [str(v) for v in data[labelCol].to_list()]
+    label_texts = [str(v) for v in data[labels].to_list()]
     n = len(label_texts)
 
     width, height = _opt("chartWidth"), _opt("chartHeight")

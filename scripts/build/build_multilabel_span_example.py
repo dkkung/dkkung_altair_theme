@@ -43,7 +43,7 @@ ds.theme(cornerRadius=True, chartWidth=125, chartHeight=75, chartFill="white")
 
 df = ds.transforms.beeswarm(
     df,
-    yCol="value",
+    column="value",
     groupBy=["group"],
 )
 
@@ -81,8 +81,8 @@ plot = ds.add_multilabel(
     chart,
     groups,
     categories=CATEGORIES,
-    df=df,
-    xCol="group",
+    data=df,
+    x="group",
     categoryLabel=False,
     categoryLabelAngle=-90,
     span=[

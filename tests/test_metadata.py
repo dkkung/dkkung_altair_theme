@@ -523,7 +523,7 @@ class TestReadLoad:
         charts = {
             "mark_strip": (ds.mark_strip(df, "g", "v", cats), {"g", "v"}),
             "mark_violin": (ds.mark_violin(df, "g", "v", cats), {"g", "v"}),
-            "mark_table": (ds.mark_table(df, cellColor={"v": "greens"}), {"g", "v"}),
+            "mark_table": (ds.mark_table(df, cellPalette={"v": "greens"}), {"g", "v"}),
             "add_comparisons": (box + ds.stats.comparisons(df, "g", "v", [("A", "B")], categories=cats), {"g", "v"}),
             "add_comparisons_reference": (
                 box + ds.stats.comparisons(df, "g", "v", reference="A", categories=cats),
@@ -586,7 +586,7 @@ class TestReadLoad:
         import dysonsphere as ds
 
         outdir = tmp_path / "reports"
-        ds.metadata.read(str(saved / "t.png"), save=str(outdir))
+        ds.metadata.read(str(saved / "t.png"), saveReport=str(outdir))
         txts = list(outdir.glob("dysonsphere_report_*.txt"))
         assert len(txts) == 1 and txts[0].read_text(encoding="utf-8").startswith("Statistics")
 
@@ -1061,32 +1061,32 @@ class TestVerify:
     def test_matching_dataframe(self, saved, source_df):
         import dysonsphere as ds
 
-        assert ds.metadata.verify(f"{saved}.json", df=source_df).dataMatches is True
+        assert ds.metadata.verify(f"{saved}.json", data=source_df).dataMatches is True
 
     def test_wrong_dataframe_fails(self, saved):
         import dysonsphere as ds
 
         other = pl.DataFrame({"x": ["A", "B", "C"], "y": [9.0, 9.0, 9.0]})
-        r = ds.metadata.verify(f"{saved}.json", df=other)
+        r = ds.metadata.verify(f"{saved}.json", data=other)
         assert r.dataMatches is False and not r.ok
 
     def test_row_order_does_not_matter(self, saved, source_df):
         import dysonsphere as ds
 
         shuffled = source_df.sample(fraction=1.0, shuffle=True, seed=7)
-        assert ds.metadata.verify(f"{saved}.json", df=shuffled).dataMatches is True
+        assert ds.metadata.verify(f"{saved}.json", data=shuffled).dataMatches is True
 
     def test_pandas_accepted(self, saved, source_df):
         import dysonsphere as ds
 
-        assert ds.metadata.verify(f"{saved}.json", df=source_df.to_pandas()).dataMatches is True
+        assert ds.metadata.verify(f"{saved}.json", data=source_df.to_pandas()).dataMatches is True
 
     @pytest.mark.parametrize("ext", ["svg", "png"])
     def test_data_verifiable_without_a_spec(self, saved, source_df, ext):
         """SVG/PNG carry the checksums but not the spec - unknown, not failed."""
         import dysonsphere as ds
 
-        r = ds.metadata.verify(f"{saved}.{ext}", df=source_df)
+        r = ds.metadata.verify(f"{saved}.{ext}", data=source_df)
         assert r.specValid is None  # could not run
         assert r.dataMatches is True and r.ok
 
@@ -1109,9 +1109,9 @@ class TestVerify:
             alt.Chart(d2).mark_bar().encode(x="k:N", y="n:Q"),
         )
         ds.save(chart, str(tmp_path / "m"), format="json", background=["light"])
-        assert ds.metadata.verify(str(tmp_path / "m.json"), df=[d1, d2]).dataMatches is True
-        assert ds.metadata.verify(str(tmp_path / "m.json"), df=[d2, d1]).dataMatches is True
-        assert ds.metadata.verify(str(tmp_path / "m.json"), df=[d1]).dataMatches is False  # incomplete
+        assert ds.metadata.verify(str(tmp_path / "m.json"), data=[d1, d2]).dataMatches is True
+        assert ds.metadata.verify(str(tmp_path / "m.json"), data=[d2, d1]).dataMatches is True
+        assert ds.metadata.verify(str(tmp_path / "m.json"), data=[d1]).dataMatches is False  # incomplete
 
     def test_surfaces_identity_fields(self, saved):
         import dysonsphere as ds
@@ -1255,18 +1255,18 @@ class TestVerifyCompare:
         edited = saved / "edited.json"
         edited.write_text(json.dumps(spec))
 
-        assert ds.metadata.verify(str(edited), df=frames[0]).specValid is False, "the edit is detectable"
+        assert ds.metadata.verify(str(edited), data=frames[0]).specValid is False, "the edit is detectable"
         r = ds.metadata.verify([str(original), str(edited)], what="spec")
         assert r.matches is not None
         assert r.matches["spec"] is True, "but comparing trusts the recorded identity"
 
     def test_rejects_a_dataframe_when_comparing(self, saved, frames):
-        # df= checks one figure against its data; silently ignoring it while comparing a list
+        # data= checks one figure against its data; silently ignoring it while comparing a list
         # would answer a question the caller did not ask.
         import dysonsphere as ds
 
         with pytest.raises(ValueError, match="does not apply when comparing"):
-            ds.metadata.verify([str(saved / "f1.json"), str(saved / "f2.json")], df=frames[0])
+            ds.metadata.verify([str(saved / "f1.json"), str(saved / "f2.json")], data=frames[0])
 
     def test_rejects_an_empty_what(self, saved):
         import dysonsphere as ds
@@ -1301,7 +1301,7 @@ class TestVerifyCompare:
     def test_checking_one_figure_still_works(self, saved, frames):
         import dysonsphere as ds
 
-        r = ds.metadata.verify(str(saved / "f1.json"), df=frames[0])
+        r = ds.metadata.verify(str(saved / "f1.json"), data=frames[0])
         assert r.ok and r.specValid is True and r.dataMatches is True
         assert r.matches is None and r.groups is None
 

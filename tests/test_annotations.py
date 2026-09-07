@@ -297,46 +297,46 @@ class TestLabels:
         assert set(_text_values(labels(df, "x", "y", "g").to_dict())) == {"a", "b", "c"}
 
     def test_labels_selects_subset(self, df):
-        # labels= draws only the chosen rows
-        assert set(_text_values(labels(df, "x", "y", "g", labels=["a", "c"]).to_dict())) == {"a", "c"}
+        # subset= draws only the chosen rows
+        assert set(_text_values(labels(df, "x", "y", "g", subset=["a", "c"]).to_dict())) == {"a", "c"}
 
     def test_labels_int_auto_selects_n(self, df):
-        # labels=int auto-picks that many (even-spread), no curation
-        assert len(_text_values(labels(df, "x", "y", "g", labels=2).to_dict())) == 2
+        # subset=int auto-picks that many (even-spread), no curation
+        assert len(_text_values(labels(df, "x", "y", "g", subset=2).to_dict())) == 2
 
     def test_labels_int_deterministic(self, df):
-        a = _text_values(labels(df, "x", "y", "g", labels=2).to_dict())
-        b = _text_values(labels(df, "x", "y", "g", labels=2).to_dict())
+        a = _text_values(labels(df, "x", "y", "g", subset=2).to_dict())
+        b = _text_values(labels(df, "x", "y", "g", subset=2).to_dict())
         assert a == b
 
     def test_labels_rejects_bool(self, df):
         with pytest.raises(ValueError, match="not a bool"):
-            labels(df, "x", "y", "g", labels=True)
+            labels(df, "x", "y", "g", subset=True)
 
     def test_labels_bool_mask_selects_rows(self, df):
-        # a per-row boolean mask selects positionally (decoupled from labelCol)
-        got = _text_values(labels(df, "x", "y", "g", labels=[True, False, True]).to_dict())
+        # a per-row boolean mask selects positionally (decoupled from the labels column)
+        got = _text_values(labels(df, "x", "y", "g", subset=[True, False, True]).to_dict())
         assert set(got) == {"a", "c"}
 
     def test_labels_bool_mask_polars_series(self, df):
-        got = _text_values(labels(df, "x", "y", "g", labels=df["x"] > 1.5).to_dict())
+        got = _text_values(labels(df, "x", "y", "g", subset=df["x"] > 1.5).to_dict())
         assert set(got) == {"b", "c"}
 
     def test_labels_bool_mask_selects_by_row_not_label_value(self):
-        # the whole point: a NON-UNIQUE labelCol still selects the intended rows by position
+        # the whole point: a NON-UNIQUE labels column still selects the intended rows by position
         dup = pl.DataFrame({"x": [1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0], "g": ["a", "a", "b"]})
-        got = _text_values(labels(dup, "x", "y", "g", labels=[False, True, False]).to_dict())
+        got = _text_values(labels(dup, "x", "y", "g", subset=[False, True, False]).to_dict())
         assert got == ["a"]  # only the middle row, not both "a" rows
 
     def test_labels_list_of_values_still_matches_labelcol(self, df):
         # a same-length list that is NOT all-bool is treated as label VALUES, not a mask
-        got = _text_values(labels(df, "x", "y", "g", labels=["a", "b", "c"]).to_dict())
+        got = _text_values(labels(df, "x", "y", "g", subset=["a", "b", "c"]).to_dict())
         assert set(got) == {"a", "b", "c"}
 
     def test_domain_spans_full_df_when_labeling_subset(self, df):
         # even labeling one point the emitted domain spans the full df, so the union against the
         # base chart's own scale stays a no-op rather than clipping it to the labeled point
-        spec = labels(df, "x", "y", "g", labels=["a"]).to_dict()
+        spec = labels(df, "x", "y", "g", subset=["a"]).to_dict()
         domains = {
             tuple(lyr["encoding"]["x"]["scale"]["domain"])
             for lyr in spec["layer"]

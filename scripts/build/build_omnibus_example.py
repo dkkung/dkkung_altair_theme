@@ -58,9 +58,9 @@ def boxplot() -> alt.Chart:
 
 
 common: dict[str, Any] = dict(
-    df=df,
-    xCol="group",
-    yCol="value",
+    data=df,
+    x="group",
+    y="value",
     pairs=PAIRS,
     categories=CATEGORIES,
     yStart=3.5,

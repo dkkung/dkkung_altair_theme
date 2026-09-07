@@ -44,7 +44,7 @@ ann = ds.stats.comparisons(
     df,
     "grp",
     "y",
-    xOffsetCol="cond",
+    xOffset="cond",
     reference="Veh",
     categories=GROUPS,
     xOffsetSort=CONDS,

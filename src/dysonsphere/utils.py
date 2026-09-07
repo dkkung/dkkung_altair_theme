@@ -144,15 +144,15 @@ def _nice_domain(lo: float, hi: float, count: int = 10) -> tuple[float, float]:
     return lo, hi
 
 
-def count_n(df: pl.DataFrame, xCol: str, categories: list[str]) -> list[int]:
+def count_n(data: pl.DataFrame, column: str, categories: list[str]) -> list[int]:
     """
-    Count the number of rows in ``df`` belonging to each category.
+    Count the number of rows in ``data`` belonging to each category.
 
     Parameters
     ----------
-    df:
+    data:
         A ``polars.DataFrame`` or ``pandas.DataFrame``.
-    xCol:
+    column:
         Column name used for grouping (the x-axis column).
     categories:
         Ordered list of category labels; the returned counts follow this order.
@@ -167,31 +167,31 @@ def count_n(df: pl.DataFrame, xCol: str, categories: list[str]) -> list[int]:
     --------
     ::
 
-        counts = ds.utils.count_n(df, "group", ["Control", "Group A", "Group B"])
+        counts = ds.utils.count_n(data, "group", ["Control", "Group A", "Group B"])
         # [12, 15, 11]
     """
-    df = ensure_polars(df)
-    return [len(df.filter(pl.col(xCol) == cat)) for cat in categories]
+    data = ensure_polars(data)
+    return [len(data.filter(pl.col(column) == cat)) for cat in categories]
 
 
-def ensure_polars(df: pl.DataFrame) -> pl.DataFrame:
+def ensure_polars(data: pl.DataFrame) -> pl.DataFrame:
     """
     Convert a pandas DataFrame to Polars, or pass a Polars DataFrame through unchanged.
 
     Accepts either a ``polars.DataFrame`` or a ``pandas.DataFrame`` without
     requiring pandas as a hard dependency — the check is done via the module
-    name only.  If ``df`` is neither, a ``TypeError`` is raised.
+    name only.  If ``data`` is neither, a ``TypeError`` is raised.
 
     Parameters
     ----------
-    df:
+    data:
         A ``polars.DataFrame`` or ``pandas.DataFrame``.
 
     Returns
     -------
     polars.DataFrame
         The original DataFrame if already Polars, otherwise the result of
-        ``polars.from_pandas(df)``.
+        ``polars.from_pandas(data)``.
 
     Examples
     --------
@@ -201,11 +201,11 @@ def ensure_polars(df: pl.DataFrame) -> pl.DataFrame:
         pdf = pd.DataFrame({"group": ["A", "B"], "value": [1.0, 2.0]})
         pldf = ds.utils.ensure_polars(pdf)  # returns a polars.DataFrame
     """
-    if isinstance(df, pl.DataFrame):
-        return df
-    if type(df).__module__.startswith("pandas"):
-        return pl.from_pandas(df)
-    raise TypeError(f"Expected a polars.DataFrame or pandas.DataFrame, got {type(df).__name__}.")
+    if isinstance(data, pl.DataFrame):
+        return data
+    if type(data).__module__.startswith("pandas"):
+        return pl.from_pandas(data)
+    raise TypeError(f"Expected a polars.DataFrame or pandas.DataFrame, got {type(data).__name__}.")
 
 
 def _walk(value: Any, scalar) -> Any:
@@ -289,7 +289,7 @@ def _hash_rows(rows: list[dict[str, Any]]) -> str:
     return _ROW_HASH_PREFIX + hashlib.sha256(json.dumps(digests, separators=(",", ":")).encode()).hexdigest()
 
 
-def _frame_checksum(df: "pl.DataFrame | Any") -> str:
+def _frame_checksum(data: "pl.DataFrame | Any") -> str:
     """Order-independent ``multiset-sha256:<hex>`` fingerprint of a dataframe's rows.
 
     Same algorithm as the provenance ``dataChecksum`` (via :func:`_hash_rows`), so identical
@@ -297,7 +297,7 @@ def _frame_checksum(df: "pl.DataFrame | Any") -> str:
     identity of the dataframe it was computed from, so records from distinct dataframes are
     distinguishable (and identical-content frames match regardless of ordering).
     """
-    return _hash_rows(ensure_polars(df).to_dicts())
+    return _hash_rows(ensure_polars(data).to_dicts())
 
 
 # ── Internal-data sentinel ───────────────────────────────────────────────────

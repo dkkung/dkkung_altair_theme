@@ -57,7 +57,7 @@ scatter = (
 )
 
 # one OLS fit + confidence band per patient (position=None hides the r readout)
-fits = ds.stats.correlation(df, "day", "log_vl", groupCol="patient", ci=True, position=None)
+fits = ds.stats.correlation(df, "day", "log_vl", groupBy="patient", ci=True, position=None)
 label = ds.text(f"first-phase t½ ≈ {thalf_mean:.1f} days", position="topRight")
 
 chart = scatter + fits + label

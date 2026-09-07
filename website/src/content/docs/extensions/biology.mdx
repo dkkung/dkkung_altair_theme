@@ -20,7 +20,7 @@ Once installed, its charts resolve lazily under `ds.biology`:
 ```python
 import dysonsphere as ds
 
-ds.biology.volcano(df, geneCol="gene", label=8)
+ds.biology.volcano(df, labels="gene", subset=8)
 ```
 
 ## Volcano plot
@@ -34,20 +34,20 @@ gene labels:
 
 The gene labels are auto-placed with core's [`ds.labels`](/guides/text-labels/#point-labels)
 force-repel engine (deterministic, connector-linked), and the point ranking is domain-specific:
-`label=8` selects the 8 most significant genes by the combined score `|log2fc| × −log10(p)`.
+`subset=8` selects the 8 most significant genes by the combined score `|log2fc| × −log10(p)`.
 
 ### Key parameters
 
 | Parameter | Default | What it does |
 | --- | --- | --- |
-| `log2fcCol` / `pvalueCol` | `"log2fc"` / `"pvalue"` | Effect-size and p-value column names |
-| `geneCol` | `None` | Gene-name column (required when `label` is set) |
+| `log2fc` / `pvalue` | `"log2fc"` / `"pvalue"` | Effect-size and p-value column names |
+| `labels` | `None` | Gene-name column (required when `subset` is set) |
 | `fcThreshold` | `1.0` | `|log2fc|` significance cutoff; vertical guides at ±this |
 | `pThreshold` | `0.05` | P-value cutoff; horizontal guide at −log₁₀ of it |
-| `label` | `None` | `int` (top-N by score), `"significant"` (all hits), or `list[str]` (named genes) |
+| `subset` | `None` | `int` (top-N by score), `"significant"` (all hits), or `list[str]` (named genes) |
 | `thresholdLines` | `True` | Draw the fold-change / p-value guide lines |
 | `palette` | `ds_div_1` ends | `(gained, lost)` hex colors |
-| `nsColor` | theme grey | Non-differential point color (darkmode-aware) |
+| `nonDifferentialColor` | theme grey | Non-differential point color (darkmode-aware) |
 | `legend` | `True` | Show the significance color legend |
 
 See the full signature and every parameter in the
@@ -58,7 +58,7 @@ Colors resolve from the active theme at call time (including the darkmode-aware 
 correct light/dark export wrap the call in a `ds.save()` callable:
 
 ```python
-ds.save(lambda: ds.biology.volcano(df, geneCol="gene", label=8), "volcano")
+ds.save(lambda: ds.biology.volcano(df, labels="gene", subset=8), "volcano")
 ```
 :::
 

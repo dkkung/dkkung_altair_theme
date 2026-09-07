@@ -33,7 +33,7 @@ table = ds.mark_table(
     df,
     columnFormat={"log2FC": ".2f", "padj": "scientific", "hits": "d"},
     headerLabels={"gene": "Gene", "log2FC": "log₂FC", "padj": "p (adj)"},
-    # cellColor={"log2FC": "pinksblues"},
+    # cellPalette={"log2FC": "pinksblues"},
     strokes=("outer", "header", "rows", "cols"),
 )
 

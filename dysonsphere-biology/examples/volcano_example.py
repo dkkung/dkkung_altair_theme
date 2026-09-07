@@ -27,7 +27,7 @@ ds.theme(chartWidth=125, chartHeight=80)
 
 out = Path(__file__).parent / "volcano_example"
 ds.save(
-    lambda: ds.biology.volcano(df, geneCol="gene", label=6),
+    lambda: ds.biology.volcano(df, labels="gene", subset=6),
     str(out),
     format=["png"],
     background="light",

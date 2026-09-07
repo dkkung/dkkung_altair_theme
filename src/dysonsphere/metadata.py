@@ -574,7 +574,12 @@ def _read_data(path: str, output: str, dataset: str | None) -> Any:
 
 
 def read(
-    path: str, *, what: str = "report", save: bool | str = False, output: str = "polars", dataset: str | None = None
+    path: str,
+    *,
+    what: str = "report",
+    saveReport: bool | str = False,
+    output: str = "polars",
+    dataset: str | None = None,
 ) -> Any:
     """Read back the metadata (or data) embedded by :func:`save` from a PNG, SVG, or JSON.
 
@@ -596,7 +601,7 @@ def read(
         - ``'data'`` — the **original data** Altair inlined into the spec (the whole frame,
           including columns the chart never plotted). **JSON only** (PNG/SVG don't carry the
           data). The form is chosen by ``output``.
-    save:
+    saveReport:
         Only for ``what='report'``: ``True`` writes the report to a ``.txt`` in the cwd;
         a string writes to that directory.
     output:
@@ -622,8 +627,8 @@ def read(
 
         text = "\n\n".join(_render_report(r) for r in block.get("statistics", []))
     print(text)
-    if save:
-        directory = Path(save) if isinstance(save, str) else Path.cwd()
+    if saveReport:
+        directory = Path(saveReport) if isinstance(saveReport, str) else Path.cwd()
         directory.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         (directory / f"dysonsphere_report_{ts}.txt").write_text(text + "\n", encoding="utf-8")
@@ -712,7 +717,7 @@ def _group_by_identity(labels: list[str], values: list[str | None]) -> dict[str,
     return {label: numbering.setdefault(cast(str, value), len(numbering)) for label, value in zip(labels, values)}
 
 
-def verify(figure: Any, df: Any = None, what: str | tuple[str, ...] | list[str] = _COMPARE_KEYS) -> VerifyResult:
+def verify(figure: Any, data: Any = None, *, what: str | tuple[str, ...] | list[str] = _COMPARE_KEYS) -> VerifyResult:
     """Check a saved figure against its own embedded checksums, and optionally against its data.
 
     Two independent questions, neither of which needs the original script:
@@ -720,7 +725,7 @@ def verify(figure: Any, df: Any = None, what: str | tuple[str, ...] | list[str] 
     - **Is the file internally consistent?**  The spec is re-hashed and compared with the
       recorded ``vegaliteChecksum``, so an edited spec is detectable.  JSON only - SVG and PNG
       embed the metadata block but not the full spec, so ``specValid`` is ``None`` for them.
-    - **Did this figure come from this data?**  Pass ``df`` and each frame's checksum is
+    - **Did this figure come from this data?**  Pass ``data`` and each frame's checksum is
       compared with the recorded ``dataChecksum``.  This works for **all three formats**, since
       the checksums travel in the metadata block, and it is order-independent in both senses:
       row order within a frame does not matter, nor does the order frames are passed in.
@@ -733,7 +738,7 @@ def verify(figure: Any, df: Any = None, what: str | tuple[str, ...] | list[str] 
     A file whose metadata is gone - screenshotted, or re-saved by a tool that drops it - cannot
     be checked at all: there is nothing to compare against, and this raises.  What survives is the
     trail for the DATA, because these checksums are recomputed from content rather than minted per
-    file.  ``frame_checksum(df)`` returns the same value for the same rows forever, so a dataframe
+    file.  ``frame_checksum(data)`` returns the same value for the same rows forever, so a dataframe
     can still be matched against an intact sibling export or a checksum recorded elsewhere.
 
     Passing a **list** compares figures instead of checking one.  Each may be a saved file or a
@@ -752,7 +757,7 @@ def verify(figure: Any, df: Any = None, what: str | tuple[str, ...] | list[str] 
     figure:
         A dysonsphere-exported ``.png``, ``.svg``, or ``.json`` to check - or a list of figures
         to compare, each a path or an Altair chart.
-    df:
+    data:
         Optional dataframe, or list of dataframes, that the figure should have been built from.
         Polars or pandas.  Omit to check only the spec.
     what:
@@ -770,14 +775,14 @@ def verify(figure: Any, df: Any = None, what: str | tuple[str, ...] | list[str] 
     ::
 
         ds.metadata.verify("fig.json").ok                 # untampered?
-        ds.metadata.verify("fig.png", df=df).dataMatches  # built from this data?
-        ds.metadata.verify("fig.json", df=[counts, meta]) # multi-frame chart
+        ds.metadata.verify("fig.png", data=data).dataMatches  # built from this data?
+        ds.metadata.verify("fig.json", data=[counts, meta]) # multi-frame chart
     """
     if isinstance(figure, (list, tuple)):
-        if df is not None:
+        if data is not None:
             raise ValueError(
-                "df= checks one figure against its data; it does not apply when comparing a list. "
-                "Verify each figure separately, or drop df= to compare them with each other."
+                "data= checks one figure against its data; it does not apply when comparing a list. "
+                "Verify each figure separately, or drop data= to compare them with each other."
             )
         wanted = [what] if isinstance(what, str) else list(what)
         unknown = [w for w in wanted if w not in _COMPARE_KEYS]
@@ -828,8 +833,8 @@ def verify(figure: Any, df: Any = None, what: str | tuple[str, ...] | list[str] 
 
     computed: list[str] = []
     data_matches: bool | None = None
-    if df is not None:
-        frames = df if isinstance(df, (list, tuple)) else [df]
+    if data is not None:
+        frames = data if isinstance(data, (list, tuple)) else [data]
         computed = sorted(frame_checksum(f) for f in frames)
         data_matches = computed == stored
 

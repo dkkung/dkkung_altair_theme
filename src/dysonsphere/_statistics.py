@@ -327,7 +327,7 @@ def _make_correlation_record(
     (``metadata.frame_checksum``), so records from distinct dataframes are distinguishable; it also
     feeds the record's content hash (the marker), so two correlations on different data never
     collapse.  ``None`` when built without a frame (e.g. a direct unit-test call).  ``group`` labels
-    a per-group record in grouped mode (``stats.correlation(groupCol=...)``); ``None`` for a single fit.
+    a per-group record in grouped mode (``stats.correlation(groupBy=...)``); ``None`` for a single fit.
     """
     record = {
         "kind": "correlation",

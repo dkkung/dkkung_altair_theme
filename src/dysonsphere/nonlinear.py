@@ -195,7 +195,7 @@ def _infer_field(chart, axis: str) -> str | None:
 
 def add_log_ticks(
     chart: alt.Chart | alt.LayerChart,
-    df,
+    data,
     field: str | None = None,
     *,
     axis: str = "y",
@@ -238,7 +238,7 @@ def add_log_ticks(
     ----------
     chart:
         The chart to add minor ticks to.
-    df:
+    data:
         DataFrame (Polars or Pandas) used for the main chart.
     field:
         Column name of the log-scale field. When ``axis`` is ``'x'`` or
@@ -261,9 +261,9 @@ def add_log_ticks(
         interval). Use ``3`` for quarter-interval ticks.
     expMin:
         Lowest exponent (in the given ``base``) for the single-axis
-        case. Auto-derived from ``df[field].min()`` when ``None``.
+        case. Auto-derived from ``data[field].min()`` when ``None``.
     expMax:
-        Highest exponent. Auto-derived from ``df[field].max()`` when
+        Highest exponent. Auto-derived from ``data[field].max()`` when
         ``None``.
     xField:
         Column name for the x log-scale field (``axis='both'`` only).
@@ -283,17 +283,17 @@ def add_log_ticks(
     ::
 
         # log10 y-axis — exp range auto-derived
-        chart = ds.add_log_ticks(chart, df, "value")
+        chart = ds.add_log_ticks(chart, data, "value")
 
         # log2 x-axis (e.g. fold-change on a volcano plot)
-        chart = ds.add_log_ticks(chart, df, "fc", axis="x", base=2)
+        chart = ds.add_log_ticks(chart, data, "fc", axis="x", base=2)
 
         # log2 with 3 minor ticks per octave
-        chart = ds.add_log_ticks(chart, df, "fc", axis="x", base=2, nMinor=3)
+        chart = ds.add_log_ticks(chart, data, "fc", axis="x", base=2, nMinor=3)
 
         # both axes log-scaled
         chart = ds.add_log_ticks(
-            chart, df, axis="both", xField="fc", yField="pvalue"
+            chart, data, axis="both", xField="fc", yField="pvalue"
         )
     """
     if axis not in ("x", "y", "both"):
@@ -302,19 +302,19 @@ def add_log_ticks(
     if minorTickSize is None:
         minorTickSize = _opt("tickSize") / 2
 
-    df = ensure_polars(df)
+    data = ensure_polars(data)
 
     if axis == "both":
         if xField is None or yField is None:
             raise ValueError("axis='both' requires xField and yField.")
-        x_lo, x_hi = _derive_exp(df, xField, base)
-        y_lo, y_hi = _derive_exp(df, yField, base)
+        x_lo, x_hi = _derive_exp(data, xField, base)
+        y_lo, y_hi = _derive_exp(data, yField, base)
         x_lo = xExpMin if xExpMin is not None else x_lo
         x_hi = xExpMax if xExpMax is not None else x_hi
         y_lo = yExpMin if yExpMin is not None else y_lo
         y_hi = yExpMax if yExpMax is not None else y_hi
-        x_layer = _log_minor_layer(df, xField, "x", x_lo, x_hi, minorTickSize, base, nMinor)
-        y_layer = _log_minor_layer(df, yField, "y", y_lo, y_hi, minorTickSize, base, nMinor)
+        x_layer = _log_minor_layer(data, xField, "x", x_lo, x_hi, minorTickSize, base, nMinor)
+        y_layer = _log_minor_layer(data, yField, "y", y_lo, y_hi, minorTickSize, base, nMinor)
         return alt.layer(chart, x_layer, y_layer).resolve_axis(x="independent", y="independent")
 
     if field is None:
@@ -324,10 +324,10 @@ def add_log_ticks(
             f"field is required when axis='{axis}' (could not infer it from the chart's "
             f"{axis} encoding; pass field= explicitly for a LayerChart or aggregate encoding)."
         )
-    lo, hi = _derive_exp(df, field, base)
+    lo, hi = _derive_exp(data, field, base)
     lo = expMin if expMin is not None else lo
     hi = expMax if expMax is not None else hi
-    minor_layer = _log_minor_layer(df, field, axis, lo, hi, minorTickSize, base, nMinor)
+    minor_layer = _log_minor_layer(data, field, axis, lo, hi, minorTickSize, base, nMinor)
     if axis == "y":
         return alt.layer(chart, minor_layer).resolve_axis(y="independent")
     else:
@@ -368,7 +368,7 @@ def _pow_minor_layer(
 
 def add_pow_ticks(
     chart: alt.Chart | alt.LayerChart,
-    df,
+    data,
     field: str | None = None,
     *,
     axis: str = "y",
@@ -418,7 +418,7 @@ def add_pow_ticks(
     ----------
     chart:
         The chart to add minor ticks to.
-    df:
+    data:
         DataFrame (Polars or Pandas) used for the main chart.
     field:
         Column name of the power-scaled field. Required when ``axis``
@@ -462,7 +462,7 @@ def add_pow_ticks(
         # sqrt y-axis (exponent=0.5 is the default)
         major_values = [0, 1, 4, 9, 16, 25]
         chart = (
-            alt.Chart(df)
+            alt.Chart(data)
             .mark_point()
             .encode(
                 y=alt.Y("value:Q",
@@ -471,17 +471,17 @@ def add_pow_ticks(
                 )
             )
         )
-        chart = ds.add_pow_ticks(chart, df, "value", majorValues=major_values)
+        chart = ds.add_pow_ticks(chart, data, "value", majorValues=major_values)
 
         # quadratic x-axis
         chart = ds.add_pow_ticks(
-            chart, df, "x_val", axis="x", exponent=2,
+            chart, data, "x_val", axis="x", exponent=2,
             majorValues=[0, 1, 2, 3, 4, 5],
         )
 
         # both axes power-scaled (same exponent)
         chart = ds.add_pow_ticks(
-            chart, df, axis="both",
+            chart, data, axis="both",
             xField="x_val", yField="value",
             xMajorValues=[0, 1, 4, 9], yMajorValues=[0, 1, 4, 9, 16, 25],
         )
@@ -494,7 +494,7 @@ def add_pow_ticks(
     if minorTickSize is None:
         minorTickSize = _opt("tickSize") / 2
 
-    df = ensure_polars(df)
+    data = ensure_polars(data)
 
     if axis == "both":
         if xField is None or yField is None:
@@ -503,8 +503,8 @@ def add_pow_ticks(
             raise ValueError("axis='both' requires xMajorValues and yMajorValues.")
         if len(xMajorValues) < 2 or len(yMajorValues) < 2:
             raise ValueError("majorValues must contain at least two values.")
-        x_layer = _pow_minor_layer(df, xField, "x", xMajorValues, minorTickSize, exponent, nMinor)
-        y_layer = _pow_minor_layer(df, yField, "y", yMajorValues, minorTickSize, exponent, nMinor)
+        x_layer = _pow_minor_layer(data, xField, "x", xMajorValues, minorTickSize, exponent, nMinor)
+        y_layer = _pow_minor_layer(data, yField, "y", yMajorValues, minorTickSize, exponent, nMinor)
         return alt.layer(chart, x_layer, y_layer).resolve_axis(x="independent", y="independent")
 
     if field is None:
@@ -513,7 +513,7 @@ def add_pow_ticks(
         raise ValueError("majorValues is required for add_pow_ticks.")
     if len(majorValues) < 2:
         raise ValueError("majorValues must contain at least two values.")
-    minor_layer = _pow_minor_layer(df, field, axis, majorValues, minorTickSize, exponent, nMinor)
+    minor_layer = _pow_minor_layer(data, field, axis, majorValues, minorTickSize, exponent, nMinor)
     if axis == "y":
         return alt.layer(chart, minor_layer).resolve_axis(y="independent")
     else:

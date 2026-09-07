@@ -61,18 +61,18 @@ Call as `ds.utils.count_n(...)`.
 
 ```python
 def count_n(
-    df: pl.DataFrame,
-    xCol: str,
+    data: pl.DataFrame,
+    column: str,
     categories: list[str],
 ) -> list[int]: ...
 ```
 
-Count the number of rows in ``df`` belonging to each category.
+Count the number of rows in ``data`` belonging to each category.
 
 **Parameters**
 
-- **`df`** (`pl.DataFrame`) - A ``polars.DataFrame`` or ``pandas.DataFrame``.
-- **`xCol`** (`str`) - Column name used for grouping (the x-axis column).
+- **`data`** (`pl.DataFrame`) - A ``polars.DataFrame`` or ``pandas.DataFrame``.
+- **`column`** (`str`) - Column name used for grouping (the x-axis column).
 - **`categories`** (`list[str]`) - Ordered list of category labels; the returned counts follow this order. Categories with no matching rows return 0.
 
 **Returns**
@@ -84,7 +84,7 @@ Count the number of rows in ``df`` belonging to each category.
 ```python
 ::
 
-    counts = ds.utils.count_n(df, "group", ["Control", "Group A", "Group B"])
+    counts = ds.utils.count_n(data, "group", ["Control", "Group A", "Group B"])
     # [12, 15, 11]
 ```
 
@@ -93,22 +93,22 @@ Count the number of rows in ``df`` belonging to each category.
 Call as `ds.utils.ensure_polars(...)`.
 
 ```python
-def ensure_polars(df: pl.DataFrame) -> pl.DataFrame: ...
+def ensure_polars(data: pl.DataFrame) -> pl.DataFrame: ...
 ```
 
 Convert a pandas DataFrame to Polars, or pass a Polars DataFrame through unchanged.
 
 Accepts either a ``polars.DataFrame`` or a ``pandas.DataFrame`` without
 requiring pandas as a hard dependency — the check is done via the module
-name only.  If ``df`` is neither, a ``TypeError`` is raised.
+name only.  If ``data`` is neither, a ``TypeError`` is raised.
 
 **Parameters**
 
-- **`df`** (`pl.DataFrame`) - A ``polars.DataFrame`` or ``pandas.DataFrame``.
+- **`data`** (`pl.DataFrame`) - A ``polars.DataFrame`` or ``pandas.DataFrame``.
 
 **Returns**
 
-- `polars.DataFrame` - The original DataFrame if already Polars, otherwise the result of ``polars.from_pandas(df)``.
+- `polars.DataFrame` - The original DataFrame if already Polars, otherwise the result of ``polars.from_pandas(data)``.
 
 **Examples**
 

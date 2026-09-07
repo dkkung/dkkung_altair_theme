@@ -8,7 +8,7 @@ import Example from '../../../components/Example.astro';
 [`ds.stats.comparisons()`](/reference/stats/#comparisons) computes significance tests with scipy and draws them as a layer you compose
 with `+`. Every call also builds a structured report - descriptives, exact p-values, and effect
 sizes - that `save()` embeds in the export metadata, so a figure carries its own analysis. Pass
-`report=True` to print it, or `save=True` to write a text file.
+`report=True` to print it, or `saveReport=True` to write a text file.
 
 Which annotation you get is decided by `test=`, which classifies into **pairwise** (`mannwhitneyu`,
 `ttest_ind`, `ttest_rel`, `wilcoxon`, `tukey_hsd`) or **omnibus** (`anova`, `kruskal`, `friedman`,
@@ -48,7 +48,7 @@ p-value **above each mark, with no brackets** - the clean many-vs-one layout tha
 makes noisy. It derives its own comparisons (leave `pairs` unset), supports the pairwise tests, and
 corrects over the whole family. Labels sit above each group's data, so overlay your points and they
 clear the data; distinguishing the reference (a darker fill, etc.) stays in your hands. It also works
-in grouped mode - with `xOffsetCol` set, `reference` is an xOffset level compared within each
+in grouped mode - with `xOffset` set, `reference` is an xOffset level compared within each
 category.
 
 <Example name="comparisons_reference" alt="Dose-response bars compared to a control with asterisks over each bar" />
@@ -150,7 +150,7 @@ from somewhere else.
 ## Grouped (two-factor) comparisons
 
 For a grouped bar chart - a subgroup on `xOffset` within each x-category, like a qPCR gene × condition
-panel - pass `xOffsetCol` to compare the subgroup **levels within each group**. `pairs` names the
+panel - pass `xOffset` to compare the subgroup **levels within each group**. `pairs` names the
 levels (defaulted for two); one bracket is drawn per x-category, each with a real per-category test,
 sitting above its own group's bars. Set `categories` and `xOffsetSort` to match your chart's `x` /
 `xOffset` sort (it raises if they don't cover the data):

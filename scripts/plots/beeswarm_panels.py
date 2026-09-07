@@ -37,7 +37,7 @@ for title, ytitle, groups, scales, sizes, ycap, w, h, label_style, bracket_style
     df = pl.DataFrame(rows)
 
     ds.theme(chartWidth=w, chartHeight=h, markSize=3)
-    df = ds.transforms.beeswarm(df, yCol="v", groupBy=["g"])
+    df = ds.transforms.beeswarm(df, column="v", groupBy=["g"])
 
     x = alt.X("g:N", sort=groups, title=None)
     y = alt.Y("v:Q", title=ytitle)
@@ -47,8 +47,8 @@ for title, ytitle, groups, scales, sizes, ycap, w, h, label_style, bracket_style
 
     brackets = ds.stats.comparisons(
         df,
-        xCol="g",
-        yCol="v",
+        x="g",
+        y="v",
         pairs=[(groups[0], groups[-1]), (groups[0], groups[1])],
         test="mannwhitneyu",
         labelStyle=label_style,

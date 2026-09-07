@@ -35,7 +35,7 @@ ds.theme(boxplotOutliers=True)
 
 df = ds.transforms.beeswarm(
     df,
-    yCol="value",
+    column="value",
     groupBy=["group"],
 )
 
@@ -89,8 +89,8 @@ plot = ds.add_multilabel(
     categories=CATEGORIES,
     # rowStyles=["symbol", "symbol", "symbol"],
     showSampleSize=True,
-    df=df,
-    xCol="group",
+    data=df,
+    x="group",
     # categoryLabel=True,
 )
 

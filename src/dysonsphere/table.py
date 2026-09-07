@@ -121,7 +121,7 @@ def _contrast_expr(col: str, hexes: list[str], domain: tuple[float, float]) -> s
 
 
 def mark_table(
-    df: "pl.DataFrame | Any",
+    data: "pl.DataFrame | Any",
     columns: list[str] | None = None,
     *,
     header: bool = True,
@@ -130,10 +130,10 @@ def mark_table(
     sigFigs: int | None = None,
     align: dict[str, str] | str | None = None,
     strokes: Sequence[str] | str = ("outer", "header"),
-    palette: "str | list[str]" = "greys",
+    stripePalette: "str | list[str]" = "greys",
     striping: bool = True,
     nStripes: int = 2,
-    cellColor: dict[str, str] | None = None,
+    cellPalette: dict[str, str] | None = None,
     textColor: "str | dict[str, str] | None" = None,
     fontStyle: "str | dict[str, str] | None" = None,
     fontSize: float | None = None,
@@ -148,7 +148,7 @@ def mark_table(
     strokeWidth: float | None = None,
 ) -> alt.LayerChart:
     """
-    Render ``df`` as a styled table: an ``alt.LayerChart`` that composes like any other mark.
+    Render ``data`` as a styled table: an ``alt.LayerChart`` that composes like any other mark.
 
     The table lays cells out in pixel space (so it drops into ``+`` / ``hconcat`` / ``vconcat``
     without scale-merge surprises) but drives every per-row mark off the **user's dataframe** via
@@ -169,14 +169,14 @@ def mark_table(
     export light AND dark from one call - pass a **callable** to ``ds.save()`` so the table is
     rebuilt per background::
 
-        ds.save(lambda: ds.mark_table(df, ...), "table", background=["light", "dark"])
+        ds.save(lambda: ds.mark_table(data, ...), "table", background=["light", "dark"])
 
     Parameters
     ----------
-    df:
+    data:
         The data to tabulate (Polars or Pandas). Never mutated.
     columns:
-        Columns to show, in order. ``None`` (default) uses every column in ``df`` order.
+        Columns to show, in order. ``None`` (default) uses every column in ``data`` order.
     header:
         Draw the header row of column labels. Default ``True``.
     headerLabels:
@@ -203,14 +203,14 @@ def mark_table(
         ``"grid"`` (= ``rows`` + ``cols``, the interior grid), and ``"all"`` (every rule -
         ``outer`` + ``header`` + ``rows`` + ``cols``). A single string is accepted. Default
         ``("outer", "header")``.
-    palette:
+    stripePalette:
         Palette (name or hex list) for row striping. Default ``"greys"``. The lightest ``nStripes``
         stops are used in light mode, the darkest in dark mode.
     striping:
         Shade alternating rows. Default ``True``.
     nStripes:
         Number of stripe colours to alternate through. Default ``2``.
-    cellColor:
+    cellPalette:
         ``{column: palette}`` to shade cells by value (a heatmap column). The column's values map
         across the palette (a 13-stop diverging palette is centred on 0; otherwise the domain is
         the column's ``[min, max]``), and each cell's text switches to black or white for
@@ -218,7 +218,7 @@ def mark_table(
     textColor:
         Body cell text colour. ``None`` (default) inherits the theme's darkmode-aware text
         colour. A single string colours every body cell; a ``{column: colour}`` dict colours
-        per column (unlisted columns inherit). A ``cellColor`` (value-shaded) column keeps its
+        per column (unlisted columns inherit). A ``cellPalette`` (value-shaded) column keeps its
         automatic black/white contrast unless you give it an explicit **dict** entry here (a
         per-column colour is taken as deliberate; a global string does not override the
         heatmap's contrast).
@@ -263,24 +263,24 @@ def mark_table(
     ::
 
         tbl = ds.mark_table(
-            df,
+            data,
             columns=["gene", "log2FC", "pvalue"],
             columnFormat={"log2FC": ".2f", "pvalue": "scientific"},
-            cellColor={"log2FC": "pinksblues"},
+            cellPalette={"log2FC": "pinksblues"},
             strokes=("outer", "header", "rows"),
         )
         ds.save(tbl, "table")
     """
-    df = ensure_polars(df)
-    if df.height == 0:
+    data = ensure_polars(data)
+    if data.height == 0:
         raise ValueError("mark_table requires a non-empty dataframe.")
 
-    cols = list(df.columns) if columns is None else list(columns)
+    cols = list(data.columns) if columns is None else list(columns)
     if not cols:
         raise ValueError("mark_table requires at least one column.")
     for c in cols:
-        if c not in df.columns:
-            raise ValueError(f"column {c!r} is not in df (has {list(df.columns)}).")
+        if c not in data.columns:
+            raise ValueError(f"column {c!r} is not in data (has {list(data.columns)}).")
 
     # Resolve the stroke set.
     strokes_seq = [strokes] if isinstance(strokes, str) else list(strokes)
@@ -296,12 +296,12 @@ def mark_table(
     if nStripes < 1:
         raise ValueError(f"nStripes must be >= 1, got {nStripes}.")
 
-    cellColor = cellColor or {}
-    for c in cellColor:
+    cellPalette = cellPalette or {}
+    for c in cellPalette:
         if c not in cols:
-            raise ValueError(f"cellColor column {c!r} is not among the shown columns {cols}.")
-        if not df[c].dtype.is_numeric():
-            raise ValueError(f"cellColor column {c!r} must be numeric.")
+            raise ValueError(f"cellPalette column {c!r} is not among the shown columns {cols}.")
+        if not data[c].dtype.is_numeric():
+            raise ValueError(f"cellPalette column {c!r} must be numeric.")
 
     # Theme-derived defaults.
     fs = _opt("fontSize") if fontSize is None else fontSize
@@ -345,11 +345,11 @@ def mark_table(
     def _text_color(col: str) -> tuple[str, str | None]:
         # ("fixed", colour) | ("contrast", None) | ("inherit", None).
         # A per-column dict entry wins everywhere (deliberate override, even on a heatmap
-        # column); otherwise a cellColor column auto-contrasts; a global string colours the
+        # column); otherwise a cellPalette column auto-contrasts; a global string colours the
         # rest; None inherits the theme text colour.
         if isinstance(textColor, dict) and col in textColor:
             return ("fixed", textColor[col])
-        if col in cellColor:
+        if col in cellPalette:
             return ("contrast", None)
         if isinstance(textColor, str):
             return ("fixed", textColor)
@@ -362,11 +362,11 @@ def mark_table(
         return fontStyle
 
     # Per-column plan: display strings (for width), render method, alignment.
-    n_rows = df.height
+    n_rows = data.height
     plans: list[dict[str, Any]] = []
     for col in cols:
-        numeric = df[col].dtype.is_numeric()
-        values = df[col].to_list()
+        numeric = data[col].dtype.is_numeric()
+        values = data[col].to_list()
         notation = columnFormat.get(col)
         # render = (method, spec_or_expr, numeric_flag); method ∈ {calc, d3, raw}.
         render: tuple[str, Any, Any]
@@ -452,7 +452,7 @@ def mark_table(
 
     def _df_base() -> alt.Chart:
         return (
-            alt.Chart(df)
+            alt.Chart(data)
             .transform_window(__rowidx="row_number()")
             .transform_calculate(
                 __ytop=f"{header_h} + (datum.__rowidx - 1) * {row_h}",
@@ -481,7 +481,7 @@ def mark_table(
     # One rect PER CELL (per column span), never a full-width per-row rect, so every cell
     # background is an independent <rect> - individually editable in Illustrator.
     if striping:
-        stripe_cols = stripe_colors(palette, nStripes, darkmode=dark)
+        stripe_cols = stripe_colors(stripePalette, nStripes, darkmode=dark)
         for i in range(len(cols)):
             for k, color in enumerate(stripe_cols):
                 layers.append(
@@ -495,10 +495,10 @@ def mark_table(
     # --- value-coloured cells ---
     for i, p in enumerate(plans):
         col = p["col"]
-        if col not in cellColor:
+        if col not in cellPalette:
             continue
-        hexes = resolve_palette(cellColor[col])
-        series = df[col].drop_nulls()
+        hexes = resolve_palette(cellPalette[col])
+        series = data[col].drop_nulls()
         lo = float(series.min()) if series.len() else 0.0
         hi = float(series.max()) if series.len() else 1.0
         if len(hexes) == 13:  # diverging → symmetric about 0

@@ -200,8 +200,8 @@ script:
 
 ```python
 ds.metadata.verify("figure.json")                   # was the spec edited after export?
-ds.metadata.verify("figure.png", df=df)             # did this figure come from this data?
-ds.metadata.verify("figure.json", df=[counts, meta]) # multi-frame chart
+ds.metadata.verify("figure.png", data=df)             # did this figure come from this data?
+ds.metadata.verify("figure.json", data=[counts, meta]) # multi-frame chart
 ```
 
 It returns a `ds.metadata.VerifyResult` (shown below as its printed representation):
@@ -237,7 +237,7 @@ dataframes are passed in affects the result.
 When a check fails, the two checksum fields are what tell you which frame diverged:
 
 ```python
-r = ds.metadata.verify("figure.json", df=edited)
+r = ds.metadata.verify("figure.json", data=edited)
 r.ok           # False
 r.specValid    # True  - the file itself is intact
 r.dataMatches  # False - but it did not come from this data
@@ -339,7 +339,7 @@ checking it does not work - there are no checksums left on the object to check. 
 itself, which is what `ds.metadata.verify()` expects anyway:
 
 ```python
-ds.metadata.verify("figure.json", df=df)                    # yes - reads the file
+ds.metadata.verify("figure.json", data=df)                    # yes - reads the file
 ds.metadata.verify(ds.load("figure.json"))                  # no - the object has no metadata
 ```
 
@@ -351,7 +351,7 @@ ds.metadata.verify(ds.load("figure.json"))                  # no - the object ha
 
 ```python
 chart = base + ds.stats.comparisons(df, "group", "value", pairs, test="anova", report=True)
-# report=True prints it; save="dir/" writes a timestamped .txt
+# report=True prints it; saveReport="dir/" writes a timestamped .txt
 ```
 
 See the [Saving & loading](/reference/export/) and [Reading exports](/reference/metadata/)

@@ -28,5 +28,5 @@ scatter = (
     )
 )
 
-# One OLS fit + r per cell line, each coloured to match its points (color=groupCol shares the scale).
-chart = scatter + ds.stats.correlation(df, "biomarker", "response", groupCol="cell line", ci=True)
+# One OLS fit + r per cell line, each coloured to match its points (color=groupBy shares the scale).
+chart = scatter + ds.stats.correlation(df, "biomarker", "response", groupBy="cell line", ci=True)

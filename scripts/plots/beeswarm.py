@@ -20,7 +20,7 @@ for g, s, sc in zip(GROUPS, SIZES, SCALES):
 df = pl.DataFrame(rows)
 
 ds.theme()
-df = ds.transforms.beeswarm(df, yCol="v", groupBy=["g"])
+df = ds.transforms.beeswarm(df, column="v", groupBy=["g"])
 
 x = alt.X("g:N", sort=GROUPS, title=None)
 y = alt.Y("v:Q", title=None, scale=alt.Scale(domain=[0, 1000]))
@@ -37,8 +37,8 @@ mean_marks = alt.Chart(means).mark_point(shape="cross", color="black", size=10, 
 
 brackets = ds.stats.comparisons(
     df,
-    xCol="g",
-    yCol="v",
+    x="g",
+    y="v",
     pairs=[("(206)", "(218)"), ("(206)", "(230)"), ("(206)", "(303)")],
     yStart=800,
     test="mannwhitneyu",

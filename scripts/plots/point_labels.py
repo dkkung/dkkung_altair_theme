@@ -1,7 +1,7 @@
 """
 Demo of labels() - force-repel point labels with connectors.
 
-`labels=n` auto-selects n points spread evenly across the plot (unbiased, deterministic) and
+`subset=n` auto-selects n points spread evenly across the plot (unbiased, deterministic) and
 labels them with non-overlapping text + connector lines. No scale pinning needed - labels
 pins the axes to the data extent itself.
 
@@ -27,7 +27,7 @@ ds.theme(chartWidth=200, chartHeight=150)
 points = alt.Chart(df).mark_circle().encode(x=alt.X("x:Q", title="log2 fold change"), y=alt.Y("y:Q", title="score"))
 
 # Label 12 evenly-spread points - no list to curate, no alt.Scale to pin.
-chart = points + ds.labels(df, "x", "y", "gene", labels=12)
+chart = points + ds.labels(df, "x", "y", "gene", subset=12)
 
 ds.save(chart, "point_labels")
 print("saved point_labels")

@@ -52,7 +52,7 @@ SCORES = {
 ds.theme(chartFill="white", palette="blues2")
 
 chart = ds.mark_strip(df, "group", "value", CATEGORIES, yTitle="Value")
-KWARGS: dict[str, Any] = dict(categories=CATEGORIES, labelAlign="left")
+KWARGS: dict[str, Any] = dict(categories=CATEGORIES, labelPosition="left")
 
 
 def corner_label(base: alt.LayerChart, text: str) -> alt.LayerChart:
@@ -72,8 +72,8 @@ txt = ds.add_multilabel(
     {"Score A": SCORES["Score B"], "Score B": SCORES["Score C"]},
     style="text",
     showSampleSize=True,
-    df=df,
-    xCol="group",
+    data=df,
+    x="group",
     **KWARGS,
 )
 combined = alt.hconcat(pm, dot, txt)

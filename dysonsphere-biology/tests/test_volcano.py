@@ -73,35 +73,35 @@ def test_pandas_input():
 
 
 def test_label_top_n_count():
-    chart = ds.biology.volcano(_df(), geneCol="gene", label=2)
+    chart = ds.biology.volcano(_df(), labels="gene", subset=2)
     # top-2 significant by combined score -> 2 gene labels (placed by labels)
     assert len(_label_texts(chart)) == 2
 
 
 def test_label_list_selects_named_genes():
-    chart = ds.biology.volcano(_df(), geneCol="gene", label=["up1", "down1"])
+    chart = ds.biology.volcano(_df(), labels="gene", subset=["up1", "down1"])
     texts = _label_texts(chart)
     assert set(texts) == {"up1", "down1"}
 
 
 def test_label_requires_gene_col():
-    with pytest.raises(ValueError, match="requires geneCol"):
-        ds.biology.volcano(_df(), label=5)
+    with pytest.raises(ValueError, match="requires labels"):
+        ds.biology.volcano(_df(), subset=5)
 
 
 def test_label_rejects_bool():
     with pytest.raises(ValueError, match="does not accept a bool"):
-        ds.biology.volcano(_df(), geneCol="gene", label=True)
+        ds.biology.volcano(_df(), labels="gene", subset=True)
 
 
 def test_label_rejects_unknown_string():
     with pytest.raises(ValueError, match="not recognized"):
-        ds.biology.volcano(_df(), geneCol="gene", label="everything")
+        ds.biology.volcano(_df(), labels="gene", subset="everything")
 
 
 def test_palette_and_nscolor_override():
     # colors ride in the scale range, not the data, so assert via the spec's color scale
-    chart = ds.biology.volcano(_df(), palette=("#111111", "#222222"), nsColor="#333333")
+    chart = ds.biology.volcano(_df(), palette=("#111111", "#222222"), nonDifferentialColor="#333333")
     color_scale = chart.to_dict()["layer"][0]["encoding"]["color"]["scale"]
     assert color_scale["range"] == ["#111111", "#222222", "#333333"]
 
@@ -124,7 +124,7 @@ def test_axis_titles_render():
 def test_read_filters_generated_label_sidecar(tmp_path):
     df = _df()
     out = tmp_path / "volcano"
-    ds.save(lambda: ds.biology.volcano(df, geneCol="gene", label=3), str(out), format="json")
+    ds.save(lambda: ds.biology.volcano(df, labels="gene", subset=3), str(out), format="json")
     frame = ds.metadata.read(str(out) + ".json", what="data")
     # Only the user's frame returns (with volcano's derived columns) - the tagged label
     # sidecar and the threshold-rule sidecars are all filtered out.

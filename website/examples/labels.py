@@ -17,6 +17,6 @@ scatter = (
 )
 
 # ds.labels auto-places non-overlapping labels with connector lines. Deterministic (no RNG),
-# so the figure is reproducible. Pass the full df and let labels= select which points to name -
+# so the figure is reproducible. Pass the full df and let subset= select which points to name -
 # here, 8 spread evenly across the plot (farthest-point sampling, no cherry-picking).
-chart = scatter + ds.labels(cars, "Horsepower", "Miles_per_Gallon", "Name", labels=8)
+chart = scatter + ds.labels(cars, "Horsepower", "Miles_per_Gallon", "Name", subset=8)

@@ -25,7 +25,7 @@ chart = ds.add_multilabel(
     violin,
     categories=conds,
     showSampleSize=True,
-    df=df,
-    xCol="condition",
+    data=df,
+    x="condition",
     categoryLabel=True,
 )
