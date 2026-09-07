@@ -1,7 +1,7 @@
 # Website (dysonsphere docs site)
 
 The root legacy gallery and plot/build scripts are retired. Maintained examples/generators live
-here; root scripts/palettes contains only palette-authoring tooling. Root docs retains the two
+here; root scripts contains only palette-authoring tooling. Root docs retains the two
 README logos, whose URLs must stay valid. Historical gallery paths below are not current commands.
 
 V4 parameter names are now in use: data/x/y, labels/subset, xOffset/groupBy, and component-specific

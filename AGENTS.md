@@ -25,17 +25,17 @@ metadata; statistics import the private helper without depending on metadata.
 Use `website/examples/` and `website/scripts/` for examples and site generation. The old root
 plot scripts, gallery builders, and Illustrator wrapper have been retired; do not recreate or
 migrate historical paths mentioned below. Palette recipes remain at
-`scripts/palettes/print_palettes.py`. Swatch export is `ds.palettes.export_swatches()`.
+`scripts/print_palettes.py`. Swatch export is `ds.palettes.export_swatches()`.
 `docs/` retains only the two logos referenced by package READMEs, not a gallery or documentation site.
 
 ## Commands
 
 ```sh
 # Lint
-uv run ruff check --no-cache src/ tests/ scripts/palettes/ dysonsphere-biology/
+uv run ruff check --no-cache src/ tests/ scripts/ dysonsphere-biology/
 
 # Format
-uv run ruff format src/ tests/ scripts/palettes/ dysonsphere-biology/
+uv run ruff format src/ tests/ scripts/ dysonsphere-biology/
 
 # Type check
 uv run ty check .
@@ -44,7 +44,7 @@ uv run ty check .
 uv run pytest tests/ dysonsphere-biology/tests/
 
 # Print palette hex literals to stdout
-uv run python scripts/palettes/print_palettes.py
+uv run python scripts/print_palettes.py
 
 # Rebuild website example specs (optional example names select a subset)
 uv run --with vega-datasets python website/scripts/gen_examples.py
@@ -81,8 +81,8 @@ First, **finish the Python side** - everything the checks will cover (docstrings
 3. Add new tests as needed (every new public function gets tests).
 
 Then **verify**, iterating (fix, rerun) until green:
-- `uv run ruff check --no-cache src/ tests/ scripts/palettes/ dysonsphere-biology/`
-- `uv run ruff format src/ tests/ scripts/palettes/ dysonsphere-biology/`
+- `uv run ruff check --no-cache src/ tests/ scripts/ dysonsphere-biology/`
+- `uv run ruff format src/ tests/ scripts/ dysonsphere-biology/`
 - `uv run ty check .`
 - `uv run pytest tests/ dysonsphere-biology/tests/` - all pass, zero skips/failures.
 
@@ -362,8 +362,8 @@ The packages live under `src/` (`src/dysonsphere/`, `dysonsphere-biology/src/dys
 **In order:**
 
 0. **Major version bumps only:** `grep -rn "DEPRECATED" src/` and remove every API marked for removal at this version (e.g. the `add_pvalue` alias at v2.0), updating tests/docs/CHANGELOG accordingly.
-1. `uv run ruff check --no-cache src/ tests/ scripts/palettes/ dysonsphere-biology/` - fix lint errors
-2. `uv run ruff format src/ tests/ scripts/palettes/ dysonsphere-biology/` - format
+1. `uv run ruff check --no-cache src/ tests/ scripts/ dysonsphere-biology/` - fix lint errors
+2. `uv run ruff format src/ tests/ scripts/ dysonsphere-biology/` - format
 3. `uv run ty check .` - all type checks must pass
 4. `uv run pytest tests/ dysonsphere-biology/tests/` - all tests must pass
 5. Finalize + date the `[Unreleased]` section in `CHANGELOG.md`

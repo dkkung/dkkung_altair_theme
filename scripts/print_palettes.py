@@ -46,7 +46,7 @@ Color spaces:
     current state of the art for perceptual uniformity.
 
 Usage:
-    uv run python scripts/palettes/print_palettes.py
+    uv run python scripts/print_palettes.py
 
 Prints Python literals for each built palette to stdout.  Use to diff
 against palettes.py or to extend with new families.
