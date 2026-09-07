@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [3.14.0] - 2026-09-06
 
 ### New features
 
@@ -8,12 +8,11 @@
 
 ### Changes
 
-- **Text anchored at a plot edge is offset 2px instead of 1px.** Affects `ds.add_rule()` labels, `ds.add_text()` position presets, and the test and correlation labels built on them.
+- **Text anchored at a plot edge is offset 2px from it.** Applies to `ds.add_rule()` labels, `ds.add_text()` position presets, and the test and correlation labels built on them. `ds.add_rule()` previously offset its labels on closed plots only.
 
 - **Axes are flush by default; the gap between the axis and the data now comes from `viewPadding` rather than from offsetting the axis.** `axisOffset` defaults to `False` (0) and takes `True` for the previous detached axes; `viewPadding` now applies to every plot, not just closed ones. Restore the previous look with `theme(axisOffset=True, viewPadding=False)`. Unlike the offset, the inset also keeps marks off the *ends* of an axis, where they previously sat exactly on the axis terminus.
 - **`axisOffset` takes `False` (flush), `True` (derive `tickSize * 1.5`) or a number.** `None` still means `True` and is deprecated.
 - **`ds.add_multilabel()` and `ds.mark_table()` keep their row spacing** under the inset - their rows are positioned in pixels, so the scale pins `padding=0`.
-- **`ds.add_rule()` labels anchored at a plot edge are inset off a flush axis**, matching `ds.add_text()`. Previously only closed plots were inset, and by a larger amount.
 - **`ds.add_shade()` bands reach the plot edge by default**, since the axis is now flush. Pass `flush=False` for the previous inset, which still applies automatically with `axisOffset=True`.
 
 ### Fixes
