@@ -49,7 +49,7 @@ y = alt.Y("value:Q", title=None)
 color = alt.Color("group:N", sort=CATEGORIES, scale=alt.Scale(range=palette), legend=None)
 
 # -- Left: transforms.beeswarm() -------------------------------------------
-bee_df = ds.transforms.beeswarm(df, yCol="value", groupBy=["group"])
+bee_df = ds.transforms.beeswarm(df, column="value", groupBy=["group"])
 
 left = (
     alt.Chart(bee_df)

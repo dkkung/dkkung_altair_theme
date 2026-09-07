@@ -34,7 +34,7 @@ sig = ds.stats.comparisons(
     df,
     "gene",
     "expr",
-    xOffsetCol="condition",
+    xOffset="condition",
     categories=genes,
     xOffsetSort=["Vehicle", "LPS"],
     test="ttest_ind",

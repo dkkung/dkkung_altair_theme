@@ -1,5 +1,9 @@
 # Website (dysonsphere docs site)
 
+V4 parameter names are now in use: data/x/y, labels/subset, xOffset/groupBy, and component-specific
+settings such as cellPalette and saveReport. Use current source signatures and API.md rather than
+historical snippets below. Native Altair parameters and embedded metadata field names are unchanged.
+
 An Astro + Starlight docs site for dysonsphere, built by two Python generators plus Astro. Lives
 in `website/` on `main` and is developed on ordinary feature branches like the rest of the repo
 (the dedicated worktree was dissolved 2026-07-06; the separate `website` branch is gone too).

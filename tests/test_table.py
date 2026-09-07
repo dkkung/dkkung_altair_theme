@@ -64,7 +64,7 @@ class TestMarkTable:
         assert h_with > h_without
 
     def test_unknown_column_raises(self, df):
-        with pytest.raises(ValueError, match="not in df"):
+        with pytest.raises(ValueError, match="not in data"):
             mark_table(df, columns=["nope"])
 
     def test_empty_df_raises(self):
@@ -167,14 +167,14 @@ class TestFormatting:
 class TestCellColor:
     def test_non_numeric_column_raises(self, df):
         with pytest.raises(ValueError, match="must be numeric"):
-            mark_table(df, cellColor={"gene": "greys"})
+            mark_table(df, cellPalette={"gene": "greys"})
 
     def test_column_not_shown_raises(self, df):
         with pytest.raises(ValueError, match="not among the shown columns"):
-            mark_table(df, columns=["gene"], cellColor={"log2FC": "greens"})
+            mark_table(df, columns=["gene"], cellPalette={"log2FC": "greens"})
 
     def test_color_scale_present_and_independent(self, df):
-        spec = mark_table(df, cellColor={"log2FC": "pinksblues"}).to_dict()
+        spec = mark_table(df, cellPalette={"log2FC": "pinksblues"}).to_dict()
         assert spec["resolve"]["scale"]["color"] == "independent"
         # A quantitative color scale keyed to the value column exists somewhere.
         colors = [layer.get("encoding", {}).get("color", {}) for layer in spec["layer"]]
@@ -182,7 +182,7 @@ class TestCellColor:
 
     def test_diverging_palette_symmetric_domain(self, df):
         # A 13-stop diverging palette centres its domain on 0.
-        spec = mark_table(df, cellColor={"log2FC": "pinksblues"}).to_dict()
+        spec = mark_table(df, cellPalette={"log2FC": "pinksblues"}).to_dict()
         for layer in spec["layer"]:
             c = layer.get("encoding", {}).get("color", {})
             if c.get("field") == "log2FC" and c.get("type") == "quantitative":
@@ -243,8 +243,8 @@ class TestColors:
         assert by_field.get("hits") is None  # unlisted inherits (no explicit color)
 
     def test_global_text_color_does_not_override_heatmap_contrast(self, df):
-        # A cellColor column keeps its auto-contrast color-scale even under a global textColor.
-        spec = mark_table(df, textColor="#555555", cellColor={"log2FC": "pinksblues"}).to_dict()
+        # A cellPalette column keeps its auto-contrast color-scale even under a global textColor.
+        spec = mark_table(df, textColor="#555555", cellPalette={"log2FC": "pinksblues"}).to_dict()
         has_contrast = any(
             "color" in layer.get("encoding", {}) and layer.get("encoding", {})["color"].get("scale") is None
             for layer in self._text_marks(spec)
@@ -253,7 +253,7 @@ class TestColors:
 
     def test_dict_text_color_overrides_heatmap(self, df):
         # An explicit per-column entry is deliberate: it wins over the heatmap auto-contrast.
-        spec = mark_table(df, textColor={"log2FC": "#000000"}, cellColor={"log2FC": "pinksblues"}).to_dict()
+        spec = mark_table(df, textColor={"log2FC": "#000000"}, cellPalette={"log2FC": "pinksblues"}).to_dict()
         log2fc_mark = next(
             layer
             for layer in self._text_marks(spec)
@@ -359,7 +359,7 @@ class TestDataProvenance:
         chart = mark_table(
             df,
             columnFormat={"pvalue": "scientific", "log2FC": ".2f"},
-            cellColor={"log2FC": "pinksblues"},
+            cellPalette={"log2FC": "pinksblues"},
         )
         out = str(tmp_path / "tbl")
         ds.save(chart, out, format="json", background=["light"])

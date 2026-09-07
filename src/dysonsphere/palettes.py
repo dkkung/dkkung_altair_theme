@@ -43,7 +43,7 @@ _QUALITATIVE_RANGES = {
 }
 
 
-def categorical(members: int = 1, palette: str = _DEFAULT_QUALITATIVE_PALETTE) -> list[str]:
+def categorical(members: int = 1, *, palette: str = _DEFAULT_QUALITATIVE_PALETTE) -> list[str]:
     """
     Qualitative color palette built from a family of base hues.
 
@@ -151,6 +151,7 @@ def categorical(members: int = 1, palette: str = _DEFAULT_QUALITATIVE_PALETTE) -
 def palette(
     name: str,
     n: int | None = None,
+    *,
     start: int = 0,
     end: int | None = None,
     step: int = 1,
@@ -278,6 +279,7 @@ def _find_illustrator_swatches() -> Path | None:
 
 def export_swatches(
     directory: str | Path | None = None,
+    *,
     palettes: list[str] | None = None,
     name: str = "dysonsphere",
 ) -> None:

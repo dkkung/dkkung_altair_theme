@@ -14,7 +14,7 @@ chart = ds.add_multilabel(
     strip,
     categories=origins,
     showSampleSize=True,
-    df=cars,
-    xCol="Origin",
+    data=cars,
+    x="Origin",
     categoryLabel=True,
 )

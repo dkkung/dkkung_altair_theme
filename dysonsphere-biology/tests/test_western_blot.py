@@ -85,7 +85,7 @@ class TestStroke:
 
 
 def test_padding_sets_stack_spacing():
-    spec = ds.biology.western_blot([_img(), _img()], categories=["x", "y"], padding=5).to_dict()
+    spec = ds.biology.western_blot([_img(), _img()], categories=["x", "y"], stripSpacing=5).to_dict()
     stack = spec["vconcat"][0]  # the image stack is the first child; the table is second
     assert stack["spacing"] == 5
 

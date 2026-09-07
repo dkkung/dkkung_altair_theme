@@ -152,7 +152,7 @@ notes are local working material, not dependencies of this framework or part of 
   an integer requests that many spatially spread rows; a boolean mask selects rows positionally;
   a list of label values matches rows by those values. Keep one selector, not separate number
   and subset controls. The full input data still supplies placement obstacles. Returns
-  `alt.LayerChart`. This is the intended API; the current implementation uses older names.
+  `alt.LayerChart`.
 - Volcano uses the same labels/content-column and subset/selection vocabulary. Its log2fc and
   pvalue inputs name columns containing log2 fold changes and raw p-values; do not imply arbitrary
   effect-size support. Label content may identify any measured feature, not only genes/proteins.

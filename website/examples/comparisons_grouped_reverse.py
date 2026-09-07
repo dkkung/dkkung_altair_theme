@@ -38,7 +38,7 @@ chart = pts + ds.stats.comparisons(
     "gene",
     "expr",
     pairs=[("Vehicle", "LPS")],
-    xOffsetCol="condition",
+    xOffset="condition",
     categories=genes,
     xOffsetSort=["Vehicle", "LPS"],
     test="ttest_ind",

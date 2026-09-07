@@ -172,9 +172,9 @@ class TestFigureLabels:
         theme()
         default = assemble([(_chart, 60, 40, "a")]).to_dict()["title"]
         assert (default["dx"], default["dy"]) == (-5, 0), "held off the chart like axisOffset"
-        one = assemble([(_chart, 60, 40, "a")], labelPadding=3).to_dict()["title"]
+        one = assemble([(_chart, 60, 40, "a")], labelOffset=3).to_dict()["title"]
         assert (one["dx"], one["dy"]) == (3, 3)
-        two = assemble([(_chart, 60, 40, "a")], labelPadding=(-4, 2)).to_dict()["title"]
+        two = assemble([(_chart, 60, 40, "a")], labelOffset=(-4, 2)).to_dict()["title"]
         assert (two["dx"], two["dy"]) == (-4, 2)
 
     def test_chart_keeps_its_own_title(self):

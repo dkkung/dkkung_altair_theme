@@ -19,17 +19,17 @@ core internals.
 
 ```python
 def volcano(
-    df: pl.DataFrame | Any,
+    data: pl.DataFrame | Any,
     *,
-    log2fcCol: str = 'log2fc',
-    pvalueCol: str = 'pvalue',
-    geneCol: str | None = None,
+    log2fc: str = 'log2fc',
+    pvalue: str = 'pvalue',
+    labels: str | None = None,
     fcThreshold: float = 1.0,
     pThreshold: float = 0.05,
-    label: str | int | list[str] | None = None,
+    subset: str | int | list[str] | None = None,
     thresholdLines: bool = True,
     palette: tuple[str, str] | None = None,
-    nsColor: str | None = None,
+    nonDifferentialColor: str | None = None,
     markOpacity: float = 0.85,
     legend: bool = True,
     xTitle: str | None = _UNSET,
@@ -51,16 +51,16 @@ correct light/dark export.
 
 **Parameters**
 
-- **`df`** (`pl.DataFrame | Any`) - A polars or pandas DataFrame with per-gene results.
-- **`log2fcCol`** (`str`) - Column names for the effect size (x) and the p-value (y is ``-log10`` of it).
-- **`pvalueCol`** (`str`) - Column names for the effect size (x) and the p-value (y is ``-log10`` of it).
-- **`geneCol`** (`str | None`) - Column of gene names; required only when ``label`` is set.
+- **`data`** (`pl.DataFrame | Any`) - A polars or pandas DataFrame with per-gene results.
+- **`log2fc`** (`str`) - Column names for the effect size (x) and the p-value (y is ``-log10`` of it).
+- **`pvalue`** (`str`) - Column names for the effect size (x) and the p-value (y is ``-log10`` of it).
+- **`labels`** (`str | None`) - Column of gene names; required only when ``subset`` is set.
 - **`fcThreshold`** (`float`) - ``|log2fc|`` significance cutoff (default ``1.0``). Vertical guides at ``+-`` this.
 - **`pThreshold`** (`float`) - P-value significance cutoff (default ``0.05``). Horizontal guide at ``-log10`` of it.
-- **`label`** (`str | int | list[str] | None`) - Which points to label (default ``None`` - no labels). ``int`` -> the top-N most significant, ranked by combined score ``|log2fc| * -log10(p)``; ``"significant"`` -> every significant point; ``list[str]`` -> the named genes. Any non-None value requires ``geneCol``.
+- **`subset`** (`str | int | list[str] | None`) - Which points to label (default ``None`` - no labels). ``int`` -> the top-N most significant, ranked by combined score ``|log2fc| * -log10(p)``; ``"significant"`` -> every significant point; ``list[str]`` -> the named genes. Any non-None value requires ``labels``.
 - **`thresholdLines`** (`bool`) - Draw the fold-change / p-value guide lines (default ``True``).
 - **`palette`** (`tuple[str, str] | None`) - ``(gained, lost)`` hex colors. Defaults to the ``ds_div_1`` diverging endpoints (teal = gained, gold = lost).
-- **`nsColor`** (`str | None`) - Color for the non-differential points. Defaults to a faint theme grey (darkmode-aware).
+- **`nonDifferentialColor`** (`str | None`) - Color for the non-differential points. Defaults to a faint theme grey (darkmode-aware).
 - **`markOpacity`** (`float`) - Point opacity (default ``0.85``). All other point styling (fill, size, stroke) comes from the active theme's ``mark_point`` config.
 - **`legend`** (`bool`) - Show the significance color legend (default ``True``).
 - **`xTitle`** (`str | None`) - Axis titles. Omitted -> ``"log2 fold change"`` / ``"-log10 P"``; ``None`` -> no title.

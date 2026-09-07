@@ -28,21 +28,21 @@ def group_df():
 
 class TestMarkViolin:
     def test_returns_layer_chart(self, group_df):
-        result = mark_violin(group_df, xCol="group", yCol="value", categories=CATEGORIES)
+        result = mark_violin(group_df, x="group", y="value", categories=CATEGORIES)
         assert isinstance(result, alt.LayerChart)
 
     def test_custom_palette_list(self, group_df):
         result = mark_violin(
             group_df,
-            xCol="group",
-            yCol="value",
+            x="group",
+            y="value",
             categories=CATEGORIES,
             palette=["#FF0000", "#00FF00", "#0000FF"],
         )
         assert isinstance(result, alt.LayerChart)
 
     def test_y_title_default_is_col_name(self, group_df):
-        result = mark_violin(group_df, xCol="group", yCol="value", categories=CATEGORIES)
+        result = mark_violin(group_df, x="group", y="value", categories=CATEGORIES)
         spec = result.to_dict()
         layer_specs = spec.get("layer", [])
         y_titles = [
@@ -53,7 +53,7 @@ class TestMarkViolin:
         assert any(t == "value" for t in y_titles)
 
     def test_y_title_none_suppresses(self, group_df):
-        result = mark_violin(group_df, xCol="group", yCol="value", categories=CATEGORIES, yTitle=None)
+        result = mark_violin(group_df, x="group", y="value", categories=CATEGORIES, yTitle=None)
         spec = result.to_dict()
         for layer in spec.get("layer", []):
             y_enc = layer.get("encoding", {}).get("y", {})
@@ -62,7 +62,7 @@ class TestMarkViolin:
     def test_violin_x_uses_absolute_quantitative(self, group_df):
         # Violin line mark encodes x:Q with axis=None - absolute pixel coordinates,
         # not xOffset - so hconcat with mark_strip never squishes the violin.
-        result = mark_violin(group_df, xCol="group", yCol="value", categories=CATEGORIES)
+        result = mark_violin(group_df, x="group", y="value", categories=CATEGORIES)
         spec = result.to_dict()
         violin_layer = next(
             lyr for lyr in spec["layer"] if isinstance(lyr.get("mark"), dict) and lyr["mark"].get("type") == "line"
@@ -76,16 +76,16 @@ class TestMarkViolin:
 
     def test_violin_no_xoffset_in_any_layer(self, group_df):
         # No layer uses xOffset - Vega-Lite won't merge xOffset scales across hconcat panels.
-        result = mark_violin(group_df, xCol="group", yCol="value", categories=CATEGORIES)
+        result = mark_violin(group_df, x="group", y="value", categories=CATEGORIES)
         spec = result.to_dict()
         for layer in spec["layer"]:
             assert "xOffset" not in layer.get("encoding", {})
 
     def test_median_color_wired_to_spec(self, group_df):
-        # Proves the medianColor param flows to the boxplot median fill. Uses an explicit
+        # Proves the boxplotMedianColor param flows to the boxplot median fill. Uses an explicit
         # value (not the default) so it doesn't pin the cosmetic default, which may change.
         result = mark_violin(
-            group_df, xCol="group", yCol="value", categories=CATEGORIES, inner="box", medianColor="red"
+            group_df, x="group", y="value", categories=CATEGORIES, inner="box", boxplotMedianColor="red"
         )
         box = next(
             lyr
@@ -95,7 +95,7 @@ class TestMarkViolin:
         assert box["mark"]["median"]["fill"] == "red"
 
     def test_x_title_defaults_to_col_name(self, group_df):
-        result = mark_violin(group_df, xCol="group", yCol="value", categories=CATEGORIES)
+        result = mark_violin(group_df, x="group", y="value", categories=CATEGORIES)
         spec = result.to_dict()
         x_titles = [
             layer.get("encoding", {}).get("x", {}).get("title")
@@ -105,7 +105,7 @@ class TestMarkViolin:
         assert any(t == "group" for t in x_titles)
 
     def test_x_title_none_suppresses(self, group_df):
-        result = mark_violin(group_df, xCol="group", yCol="value", categories=CATEGORIES, xTitle=None)
+        result = mark_violin(group_df, x="group", y="value", categories=CATEGORIES, xTitle=None)
         spec = result.to_dict()
         for layer in spec["layer"]:
             x_enc = layer.get("encoding", {}).get("x", {})
@@ -317,11 +317,11 @@ class TestViolinTrim:
 
 class TestMarkStrip:
     def test_returns_layer_chart(self, group_df):
-        result = mark_strip(group_df, xCol="group", yCol="value", categories=CATEGORIES)
+        result = mark_strip(group_df, x="group", y="value", categories=CATEGORIES)
         assert isinstance(result, alt.LayerChart)
 
     def test_x_title_defaults_to_col_name(self, group_df):
-        result = mark_strip(group_df, xCol="group", yCol="value", categories=CATEGORIES)
+        result = mark_strip(group_df, x="group", y="value", categories=CATEGORIES)
         spec = result.to_dict()
         x_titles = [
             layer.get("encoding", {}).get("x", {}).get("title")
@@ -331,32 +331,32 @@ class TestMarkStrip:
         assert any(t == "group" for t in x_titles)
 
     def test_x_title_none_suppresses(self, group_df):
-        result = mark_strip(group_df, xCol="group", yCol="value", categories=CATEGORIES, xTitle=None)
+        result = mark_strip(group_df, x="group", y="value", categories=CATEGORIES, xTitle=None)
         spec = result.to_dict()
         for layer in spec["layer"]:
             x_enc = layer.get("encoding", {}).get("x", {})
             assert x_enc.get("title") is None or "title" not in x_enc
 
     def test_mark_size_param(self, group_df):
-        result = mark_strip(group_df, xCol="group", yCol="value", categories=CATEGORIES, markSize=20)
+        result = mark_strip(group_df, x="group", y="value", categories=CATEGORIES, markSize=20)
         spec = result.to_dict()
         circle_layer = next(lyr for lyr in spec["layer"] if lyr.get("mark", {}).get("type") == "circle")
         assert circle_layer["mark"]["size"] == 20
 
     def test_mark_opacity_param(self, group_df):
-        result = mark_strip(group_df, xCol="group", yCol="value", categories=CATEGORIES, markOpacity=0.5)
+        result = mark_strip(group_df, x="group", y="value", categories=CATEGORIES, markOpacity=0.5)
         spec = result.to_dict()
         circle_layer = next(lyr for lyr in spec["layer"] if lyr.get("mark", {}).get("type") == "circle")
         assert circle_layer["mark"]["opacity"] == 0.5
 
     def test_errorbars_disabled(self, group_df):
-        result = mark_strip(group_df, xCol="group", yCol="value", categories=CATEGORIES, errorbars=False)
+        result = mark_strip(group_df, x="group", y="value", categories=CATEGORIES, errorbars=False)
         assert isinstance(result, alt.LayerChart)
 
     def test_errorbars_center_tick_is_mean(self, group_df):
         # The centre tick must draw the MEAN (the errorbar statistic), not the median -
         # a median tick sits off-centre between the caps on skewed data.
-        result = mark_strip(group_df, xCol="group", yCol="value", categories=CATEGORIES)
+        result = mark_strip(group_df, x="group", y="value", categories=CATEGORIES)
         spec = result.to_dict()
         tick_layer = next(lyr for lyr in spec["layer"] if lyr.get("mark", {}).get("type") == "tick")
         errorbar_layer = next(lyr for lyr in spec["layer"] if lyr.get("mark", {}).get("type") == "errorbar")
@@ -367,15 +367,15 @@ class TestMarkStrip:
 
     def test_errorbars_disabled_keeps_median_boxplot(self, group_df):
         # Without error bars the centre statistic stays the median (via the hidden boxplot).
-        result = mark_strip(group_df, xCol="group", yCol="value", categories=CATEGORIES, errorbars=False)
+        result = mark_strip(group_df, x="group", y="value", categories=CATEGORIES, errorbars=False)
         spec = result.to_dict()
         assert any(lyr.get("mark", {}).get("type") == "boxplot" for lyr in spec["layer"])
 
     def test_beeswarm_scatter(self, group_df):
         result = mark_strip(
             group_df,
-            xCol="group",
-            yCol="value",
+            x="group",
+            y="value",
             categories=CATEGORIES,
             scatter="beeswarm",
         )
@@ -385,8 +385,8 @@ class TestMarkStrip:
         with pytest.raises(ValueError, match="scatter"):
             mark_strip(
                 group_df,
-                xCol="group",
-                yCol="value",
+                x="group",
+                y="value",
                 categories=CATEGORIES,
                 scatter="invalid",
             )

@@ -58,7 +58,7 @@ def western_blot(
     categories: list[str] | None = None,
     *,
     stroke: bool | float = True,
-    padding: float = 0.0,
+    stripSpacing: float = 0.0,
     **kwargs: Any,
 ) -> ext.AltairChart:
     """Compose western blot strip image(s) with a dysonsphere condition table.
@@ -92,12 +92,12 @@ def western_blot(
         Border around each blot image, following the ``bool | float`` pattern: ``True`` (default)
         -> a darkmode-aware ``markStrokeWidth`` border; ``False`` -> no border; a float -> that
         stroke width.
-    padding:
+    stripSpacing:
         Vertical gap in pixels between stacked blot strips (default ``0`` - the strips abut).
     **kwargs:
         Forwarded to :func:`dysonsphere.add_multilabel` (e.g. ``style``, ``categoryLabel``,
-        ``showSampleSize`` with ``df``/``xCol``, ``span``, ``rowStyles``, and ``spacing`` - the
-        gap between the blot stack and the table).
+        ``showSampleSize`` with ``data``/``x``, ``labelPosition``, ``lineOrientation``, ``span``,
+        ``rowStyles``, and ``spacing`` - the gap between the blot stack and the table).
 
     Raises
     ------
@@ -138,6 +138,6 @@ def western_blot(
             .properties(width=cw, height=h, view=view)
         )
 
-    stack = strips[0] if len(strips) == 1 else alt.vconcat(*strips, spacing=padding)
+    stack = strips[0] if len(strips) == 1 else alt.vconcat(*strips, spacing=stripSpacing)
     result = ds.add_multilabel(stack, groups, categories, **kwargs)
     return ext.tag_extension(result, "biology")

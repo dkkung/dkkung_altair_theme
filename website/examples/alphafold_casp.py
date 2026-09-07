@@ -37,6 +37,6 @@ field = (
 )
 af = alt.Chart(df.filter(pl.col("group") == "AlphaFold2")).mark_circle(size=15, color=NAVY).encode(x=xenc, y=yenc)
 # label just the AlphaFold2 point (auto-placed with a connector); ds.labels drives the shared scale
-labels = ds.labels(df, "rank", "gdt", "group", labels=(df["group"] == "AlphaFold2"))
+labels = ds.labels(df, "rank", "gdt", "group", subset=(df["group"] == "AlphaFold2"))
 
 chart = field + af + labels

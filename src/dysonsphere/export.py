@@ -100,6 +100,7 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
 def save(
     chart: _AltairChart | Callable[[], _AltairChart],
     filename: str,
+    *,
     ppi: int = 1200,
     description: str | None = None,
     saveMetadata: bool = True,
@@ -381,7 +382,7 @@ def save(
         alt.theme.options["transparent"] = original_transparent
 
 
-def show(chart: _AltairChart | Callable[[], _AltairChart], maxRows: int = 5000, overrideMaxRows: bool = False):
+def show(chart: _AltairChart | Callable[[], _AltairChart], *, maxRows: int = 5000, overrideMaxRows: bool = False):
     """Render *chart* through the full ``ds.save()`` pipeline and return it for accurate
     inline display in a notebook.
 

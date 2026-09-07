@@ -41,17 +41,17 @@ _NONDIFF = "Non-differential"
 
 
 def volcano(
-    df: pl.DataFrame | Any,
+    data: pl.DataFrame | Any,
     *,
-    log2fcCol: str = "log2fc",
-    pvalueCol: str = "pvalue",
-    geneCol: str | None = None,
+    log2fc: str = "log2fc",
+    pvalue: str = "pvalue",
+    labels: str | None = None,
     fcThreshold: float = 1.0,
     pThreshold: float = 0.05,
-    label: str | int | list[str] | None = None,
+    subset: str | int | list[str] | None = None,
     thresholdLines: bool = True,
     palette: tuple[str, str] | None = None,
-    nsColor: str | None = None,
+    nonDifferentialColor: str | None = None,
     markOpacity: float = 0.85,
     legend: bool = True,
     xTitle: str | None = _UNSET,
@@ -71,27 +71,27 @@ def volcano(
 
     Parameters
     ----------
-    df:
+    data:
         A polars or pandas DataFrame with per-gene results.
-    log2fcCol, pvalueCol:
+    log2fc, pvalue:
         Column names for the effect size (x) and the p-value (y is ``-log10`` of it).
-    geneCol:
-        Column of gene names; required only when ``label`` is set.
+    labels:
+        Column of gene names; required only when ``subset`` is set.
     fcThreshold:
         ``|log2fc|`` significance cutoff (default ``1.0``). Vertical guides at ``+-`` this.
     pThreshold:
         P-value significance cutoff (default ``0.05``). Horizontal guide at ``-log10`` of it.
-    label:
+    subset:
         Which points to label (default ``None`` - no labels). ``int`` -> the top-N most
         significant, ranked by combined score ``|log2fc| * -log10(p)``; ``"significant"`` ->
         every significant point; ``list[str]`` -> the named genes. Any non-None value requires
-        ``geneCol``.
+        ``labels``.
     thresholdLines:
         Draw the fold-change / p-value guide lines (default ``True``).
     palette:
         ``(gained, lost)`` hex colors. Defaults to the ``ds_div_1`` diverging endpoints
         (teal = gained, gold = lost).
-    nsColor:
+    nonDifferentialColor:
         Color for the non-differential points. Defaults to a faint theme grey (darkmode-aware).
     markOpacity:
         Point opacity (default ``0.85``). All other point styling (fill, size, stroke) comes
@@ -104,13 +104,14 @@ def volcano(
     Raises
     ------
     ValueError
-        If ``label`` is set without ``geneCol``, or ``label`` is an unrecognized string.
+        If ``subset`` is set without ``labels``, or ``subset`` is an unrecognized string.
     """
+    df = data
     data = ds.utils.ensure_polars(df)
 
-    data = data.with_columns((-pl.col(pvalueCol).clip(lower_bound=_P_FLOOR).log10()).alias(_NEGLOG_COL))
-    gained = (pl.col(log2fcCol) >= fcThreshold) & (pl.col(pvalueCol) <= pThreshold)
-    lost = (pl.col(log2fcCol) <= -fcThreshold) & (pl.col(pvalueCol) <= pThreshold)
+    data = data.with_columns((-pl.col(pvalue).clip(lower_bound=_P_FLOOR).log10()).alias(_NEGLOG_COL))
+    gained = (pl.col(log2fc) >= fcThreshold) & (pl.col(pvalue) <= pThreshold)
+    lost = (pl.col(log2fc) <= -fcThreshold) & (pl.col(pvalue) <= pThreshold)
     data = data.with_columns(
         pl.when(gained).then(pl.lit(_GAINED)).when(lost).then(pl.lit(_LOST)).otherwise(pl.lit(_NONDIFF)).alias(_SIG_COL)
     )
@@ -122,8 +123,8 @@ def volcano(
         palette if palette is not None else (ds.palettes.colors["ds_div_1"][-1], ds.palettes.colors["ds_div_1"][0])
     )
     ns_color = (
-        nsColor
-        if nsColor is not None
+        nonDifferentialColor
+        if nonDifferentialColor is not None
         else (ds.palettes.colors["greys"][10] if darkmode else ds.palettes.colors["greys"][1])
     )
 
@@ -136,7 +137,7 @@ def volcano(
         alt.Chart(data)
         .mark_point(opacity=markOpacity)
         .encode(
-            x=alt.X(f"{log2fcCol}:Q", title=x_title),
+            x=alt.X(f"{log2fc}:Q", title=x_title),
             y=alt.Y(f"{_NEGLOG_COL}:Q", title=y_title),
             color=alt.Color(
                 f"{_SIG_COL}:N",
@@ -156,9 +157,9 @@ def volcano(
         layers.append(ds.rule(-math.log10(pThreshold), axis="y"))
 
     chart: ext.AltairChart = alt.layer(*layers)
-    if label is not None:
+    if subset is not None:
         # ds.labels returns a LayerChart; compose with + (it also self-pins the x/y scale).
-        chart = chart + _label_layer(data, label, log2fcCol, geneCol)
+        chart = chart + _label_layer(data, subset, log2fc, labels)
     # Tag the chart so ds.save() records dysonsphere-biology's version in the figure's provenance.
     return ext.tag_extension(chart, "biology")
 
@@ -167,23 +168,23 @@ def _label_layer(data: pl.DataFrame, label: str | int | list[str], log2fcCol: st
     """Select which genes to label (significance-aware) and delegate placement to ``ds.labels``.
 
     The volcano picks the genes itself - top-N by combined score, all significant, or an explicit
-    list - because that ranking is domain-specific (``labels``'s own ``labels=n`` is spatial
+    list - because that ranking is domain-specific (``ds.labels``'s own ``subset=n`` is spatial
     even-spread, which isn't what a volcano wants). It then hands the chosen names to ``labels``
-    as ``labels=[...]`` on the FULL frame, so the force-repel placement, connectors, and scale
+    as ``subset=[...]`` on the FULL frame, so the force-repel placement, connectors, and scale
     self-pinning all come for free.
     """
     if geneCol is None:
-        raise ValueError("volcano(label=...) requires geneCol to name the label column")
+        raise ValueError("volcano(subset=...) requires labels to name the label column")
 
     significant = data.filter(pl.col(_SIG_COL) != _NONDIFF)
     if isinstance(label, bool):  # bool is an int subclass - reject before the int branch
-        raise ValueError("volcano(label=...) does not accept a bool")
+        raise ValueError("volcano(subset=...) does not accept a bool")
     elif isinstance(label, int):
         score = (pl.col(log2fcCol).abs() * pl.col(_NEGLOG_COL)).alias("_score")
         chosen = significant.with_columns(score).sort("_score", descending=True).head(label)
     elif isinstance(label, str):
         if label != "significant":
-            raise ValueError(f"volcano(label={label!r}) is not recognized; use 'significant', an int, or a list")
+            raise ValueError(f"volcano(subset={label!r}) is not recognized; use 'significant', an int, or a list")
         chosen = significant
     else:
         chosen = data.filter(pl.col(geneCol).is_in(label))
@@ -191,4 +192,4 @@ def _label_layer(data: pl.DataFrame, label: str | int | list[str], log2fcCol: st
     names = [str(v) for v in chosen[geneCol].to_list()]
     # ds.labels' default connectorGap sizes itself to the theme's mark_point edge radius, which is
     # exactly what the volcano's dots need - so no explicit gap is required here.
-    return ds.labels(data, log2fcCol, _NEGLOG_COL, geneCol, labels=names)
+    return ds.labels(data, log2fcCol, _NEGLOG_COL, geneCol, subset=names)

@@ -14,8 +14,10 @@ and `ds.labels`; offsets live at `ds.transforms.jitter`, `beeswarm`, and `quasir
 Display-label helpers moved from labels.py to display_labels.py so the module cannot shadow
 `ds.labels`. Metadata inspection/checksums now live under `ds.metadata`; dataframe/geometry
 helpers under `ds.utils`; color data, categorical construction, and swatch export under `ds.palettes`.
-`ds.palette()` remains top-level. Old public spellings below are historical. V4 parameter changes
-are not yet implemented. The checksum implementation is utils._frame_checksum, re-exported by
+`ds.palette()` remains top-level. Old public spellings below are historical. Public tabular inputs
+now use `data`, plot axes `x`/`y`, and label content/selection `labels`/`subset`. Component settings
+and keyword-only controls follow the v4 signature migration; behavior changes and deprecated API
+removal are still pending. The checksum implementation is utils._frame_checksum, re-exported by
 metadata; statistics import the private helper without depending on metadata.
 
 ## Commands

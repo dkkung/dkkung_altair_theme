@@ -110,16 +110,16 @@ class _MarkScaffold:
 
 
 def mark_violin(
-    df: pl.DataFrame | Any,
-    xCol: str,
-    yCol: str,
+    data: pl.DataFrame | Any,
+    x: str,
+    y: str,
     categories: list[str],
     *,
     inner: str | None = "quartiles",
     innerColor: str | None = None,
-    boxplotSize: int | None = None,
+    boxplotWidth: int | None = None,
     boxplotColor: str = "black",
-    medianColor: str = "white",
+    boxplotMedianColor: str = "white",
     palette: str | list[str] | None = None,
     fillOpacity: float | None = None,
     stroke: str | bool | None = True,
@@ -146,11 +146,11 @@ def mark_violin(
 
     Parameters
     ----------
-    df:
+    data:
         Polars DataFrame containing the data.
-    xCol:
+    x:
         Column name for the grouping variable (x-axis).
-    yCol:
+    y:
         Column name for the value variable (y-axis).
     categories:
         Ordered list of all x-axis categories, used for positioning and
@@ -167,11 +167,11 @@ def mark_violin(
         ``None`` (default) means ``"black"`` in both light and dark mode - the
         lines sit inside the mark fill, not on the background, so they are
         deliberately not darkmode-sensitive.
-    boxplotSize:
+    boxplotWidth:
         Width of the boxplot box in pixels (``inner="box"`` only).
     boxplotColor:
         Fill color of the boxplot (``inner="box"`` only).
-    medianColor:
+    boxplotMedianColor:
         Fill color of the boxplot median line (``inner="box"`` only). Defaults to
         ``"white"`` so it reads against the default black box; overrides the
         theme's ``markMedianFill``.
@@ -208,45 +208,46 @@ def mark_violin(
         (default) uses Scott's rule; smaller values give a tighter, less
         smoothed outline.
     yTitle:
-        Y-axis title. Defaults to ``yCol``. Pass ``None`` to suppress.
+        Y-axis title. Defaults to ``y``. Pass ``None`` to suppress.
     xTitle:
-        X-axis title. Defaults to ``xCol``. Pass ``None`` to suppress.
+        X-axis title. Defaults to ``x``. Pass ``None`` to suppress.
 
     Examples
     --------
     ::
 
         ds.theme(chartWidth=250)
-        chart = ds.mark_violin(df, "group", "value", CATEGORIES)
+        chart = ds.mark_violin(data, "group", "value", CATEGORIES)
         ds.save(chart, "violin")
 
         # safe in hconcat with mark_strip
-        left = ds.mark_strip(df, "group", "value", CATEGORIES)
-        right = ds.mark_violin(df, "group", "value", CATEGORIES)
+        left = ds.mark_strip(data, "group", "value", CATEGORIES)
+        right = ds.mark_violin(data, "group", "value", CATEGORIES)
         ds.save(alt.hconcat(left, right), "comparison")
 
         # Prism-style look with sharp tips at the data extremes
-        chart = ds.mark_violin(df, "group", "value", CATEGORIES, trim=True)
+        chart = ds.mark_violin(data, "group", "value", CATEGORIES, trim=True)
 
         # bare silhouette: remove the default outline
-        chart = ds.mark_violin(df, "group", "value", CATEGORIES, stroke=None)
+        chart = ds.mark_violin(data, "group", "value", CATEGORIES, stroke=None)
 
         # classic embedded boxplot with custom colors
         chart = ds.mark_violin(
-            df, "group", "value", CATEGORIES,
+            data, "group", "value", CATEGORIES,
             inner="box",
-            boxplotSize=10,
+            boxplotWidth=10,
             palette="#AAAAAA",
         )
     """
+    yCol = y
     from scipy.stats import gaussian_kde
 
     if inner not in ("box", "quartiles", "median", None):
         raise ValueError(f"inner must be 'box', 'quartiles', 'median', or None, got {inner!r}")
 
     s = _MarkScaffold(
-        df,
-        xCol,
+        data,
+        x,
         yCol,
         categories,
         palette=palette,
@@ -256,7 +257,7 @@ def mark_violin(
         xTitle=xTitle,
         yTitle=yTitle,
     )
-    df = s.df
+    data = s.df
     if fillOpacity is None:
         fillOpacity = _opt("markFillOpacity")
     if strokeWidth is None:
@@ -286,7 +287,7 @@ def mark_violin(
     group_kde = []
     for i, group in enumerate(categories):
         x_center = geo.centers[i]
-        vals = df.filter(pl.col(xCol) == group)[yCol].to_numpy()
+        vals = data.filter(pl.col(x) == group)[yCol].to_numpy()
         kde = gaussian_kde(vals, bw_method=bandwidth)
         # KDE bandwidth in data units - the tail extension scales with it so the
         # untrimmed overshoot is proportionate on any data scale.
@@ -371,12 +372,12 @@ def mark_violin(
             band_lo = max(q2 - h_med, float(y_grid[0]))
             band_hi = min(q2 + h_med, float(y_grid[-1]))
             band_ys = sorted({band_lo, *(float(y) for y in y_grid if band_lo < y < band_hi), q2, band_hi})
-            for y in band_ys:
-                d = float(np.interp(y, y_grid, density_norm))
+            for band_y in band_ys:
+                d = float(np.interp(band_y, y_grid, density_norm))
                 median_rows.append(
                     {
                         "__group": group,
-                        "__y": y,
+                        "__y": band_y,
                         "__x": x_center - d * half_width,
                         "__x2": x_center + d * half_width,
                     }
@@ -408,13 +409,13 @@ def mark_violin(
 
     if inner == "box":
         boxplot = (
-            alt.Chart(df)
+            alt.Chart(data)
             .mark_boxplot(
                 color=boxplotColor,
                 ticks=False,
                 rule={"stroke": boxplotColor},
-                median={"fill": medianColor},
-                **({"size": boxplotSize} if boxplotSize is not None else {}),
+                median={"fill": boxplotMedianColor},
+                **({"size": boxplotWidth} if boxplotWidth is not None else {}),
             )
             .encode(
                 x=s.x(),
@@ -431,7 +432,7 @@ def mark_violin(
     # whose tick positions don't match the band-scale centres the violin geometry
     # uses - a bar forces the band scale even at zero rows, seating the ticks on
     # the violin centres exactly as the boxplot did.
-    axis_host = alt.Chart(df).transform_filter("false").mark_bar(opacity=0).encode(x=s.x())
+    axis_host = alt.Chart(data).transform_filter("false").mark_bar(opacity=0).encode(x=s.x())
     layers: list[Any] = [violin]
 
     if inner in ("quartiles", "median"):
@@ -486,9 +487,9 @@ def mark_violin(
 
 
 def mark_strip(
-    df: pl.DataFrame | Any,
-    xCol: str,
-    yCol: str,
+    data: pl.DataFrame | Any,
+    x: str,
+    y: str,
     categories: list[str],
     *,
     scatter: str = "jitter",
@@ -516,11 +517,11 @@ def mark_strip(
 
     Parameters
     ----------
-    df:
+    data:
         Polars DataFrame containing the data.
-    xCol:
+    x:
         Column name for the grouping variable (x-axis).
-    yCol:
+    y:
         Column name for the value variable (y-axis).
     categories:
         Ordered list of all x-axis categories.
@@ -552,25 +553,26 @@ def mark_strip(
         Statistic to use for error bars: ``'sem'`` (standard error of the
         mean, default) or ``'sd'`` (standard deviation).
     yTitle:
-        Y-axis title. Defaults to ``yCol``. Pass ``None`` to suppress.
+        Y-axis title. Defaults to ``y``. Pass ``None`` to suppress.
     xTitle:
-        X-axis title. Defaults to ``xCol``. Pass ``None`` to suppress.
+        X-axis title. Defaults to ``x``. Pass ``None`` to suppress.
 
     Examples
     --------
     ::
 
         ds.theme()
-        chart = ds.mark_strip(df, "group", "value", CATEGORIES)
+        chart = ds.mark_strip(data, "group", "value", CATEGORIES)
         ds.save(chart, "strip")
 
         # beeswarm variant
-        chart = ds.mark_strip(df, "group", "value", CATEGORIES, scatter="beeswarm")
+        chart = ds.mark_strip(data, "group", "value", CATEGORIES, scatter="beeswarm")
     """
+    xCol = x
     s = _MarkScaffold(
-        df,
+        data,
         xCol,
-        yCol,
+        y,
         categories,
         palette=palette,
         legend=legend,
@@ -579,17 +581,17 @@ def mark_strip(
         xTitle=xTitle,
         yTitle=yTitle,
     )
-    df = s.df
+    data = s.df
     if markSize is None:
         markSize = _opt("markSize")
     if markOpacity is None:
         markOpacity = _opt("markFillOpacity")
 
     if scatter == "jitter":
-        df = jitter(df, spread=spread)
+        data = jitter(data, spread=spread)
         offset_col = "jitter_x"
     elif scatter == "beeswarm":
-        df = beeswarm(df, yCol=yCol, groupBy=[xCol], spread=spread)
+        data = beeswarm(data, column=y, groupBy=[xCol], spread=spread)
         offset_col = "beeswarm_x"
     else:
         raise ValueError(f"scatter must be 'jitter' or 'beeswarm', got {scatter!r}")
@@ -599,16 +601,16 @@ def mark_strip(
     # NOT a band centre: the xOffset scale positions relative to the band start, so this
     # is the in-band midpoint expressed in xOffset range coordinates.
     band_center = step * (0.5 - band_padding)
-    max_offset = cast(float, df[offset_col].abs().cast(pl.Float64).max() or 0.0)
+    max_offset = cast(float, data[offset_col].abs().cast(pl.Float64).max() or 0.0)
     offset_scale = alt.Scale(
         domain=[-max_offset, max_offset],
         range=[band_center - max_offset, band_center + max_offset],
     )
 
-    x = s.x()
+    x_encoding = s.x()
 
     points = (
-        alt.Chart(df)
+        alt.Chart(data)
         # Stroke pinned here, NOT inherited: the theme's config.circle has stroke=None
         # (bare overlay dots are stroke-less), but strip/beeswarm points keep the house
         # outlined-dot look. Black in darkmode too (outlines light palette fills).
@@ -620,7 +622,7 @@ def mark_strip(
             strokeOpacity=_opt("markStrokeOpacity"),
         )
         .encode(
-            x=x,
+            x=x_encoding,
             y=s.y(),
             xOffset=alt.XOffset(f"{offset_col}:Q", scale=offset_scale),
             color=s.color(),
@@ -631,7 +633,7 @@ def mark_strip(
         # Median indicator: a boxplot with everything but the median tick hidden, so the
         # tick inherits the theme's median styling and band placement exactly.
         median = (
-            alt.Chart(df)
+            alt.Chart(data)
             .mark_boxplot(
                 ticks=False,
                 box={"fillOpacity": 0, "strokeOpacity": 0},
@@ -639,30 +641,30 @@ def mark_strip(
                 outliers={"opacity": 0},
             )
             .encode(
-                x=x,
+                x=x_encoding,
                 y=s.y(),
             )
         )
         return cast(alt.LayerChart, alt.layer(points, median))
 
     if errorbarExtent == "sem":
-        error_expr = (pl.col(yCol).std() / pl.col(yCol).count().sqrt()).alias("__error")
+        error_expr = (pl.col(y).std() / pl.col(y).count().sqrt()).alias("__error")
     elif errorbarExtent == "sd":
-        error_expr = pl.col(yCol).std().alias("__error")
+        error_expr = pl.col(y).std().alias("__error")
     else:
         raise ValueError(f"errorbarExtent must be 'sem' or 'sd', got {errorbarExtent!r}")
 
     # maintain_order: group_by is otherwise order-nondeterministic, which changed the
     # inlined summary dataset (and so the spec checksum + mark z-order) run to run.
     summary = _internal_data(
-        df.group_by(xCol, maintain_order=True).agg([pl.col(yCol).mean().alias("__mean"), error_expr])
+        data.group_by(xCol, maintain_order=True).agg([pl.col(y).mean().alias("__mean"), error_expr])
     )
 
     errorbar_layer = (
         alt.Chart(summary)
         .mark_errorbar()
         .encode(
-            x=x,
+            x=x_encoding,
             y=s.y("__mean:Q"),
             yError=alt.YError("__error:Q"),
         )
@@ -677,7 +679,7 @@ def mark_strip(
         alt.Chart(summary)
         .mark_tick()
         .encode(
-            x=x,
+            x=x_encoding,
             y=s.y("__mean:Q"),
         )
     )

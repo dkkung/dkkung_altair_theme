@@ -38,10 +38,10 @@ base = (
     )
 )
 
-# labels=8 auto-selects 8 evenly-spread points; the repel places them in open space with connectors.
-chart = (base + ds.labels(df, "x", "y", "name", labels=8)).properties(
+# subset=8 auto-selects 8 evenly-spread points; the repel places them in open space with connectors.
+chart = (base + ds.labels(df, "x", "y", "name", subset=8)).properties(
     title=alt.TitleParams(
-        ['labels(df, "x", "y", "name", labels=8)'],
+        ['labels(df, "x", "y", "name", subset=8)'],
         fontSize=fontSize,
         orient="top",
         anchor="start",

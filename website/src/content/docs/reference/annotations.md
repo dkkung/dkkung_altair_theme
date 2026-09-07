@@ -193,12 +193,12 @@ Returns a layer that the caller composes with ``+``.
 
 ```python
 def labels(
-    df: pl.DataFrame | Any,
-    xCol: str,
-    yCol: str,
-    labelCol: str,
+    data: pl.DataFrame | Any,
+    x: str,
+    y: str,
+    labels: str,
     *,
-    labels: int | list[Any] | Any | None = None,
+    subset: int | list[Any] | Any | None = None,
     xDomain: tuple[float, float] | None = None,
     yDomain: tuple[float, float] | None = None,
     fontSize: float | None = None,
@@ -226,17 +226,17 @@ least-overlapping positions. Returns a layer to compose onto the base chart with
 
 Placement is solved in pixels before Vega renders, but each label is emitted as a pixel offset
 from its own marker, so it lands correctly on whatever scale the base chart uses and the base's
-axes are left alone. Just compose ``base + ds.labels(df, ...)``.
+axes are left alone. Just compose ``base + ds.labels(data, ...)``.
 
 **Parameters**
 
-- **`df`** (`pl.DataFrame | Any`) - The plotted data (polars or pandas) - pass the same frame as the base chart.
-- **`xCol`** (`str`) - Quantitative coordinate columns (must match the base chart's x / y encodings).
-- **`yCol`** (`str`) - Quantitative coordinate columns (must match the base chart's x / y encodings).
-- **`labelCol`** (`str`) - Column holding the label text.
-- **`labels`** (`int | list[Any] | Any | None`) - Which rows to label. ``None`` (default) labels every row; an **int `n`** auto-selects `n` rows spread evenly across the plot (unbiased - no cherry-picking, deterministic); a **boolean mask** (a pandas/polars ``Series``, NumPy array, or list of bools with one entry per row of ``df``) selects rows **positionally** - decoupled from ``labelCol``, so a non-unique label column still picks exactly the intended rows (e.g. ``labels=df["is_hit"]``); any other **list** labels the rows whose ``labelCol`` value is in it (e.g. ``labels=["TP53", "EGFR"]``, which needs a unique ``labelCol``). Pass the full plotted ``df`` and let ``labels`` do the selecting: obstacles and the axis domain both span all of ``df``, so the labels dodge EVERY plotted point (not just the labelled subset) and selecting a subset never clips the axes.
-- **`xDomain`** (`tuple[float, float] | None`) - ``(min, max)`` the placement solver assumes the base chart will render. Default: the extent of ``df``'s ``xCol`` / ``yCol``. A mismatch only degrades collision avoidance - labels stay attached to their markers either way. Pass explicitly when the base chart's domain differs from ``df``'s extent (a zoomed axis, or derived positions like centroids).
-- **`yDomain`** (`tuple[float, float] | None`) - ``(min, max)`` the placement solver assumes the base chart will render. Default: the extent of ``df``'s ``xCol`` / ``yCol``. A mismatch only degrades collision avoidance - labels stay attached to their markers either way. Pass explicitly when the base chart's domain differs from ``df``'s extent (a zoomed axis, or derived positions like centroids).
+- **`data`** (`pl.DataFrame | Any`) - The plotted data (polars or pandas) - pass the same frame as the base chart.
+- **`x`** (`str`) - Quantitative coordinate columns (must match the base chart's x / y encodings).
+- **`y`** (`str`) - Quantitative coordinate columns (must match the base chart's x / y encodings).
+- **`labels`** (`str`) - Column holding the label text.
+- **`subset`** (`int | list[Any] | Any | None`) - Which rows to label. ``None`` (default) labels every row; an **int `n`** auto-selects `n` rows spread evenly across the plot (unbiased - no cherry-picking, deterministic); a **boolean mask** (a pandas/polars ``Series``, NumPy array, or list of bools with one entry per row of ``data``) selects rows **positionally** - decoupled from ``labels``, so a non-unique label column still picks exactly the intended rows (e.g. ``subset=data["is_hit"]``); any other **list** labels the rows whose ``labels`` value is in it (e.g. ``subset=["TP53", "EGFR"]``, which needs a unique ``labels``). Pass the full plotted ``data`` and let ``subset`` do the selecting: obstacles and the axis domain both span all of ``data``, so the labels dodge EVERY plotted point (not just the labelled subset) and selecting a subset never clips the axes.
+- **`xDomain`** (`tuple[float, float] | None`) - ``(min, max)`` the placement solver assumes the base chart will render. Default: the extent of ``data``'s ``x`` / ``y``. A mismatch only degrades collision avoidance - labels stay attached to their markers either way. Pass explicitly when the base chart's domain differs from ``data``'s extent (a zoomed axis, or derived positions like centroids).
+- **`yDomain`** (`tuple[float, float] | None`) - ``(min, max)`` the placement solver assumes the base chart will render. Default: the extent of ``data``'s ``x`` / ``y``. A mismatch only degrades collision avoidance - labels stay attached to their markers either way. Pass explicitly when the base chart's domain differs from ``data``'s extent (a zoomed axis, or derived positions like centroids).
 - **`fontSize`** (`float | None`) - Label font size. ``None`` -> the theme's ``fontSize`` (the primary chart font size).
 - **`fontStyle`** (`str | None`) - Label font style, e.g. ``"italic"`` (gene / species names) or ``"bold"``. ``None`` (default) inherits the theme's ``mark_text`` (upright). Applies to every label.
 - **`color`** (`str | None`) - Label text color. ``None`` -> inherits the theme's ``mark_text`` color (darkmode-aware black/white).

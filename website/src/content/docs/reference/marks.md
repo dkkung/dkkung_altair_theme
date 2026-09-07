@@ -11,16 +11,16 @@ sidebar:
 
 ```python
 def mark_violin(
-    df: pl.DataFrame | Any,
-    xCol: str,
-    yCol: str,
+    data: pl.DataFrame | Any,
+    x: str,
+    y: str,
     categories: list[str],
     *,
     inner: str | None = 'quartiles',
     innerColor: str | None = None,
-    boxplotSize: int | None = None,
+    boxplotWidth: int | None = None,
     boxplotColor: str = 'black',
-    medianColor: str = 'white',
+    boxplotMedianColor: str = 'white',
     palette: str | list[str] | None = None,
     fillOpacity: float | None = None,
     stroke: str | bool | None = True,
@@ -48,15 +48,15 @@ scale resolution never squishes the violin shape.
 
 **Parameters**
 
-- **`df`** (`pl.DataFrame | Any`) - Polars DataFrame containing the data.
-- **`xCol`** (`str`) - Column name for the grouping variable (x-axis).
-- **`yCol`** (`str`) - Column name for the value variable (y-axis).
+- **`data`** (`pl.DataFrame | Any`) - Polars DataFrame containing the data.
+- **`x`** (`str`) - Column name for the grouping variable (x-axis).
+- **`y`** (`str`) - Column name for the value variable (y-axis).
 - **`categories`** (`list[str]`) - Ordered list of all x-axis categories, used for positioning and axis labels.
 - **`inner`** (`str | None`) - Inner statistic display: ``"quartiles"`` (default) draws Prism-style horizontal lines - a solid median (at twice the outline ``strokeWidth``, clipped to the violin border) and dashed quartiles (at the outline ``strokeWidth``) - each spanning the violin's width at that value; ``"median"`` draws only the median line; ``"box"`` embeds a boxplot; ``None`` draws the violin outline only.
 - **`innerColor`** (`str | None`) - Color of the median/quartile lines (``"quartiles"``/``"median"``). ``None`` (default) means ``"black"`` in both light and dark mode - the lines sit inside the mark fill, not on the background, so they are deliberately not darkmode-sensitive.
-- **`boxplotSize`** (`int | None`) - Width of the boxplot box in pixels (``inner="box"`` only).
+- **`boxplotWidth`** (`int | None`) - Width of the boxplot box in pixels (``inner="box"`` only).
 - **`boxplotColor`** (`str`) - Fill color of the boxplot (``inner="box"`` only).
-- **`medianColor`** (`str`) - Fill color of the boxplot median line (``inner="box"`` only). Defaults to ``"white"`` so it reads against the default black box; overrides the theme's ``markMedianFill``.
+- **`boxplotMedianColor`** (`str`) - Fill color of the boxplot median line (``inner="box"`` only). Defaults to ``"white"`` so it reads against the default black box; overrides the theme's ``markMedianFill``.
 - **`palette`** (`str | list[str] | None`) - Fill color of all violins. When ``None``, each group inherits its color from the theme's active category palette.
 - **`fillOpacity`** (`float | None`) - Fill opacity of the violin. Inherits ``markFillOpacity`` from theme when ``None``.
 - **`stroke`** (`str | bool | None`) - Outline color of the violin. ``True`` (default) uses the theme's ``markStroke`` (black - kept black in dark mode too, outlining the light palette fills like ``mark_strip``'s points); ``False`` or ``None`` disables the outline; a string sets the color directly.
@@ -66,8 +66,8 @@ scale resolution never squishes the violin shape.
 - **`steps`** (`int`) - Number of y grid points used for KDE estimation (per group).
 - **`trim`** (`bool`) - When ``True``, evaluate the KDE only on the group's data range so the violin ends sharply at the observed min/max. When ``False`` (default), the tails extend 2 KDE bandwidths beyond the data extremes.
 - **`bandwidth`** (`float | None`) - KDE bandwidth (``scipy.stats.gaussian_kde`` ``bw_method``). ``None`` (default) uses Scott's rule; smaller values give a tighter, less smoothed outline.
-- **`yTitle`** (`str | None | _UnsetType`) - Y-axis title. Defaults to ``yCol``. Pass ``None`` to suppress.
-- **`xTitle`** (`str | None | _UnsetType`) - X-axis title. Defaults to ``xCol``. Pass ``None`` to suppress.
+- **`yTitle`** (`str | None | _UnsetType`) - Y-axis title. Defaults to ``y``. Pass ``None`` to suppress.
+- **`xTitle`** (`str | None | _UnsetType`) - X-axis title. Defaults to ``x``. Pass ``None`` to suppress.
 
 **Examples**
 
@@ -75,25 +75,25 @@ scale resolution never squishes the violin shape.
 ::
 
     ds.theme(chartWidth=250)
-    chart = ds.mark_violin(df, "group", "value", CATEGORIES)
+    chart = ds.mark_violin(data, "group", "value", CATEGORIES)
     ds.save(chart, "violin")
 
     # safe in hconcat with mark_strip
-    left = ds.mark_strip(df, "group", "value", CATEGORIES)
-    right = ds.mark_violin(df, "group", "value", CATEGORIES)
+    left = ds.mark_strip(data, "group", "value", CATEGORIES)
+    right = ds.mark_violin(data, "group", "value", CATEGORIES)
     ds.save(alt.hconcat(left, right), "comparison")
 
     # Prism-style look with sharp tips at the data extremes
-    chart = ds.mark_violin(df, "group", "value", CATEGORIES, trim=True)
+    chart = ds.mark_violin(data, "group", "value", CATEGORIES, trim=True)
 
     # bare silhouette: remove the default outline
-    chart = ds.mark_violin(df, "group", "value", CATEGORIES, stroke=None)
+    chart = ds.mark_violin(data, "group", "value", CATEGORIES, stroke=None)
 
     # classic embedded boxplot with custom colors
     chart = ds.mark_violin(
-        df, "group", "value", CATEGORIES,
+        data, "group", "value", CATEGORIES,
         inner="box",
-        boxplotSize=10,
+        boxplotWidth=10,
         palette="#AAAAAA",
     )
 ```
@@ -102,9 +102,9 @@ scale resolution never squishes the violin shape.
 
 ```python
 def mark_strip(
-    df: pl.DataFrame | Any,
-    xCol: str,
-    yCol: str,
+    data: pl.DataFrame | Any,
+    x: str,
+    y: str,
     categories: list[str],
     *,
     scatter: str = 'jitter',
@@ -133,9 +133,9 @@ layers (e.g. ``ds.stats.comparisons``).
 
 **Parameters**
 
-- **`df`** (`pl.DataFrame | Any`) - Polars DataFrame containing the data.
-- **`xCol`** (`str`) - Column name for the grouping variable (x-axis).
-- **`yCol`** (`str`) - Column name for the value variable (y-axis).
+- **`data`** (`pl.DataFrame | Any`) - Polars DataFrame containing the data.
+- **`x`** (`str`) - Column name for the grouping variable (x-axis).
+- **`y`** (`str`) - Column name for the value variable (y-axis).
 - **`categories`** (`list[str]`) - Ordered list of all x-axis categories.
 - **`scatter`** (`str`) - Point distribution method: ``'jitter'`` (faster, random Gaussian offset) or ``'beeswarm'`` (collision-avoidance, better for smaller n).
 - **`markSize`** (`int | None`) - Size of individual points. Inherits ``markSize`` from theme when ``None``.
@@ -145,8 +145,8 @@ layers (e.g. ``ds.stats.comparisons``).
 - **`labelMap`** (`Mapping[Any, str | list[str]] | None`) - ``{raw_value: label}`` mapping applied to the x-axis tick labels at render time via :func:`label_expr` - the data keeps the raw values. A label may be a list of strings for a multi-line label. Unmapped values show as-is.
 - **`errorbars`** (`bool`) - Whether to show error bars around the group mean. When ``True``, the mean is shown as a tick with error bars. When ``False``, the median is shown instead.
 - **`errorbarExtent`** (`str`) - Statistic to use for error bars: ``'sem'`` (standard error of the mean, default) or ``'sd'`` (standard deviation).
-- **`yTitle`** (`str | None | _UnsetType`) - Y-axis title. Defaults to ``yCol``. Pass ``None`` to suppress.
-- **`xTitle`** (`str | None | _UnsetType`) - X-axis title. Defaults to ``xCol``. Pass ``None`` to suppress.
+- **`yTitle`** (`str | None | _UnsetType`) - Y-axis title. Defaults to ``y``. Pass ``None`` to suppress.
+- **`xTitle`** (`str | None | _UnsetType`) - X-axis title. Defaults to ``x``. Pass ``None`` to suppress.
 
 **Examples**
 
@@ -154,9 +154,9 @@ layers (e.g. ``ds.stats.comparisons``).
 ::
 
     ds.theme()
-    chart = ds.mark_strip(df, "group", "value", CATEGORIES)
+    chart = ds.mark_strip(data, "group", "value", CATEGORIES)
     ds.save(chart, "strip")
 
     # beeswarm variant
-    chart = ds.mark_strip(df, "group", "value", CATEGORIES, scatter="beeswarm")
+    chart = ds.mark_strip(data, "group", "value", CATEGORIES, scatter="beeswarm")
 ```

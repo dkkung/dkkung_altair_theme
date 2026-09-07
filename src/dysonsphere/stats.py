@@ -868,7 +868,7 @@ def _add_grouped_comparisons(
         list(xOffsetSort) if xOffsetSort is not None else df[xoffset_col].unique(maintain_order=True).to_list()
     )
     # Resolved before the reference block so `reference` + pairs="all" hits its don't-also-pass raise.
-    pairs = _resolve_pairs(pairs, level_order, f"xOffsetCol {xoffset_col!r} levels")
+    pairs = _resolve_pairs(pairs, level_order, f"xOffset {xoffset_col!r} levels")
 
     # Reference mode: compare every other level against `reference` WITHIN each category, drawing the
     # p-value above each non-reference sub-bar (no bracket). Derives its own level-pairs.
@@ -878,7 +878,7 @@ def _add_grouped_comparisons(
     is_reference = reference is not None
     if is_reference:
         if reference not in level_order:
-            raise ValueError(f"reference {reference!r} is not a level of xOffsetCol {xoffset_col!r}: {level_order}.")
+            raise ValueError(f"reference {reference!r} is not a level of xOffset {xoffset_col!r}: {level_order}.")
         if pairs is not None:
             raise ValueError("reference derives its own comparisons; don't also pass pairs.")
         pairs = [(reference, lvl) for lvl in level_order if lvl != reference]
@@ -888,7 +888,7 @@ def _add_grouped_comparisons(
             pairs = [(level_order[0], level_order[1])]
         else:
             raise ValueError(
-                f"pairs is required when xOffsetCol has more than two levels (levels: {level_order}); "
+                f"pairs is required when xOffset has more than two levels (levels: {level_order}); "
                 "pass e.g. pairs=[('Ctrl', 'Low'), ('Ctrl', 'High')]."
             )
     if len(pairs) == 0:
@@ -896,11 +896,11 @@ def _add_grouped_comparisons(
     _lvls = set(level_order)
     for l1, l2 in pairs:
         if l1 not in _lvls or l2 not in _lvls:
-            raise ValueError(f"pair ({l1!r}, {l2!r}) names a level not in xOffsetCol {xoffset_col!r} {level_order}.")
+            raise ValueError(f"pair ({l1!r}, {l2!r}) names a level not in xOffset {xoffset_col!r} {level_order}.")
 
     _valid_tests = {"mannwhitneyu", "ttest_ind", "ttest_rel", "wilcoxon"}
     if test not in _valid_tests:
-        raise ValueError(f"grouped comparisons (xOffsetCol) support {sorted(_valid_tests)}, got {test!r}.")
+        raise ValueError(f"grouped comparisons (xOffset) support {sorted(_valid_tests)}, got {test!r}.")
     if labelStyle not in ("p", "asterisks", "value"):
         raise ValueError(f"labelStyle must be 'p', 'asterisks', or 'value', got {labelStyle!r}.")
     if not isinstance(bracketStyle, str) or bracketStyle not in ("bracket", "line", "drop"):
@@ -1291,9 +1291,9 @@ def _add_grouped_comparisons(
 
 
 def comparisons(
-    df: pl.DataFrame | Any,
-    xCol: str,
-    yCol: str,
+    data: pl.DataFrame | Any,
+    x: str,
+    y: str,
     pairs: list[tuple[str, str]] | str | None = None,
     *,
     test: str = "mannwhitneyu",
@@ -1302,7 +1302,7 @@ def comparisons(
     correction: str | None = None,
     nComparisons: int | None = None,
     reference: Any = None,
-    xOffsetCol: str | None = None,
+    xOffset: str | None = None,
     xOffsetSort: list[str] | None = None,
     yPositions: float | list[float] | dict[Any, Any] | None = None,
     yStart: float | dict[Any, Any] | None = None,
@@ -1326,7 +1326,7 @@ def comparisons(
     testLabelX=None,
     testLabelY=None,
     report: bool = False,
-    save: bool | str = False,
+    saveReport: bool | str = False,
 ) -> alt.LayerChart:
     """
     Build p-value annotation layers for one or more group comparisons.
@@ -1348,7 +1348,7 @@ def comparisons(
     bracket (see ``reference``).
 
     A descriptive + effect-size report is generated on every call and queued for
-    the export metadata written by ``ds.save()`` (see ``report``/``save``).
+    the export metadata written by ``ds.save()`` (see ``report``/``saveReport``).
 
     **Placement.** By default each annotation anchors at the data maximum of the pair it
     compares and is lifted a fixed number of pixels, so it stays with its own groups rather
@@ -1379,11 +1379,11 @@ def comparisons(
 
     Parameters
     ----------
-    df:
+    data:
         Polars DataFrame containing the data.
-    xCol:
+    x:
         Column name for the grouping variable (x-axis).
-    yCol:
+    y:
         Column name for the value variable (y-axis). Used to run tests and
         to auto-place the first bracket.
     pairs:
@@ -1393,7 +1393,7 @@ def comparisons(
         list to also draw post-hoc brackets.
 
         ``"all"`` expands to every unique pair, in ``categories`` order (in
-        grouped mode, every unique pair of ``xOffsetCol`` levels). Besides being
+        grouped mode, every unique pair of ``xOffset`` levels). Besides being
         shorter, it keeps ``correction`` honest: the family size defaults to
         ``len(pairs)``, so hand-listing a subset of the comparisons you actually
         ran under-corrects them. Note the bracket count grows as
@@ -1444,15 +1444,15 @@ def comparisons(
         over the whole family of ``len(categories) - 1`` comparisons. Labels sit at
         each group's OWN data max, so overlay your points (they clear the data).
         Distinguishing the reference visually (e.g. a darker fill) is left to your
-        chart - nothing is injected. Without ``xOffsetCol``, ``reference`` is a
-        category of ``xCol``; with ``xOffsetCol`` (grouped mode) it is an xOffset
+        chart - nothing is injected. Without ``xOffset``, ``reference`` is a
+        category of ``x``; with ``xOffset`` (grouped mode) it is an xOffset
         **level**, compared within each x-category (one label per non-reference
         sub-bar). ``bracketStyle``/``reverse``/``tickHeight`` are inert here (no
         bracket); ``yStart`` does not apply (no stack) and raises if set. ``pvalues``
         (a group-keyed dict) supplies precomputed p-values, and ``yPositions`` places
         labels - a single number for a flat row, or a group-keyed dict per label (see
         those params).
-    xOffsetCol:
+    xOffset:
         **Grouped mode.** Column encoded as the chart's ``xOffset`` (the subgroup
         that splits each x-category into side-by-side bars, e.g. ``"condition"``
         in a qPCR gene × condition panel). When set, ``pairs`` names subgroup
@@ -1481,7 +1481,7 @@ def comparisons(
     yStart:
         The exact y (data units) of the lowest bracket - the stack base (levels rise from it
         by ``yStep``). **Setting it opts the whole stack into data-unit placement** (see the
-        note below). **Grouped (`xOffsetCol`) brackets** additionally accept a **dict** keyed by
+        note below). **Grouped (`xOffset`) brackets** additionally accept a **dict** keyed by
         category for a per-category base (partial - unlisted categories use the auto base).
         **Does not apply to reference mode** (there is no stack - each label sits above its own
         mark); passing it there raises. Use ``yPositions`` for exact per-label heights.
@@ -1492,7 +1492,7 @@ def comparisons(
         Padding (data units) above the data maximum, when placement is in data units. Setting
         it opts out of the automatic pixel placement described above.
     categories:
-        Ordered list of all x-axis categories. Inferred from ``df`` (sorted
+        Ordered list of all x-axis categories. Inferred from ``data`` (sorted
         alphabetically) when not provided.
     chartWidth:
         Width of the chart in pixels, used to compute text x positions.
@@ -1526,8 +1526,8 @@ def comparisons(
     reverse:
         List of ``(group1, group2)`` tuples identifying brackets to flip —
         text moves below the bar and ticks point upward, and the bracket hangs
-        below its groups rather than above them. In grouped mode (``xOffsetCol``)
-        the tuples name ``xOffsetCol`` levels, like ``pairs``, and apply in every
+        below its groups rather than above them. In grouped mode (``xOffset``)
+        the tuples name ``xOffset`` levels, like ``pairs``, and apply in every
         category.
     sigFigs:
         Significant figures for p-value labels (and the correlation readout). Gives
@@ -1576,7 +1576,7 @@ def comparisons(
         pairwise ``test`` it lists exactly the requested ``pairs``. The report is
         queued for the export metadata regardless of this flag (when
         ``ds.save(..., saveMetadata=True)``); it lands in the next ``ds.save()``.
-    save:
+    saveReport:
         ``True`` writes the report to ``dysonsphere_report_<timestamp>.txt`` in
         the current directory; a string writes it to that directory. Default
         ``False``.
@@ -1586,9 +1586,9 @@ def comparisons(
     Single comparison::
 
         CATEGORIES = ["A", "B", "C"]
-        chart = ds.mark_strip(df, "group", "value", CATEGORIES)
+        chart = ds.mark_strip(data, "group", "value", CATEGORIES)
         chart + ds.stats.comparisons(
-            df, "group", "value",
+            data, "group", "value",
             pairs=[("A", "B")],
             categories=CATEGORIES,
         )
@@ -1596,7 +1596,7 @@ def comparisons(
     Multiple comparisons — brackets stacked automatically::
 
         chart + ds.stats.comparisons(
-            df, "group", "value",
+            data, "group", "value",
             pairs=[("A", "B"), ("A", "C"), ("B", "C")],
             test="mannwhitneyu",
             categories=CATEGORIES,
@@ -1605,7 +1605,7 @@ def comparisons(
     Every pair, corrected over the whole family::
 
         chart + ds.stats.comparisons(
-            df, "group", "value",
+            data, "group", "value",
             pairs="all",
             correction="holm",
             categories=CATEGORIES,
@@ -1614,7 +1614,7 @@ def comparisons(
     Omnibus ANOVA in the corner + Tukey post-hoc brackets::
 
         chart + ds.stats.comparisons(
-            df, "group", "value",
+            data, "group", "value",
             pairs=[("A", "B"), ("A", "C")],
             test="anova",
             omnibusVerbose=True,
@@ -1624,7 +1624,7 @@ def comparisons(
     Omnibus-only (no brackets), report printed::
 
         chart + ds.stats.comparisons(
-            df, "group", "value",
+            data, "group", "value",
             test="kruskal",
             categories=CATEGORIES,
             report=True,
@@ -1633,7 +1633,7 @@ def comparisons(
     From pre-computed p-values::
 
         chart + ds.stats.comparisons(
-            df, "group", "value",
+            data, "group", "value",
             pairs=[("A", "B"), ("A", "C")],
             pvalues=[0.012, 0.341],
             categories=CATEGORIES,
@@ -1643,14 +1643,14 @@ def comparisons(
     bar chart (``xOffset="condition"``); one bracket per gene, a real per-gene test::
 
         GENES = ["GAPDH", "IL6", "TNF"]
-        bars = alt.Chart(df).mark_bar().encode(
+        bars = alt.Chart(data).mark_bar().encode(
             x=alt.X("gene:N", sort=GENES),
             xOffset=alt.XOffset("condition:N", sort=["Vehicle", "LPS"]),
             y="mean(expr):Q", color="condition:N",
         )
         bars + ds.stats.comparisons(
-            df, "gene", "expr",
-            xOffsetCol="condition",
+            data, "gene", "expr",
+            xOffset="condition",
             categories=GENES, xOffsetSort=["Vehicle", "LPS"],
             test="ttest_ind", labelStyle="asterisks",
         )
@@ -1659,13 +1659,14 @@ def comparisons(
     (no bracket); overlay your points so the marks clear the data::
 
         CATS = ["Ctrl", "Low", "Mid", "High"]
-        chart = ds.mark_strip(df, "group", "value", CATS)
+        chart = ds.mark_strip(data, "group", "value", CATS)
         chart + ds.stats.comparisons(
-            df, "group", "value",
+            data, "group", "value",
             reference="Ctrl", categories=CATS,
             test="ttest_ind", correction="holm", labelStyle="asterisks",
         )
     """
+    yCol = y
     from ._statistics import (
         _OMNIBUS_TESTS,
         _PARAMETRIC_POSTHOC,
@@ -1677,17 +1678,17 @@ def comparisons(
     )
     from .utils import _frame_checksum, ensure_polars
 
-    df = ensure_polars(df)
+    data = ensure_polars(data)
 
     # Grouped mode: compare xOffset subgroups WITHIN each x-category (a two-factor design, e.g. a
     # qPCR gene x condition panel). A fully separate path so the single-factor logic below is
     # untouched; see the grouped-comparisons design point.
-    if xOffsetCol is not None:
+    if xOffset is not None:
         return _add_grouped_comparisons(
-            df,
-            xCol,
+            data,
+            x,
             yCol,
-            xOffsetCol,
+            xOffset,
             pairs,
             reference=reference,
             reverse=reverse,
@@ -1710,43 +1711,41 @@ def comparisons(
             categories=categories,
             chartWidth=chartWidth,
             report=report,
-            save=save,
+            save=saveReport,
         )
 
-    # Dict pvalues/yPositions/yStart are the grouped (xOffsetCol) form; single-factor takes scalars/lists.
+    # Dict pvalues/yPositions/yStart are the grouped (xOffset) form; single-factor takes scalars/lists.
     # Reference mode is exempt: it uses a group-keyed dict (pvalues/yPositions) or a scalar (flat row),
     # validated in the reference block below - so only guard these OUTSIDE reference mode.
     if reference is None:
         if isinstance(pvalues, dict):
-            raise ValueError(
-                "a dict pvalues is for grouped mode (xOffsetCol) or reference mode; pairwise takes a list."
-            )
+            raise ValueError("a dict pvalues is for grouped mode (xOffset) or reference mode; pairwise takes a list.")
         if isinstance(yPositions, dict):
             raise ValueError(
-                "a dict yPositions is for grouped mode (xOffsetCol) or reference mode; pairwise takes a list."
+                "a dict yPositions is for grouped mode (xOffset) or reference mode; pairwise takes a list."
             )
     if isinstance(yStart, dict) and reference is None:
-        raise ValueError("a dict yStart is for grouped mode (xOffsetCol); single-factor takes a number.")
+        raise ValueError("a dict yStart is for grouped mode (xOffset); single-factor takes a number.")
 
     # Guard the categories footgun: brackets are positioned by the order/count of `categories`, so an
     # explicit list that doesn't cover the data's x-values (a typo or omission) mis-sizes the band
     # geometry and silently shifts every bracket. Raise instead (mirrors the grouped path). The
     # order-vs-chart mismatch stays undetectable without the chart (documented).
     _check_coverage(
-        df,
-        xCol,
+        data,
+        x,
         categories,
         "categories",
         "values",
         "It must list every x-category, in the same order as your chart's x sort.",
     )
     if categories is None:
-        categories = sorted(df[xCol].unique().to_list())
+        categories = sorted(data[x].unique().to_list())
     # Resolved before the reference block so `reference` + pairs="all" hits its don't-also-pass raise.
-    pairs = _resolve_pairs(pairs, categories, f"{xCol!r} categories")
+    pairs = _resolve_pairs(pairs, categories, f"{x!r} categories")
 
     is_omnibus = test in _OMNIBUS_TESTS
-    groups = [df.filter(pl.col(xCol) == cat)[yCol].to_numpy() for cat in categories]
+    groups = [data.filter(pl.col(x) == cat)[yCol].to_numpy() for cat in categories]
 
     # Remember which spacing args the caller passed: any one of them opts out of the pixel
     # placement below, since an explicit number is data units on the user's own scale.
@@ -1769,7 +1768,7 @@ def comparisons(
                 "Use yPositions for explicit label heights (a single number sets a flat row)."
             )
         if reference not in categories:
-            raise ValueError(f"reference {reference!r} is not a category of {xCol!r}: {categories}.")
+            raise ValueError(f"reference {reference!r} is not a category of {x!r}: {categories}.")
         pairs = [(reference, c) for c in categories if c != reference]
         non_ref = [c for c in categories if c != reference]
         # Explicit p-values: a dict keyed by the non-reference GROUP (the single-factor analogue of
@@ -1870,7 +1869,7 @@ def comparisons(
     if is_reference and pairs:
         # A bare p-value above each non-reference mark, at that group's OWN data max (per-group,
         # so groups of different magnitude each get a label sitting just above their data).
-        y_all = df[yCol].cast(pl.Float64)
+        y_all = data[yCol].cast(pl.Float64)
         y_range = cast(float, y_all.max() or 0.0) - cast(float, y_all.min() or 0.0)
         ref_pad, _, _ = _resolve_y_spacing(False, y_range, _opt("chartHeight"), yPad, None, None)
         cw = chartWidth if chartWidth is not None else _opt("chartWidth")
@@ -1884,18 +1883,18 @@ def comparisons(
             ref_offset_px = 0.0
             pval = pval_lookup[frozenset((reference, g))]
             if ypos_flat is not None:
-                y = ypos_flat
+                label_y = ypos_flat
             elif isinstance(yPositions, dict) and g in yPositions:
-                y = float(yPositions[g])
+                label_y = float(yPositions[g])
             else:
-                g_max = cast(float, df.filter(pl.col(xCol) == g)[yCol].cast(pl.Float64).max() or 0.0)
+                g_max = cast(float, data.filter(pl.col(x) == g)[yCol].cast(pl.Float64).max() or 0.0)
                 # Auto: anchor at the group's own maximum and lift in pixels, so the gap is the
                 # same on every chart. An explicit yPad keeps its data-unit meaning.
-                y, ref_offset_px = (g_max, 6.0) if _y_pad_arg is None else (g_max + ref_pad, 0.0)
+                label_y, ref_offset_px = (g_max, 6.0) if _y_pad_arg is None else (g_max + ref_pad, 0.0)
             label = _format_label(pval, labelStyle, effective_sigfigs, pair_notations[i])
             annotation_layers.append(
                 _reference_label_layer(
-                    g, y, label, categories=categories, chartWidth=cw, fontSize=fs, offset_px=ref_offset_px
+                    g, label_y, label, categories=categories, chartWidth=cw, fontSize=fs, offset_px=ref_offset_px
                 )
             )
 
@@ -1924,7 +1923,7 @@ def comparisons(
         # group (e.g. a saturating positive control) blows up the domain; the full extent
         # tracks the domain, so the gap stays stable. (yStart still sits above the compared
         # groups - see below.)
-        y_all = df[yCol].cast(pl.Float64)
+        y_all = data[yCol].cast(pl.Float64)
         y_range = cast(float, y_all.max() or 0.0) - cast(float, y_all.min() or 0.0)
         # End legs are a PIXEL length by definition ("matching the axis ticks"), so an auto
         # tickHeight rides in y2Offset whatever the placement mode. Converting it to data units
@@ -1964,7 +1963,7 @@ def comparisons(
         def _solve_drop(bars_px: list[float], to_px_fn: Any) -> list[tuple[float, float]]:
             """Per-end drop lengths for bars already resolved to pixels."""
             any_rev = any(rev_flags)
-            cols = [df.filter(pl.col(xCol) == c)[yCol].cast(pl.Float64) for c in categories]
+            cols = [data.filter(pl.col(x) == c)[yCol].cast(pl.Float64) for c in categories]
             hi_px = [to_px_fn(cast(float, s.max() or 0.0)) for s in cols]
             lo_px = [to_px_fn(cast(float, s.min() or 0.0)) for s in cols] if any_rev else hi_px
             centers = list(band_geometry(len(categories), chartWidth).centers)
@@ -1988,7 +1987,7 @@ def comparisons(
             pair_levels = _stack_levels([(categories.index(g1), categories.index(g2)) for g1, g2 in pairs])
             anchor = cast(
                 float,
-                df.filter(pl.col(xCol).is_in(annotated_groups_for_pad))[yCol].cast(pl.Float64).max() or 0.0,
+                data.filter(pl.col(x).is_in(annotated_groups_for_pad))[yCol].cast(pl.Float64).max() or 0.0,
             )
             if pixel_mode:
                 # Each bracket anchors above ITS OWN pair's data and lifts a CONSTANT number of
@@ -2011,17 +2010,17 @@ def comparisons(
                     cast(
                         float,
                         (
-                            df.filter(pl.col(xCol).is_in(categories[lo : hi + 1]))[yCol].cast(pl.Float64).min()
+                            data.filter(pl.col(x).is_in(categories[lo : hi + 1]))[yCol].cast(pl.Float64).min()
                             if rev
-                            else df.filter(pl.col(xCol).is_in(categories[lo : hi + 1]))[yCol].cast(pl.Float64).max()
+                            else data.filter(pl.col(x).is_in(categories[lo : hi + 1]))[yCol].cast(pl.Float64).max()
                         )
                         or 0.0,
                     )
                     for (lo, hi), rev in zip(idx_span, rev_flags)
                 ]
                 _ylo, _yhi = _nice_domain(
-                    min(0.0, cast(float, df[yCol].cast(pl.Float64).min() or 0.0)),
-                    cast(float, df[yCol].cast(pl.Float64).max() or 0.0),
+                    min(0.0, cast(float, data[yCol].cast(pl.Float64).min() or 0.0)),
+                    cast(float, data[yCol].cast(pl.Float64).max() or 0.0),
                 )
                 _ch = float(_opt("chartHeight"))
 
@@ -2165,9 +2164,9 @@ def comparisons(
         comparison_test=method,
         correction=effective_correction,
         pvalues_provided=pvalues is not None,
-        data_checksum=_frame_checksum(df),
+        data_checksum=_frame_checksum(data),
     )
-    marker = _emit_report(record, report, save)
+    marker = _emit_report(record, report, saveReport)
 
     if not annotation_layers:
         # no label and no brackets → report-only; return an invisible layer.
@@ -2396,12 +2395,12 @@ def _add_grouped_correlation(
 
 
 def correlation(
-    df: pl.DataFrame | Any,
-    xCol: str,
-    yCol: str,
+    data: pl.DataFrame | Any,
+    x: str,
+    y: str,
     *,
     method: str = "pearson",
-    groupCol: str | None = None,
+    groupBy: str | None = None,
     line: bool = True,
     position: str | None = "topLeft",
     label: str | None = None,
@@ -2424,7 +2423,7 @@ def correlation(
     ciColor: str | None = None,
     ciOpacity: float = 0.15,
     report: bool = False,
-    save: bool | str = False,
+    saveReport: bool | str = False,
 ) -> alt.LayerChart:
     """
     Annotate a scatter with a correlation coefficient (and an OLS fit line for Pearson).
@@ -2438,19 +2437,19 @@ def correlation(
 
     Parameters
     ----------
-    df:
+    data:
         DataFrame containing the data (polars or pandas).
-    xCol, yCol:
+    x, y:
         Column names for the two **continuous** variables.
     method:
         ``'pearson'`` (default) — linear correlation ``r`` + ``r²`` + slope/intercept,
         with an OLS line. ``'spearman'`` — rank correlation ``ρ``. ``'kendall'`` —
         rank correlation ``τ``. The rank methods report the coefficient only (no ``r²``,
         no line — a straight line isn't their model). Matches pandas' ``DataFrame.corr``.
-    groupCol:
+    groupBy:
         **Grouped mode.** A column to split the scatter into series (e.g. ``"cell_line"``).
         When set, a fit + coefficient is computed **per group**, each fit line / CI band /
-        readout coloured by ``groupCol`` on the *same* colour channel your scatter uses -
+        readout coloured by ``groupBy`` on the *same* colour channel your scatter uses -
         so colour by the same field (``color=alt.Color("cell_line:N")``) and they match
         (colour is a lookup, so no sort param is needed, unlike ``comparisons``).
         Readouts stack in the ``position`` corner, each a colour swatch (matching the series)
@@ -2518,7 +2517,7 @@ def correlation(
     report:
         ``True`` prints the report (coefficient, r², p, fit, n) to stdout. Default
         ``False``. The record is queued for export metadata regardless.
-    save:
+    saveReport:
         ``True`` writes the report to ``dysonsphere_report_<timestamp>.txt`` in the cwd;
         a string writes it to that directory.
 
@@ -2526,14 +2525,15 @@ def correlation(
     --------
     ::
 
-        scatter = alt.Chart(df).mark_point().encode(x="height:Q", y="weight:Q")
-        scatter + ds.stats.correlation(df, "height", "weight")                 # r + r² + OLS line
-        scatter + ds.stats.correlation(df, "height", "weight", method="spearman")  # ρ, no line
+        scatter = alt.Chart(data).mark_point().encode(x="height:Q", y="weight:Q")
+        scatter + ds.stats.correlation(data, "height", "weight")                 # r + r² + OLS line
+        scatter + ds.stats.correlation(data, "height", "weight", method="spearman")  # ρ, no line
         scatter + ds.stats.correlation(
-            df, "height", "weight",
+            data, "height", "weight",
             color="#c0392b", lineStyle={"strokeDash": [4, 2]},
         )
     """
+    xCol, yCol = x, y
     from ._statistics import _make_correlation_record, _ols_band, _run_correlation
     from .utils import _frame_checksum, ensure_polars
 
@@ -2542,17 +2542,17 @@ def correlation(
     if coefficient not in ("r", "r2", "both"):
         raise ValueError(f"coefficient must be 'r', 'r2', or 'both', got {coefficient!r}")
 
-    df = ensure_polars(df)
+    data = ensure_polars(data)
 
-    # Grouped mode: a fit + coefficient PER group of `groupCol` (e.g. one line per cell line), each
+    # Grouped mode: a fit + coefficient PER group of `groupBy` (e.g. one line per cell line), each
     # coloured to match the scatter's colour scale. A separate path so the single-series body below
     # is untouched; see the grouped-correlation design point.
-    if groupCol is not None:
+    if groupBy is not None:
         return _add_grouped_correlation(
-            df,
+            data,
             xCol,
             yCol,
-            groupCol,
+            groupBy,
             method=method,
             line=line,
             position=position,
@@ -2573,12 +2573,12 @@ def correlation(
             interval=interval,
             ciOpacity=ciOpacity,
             report=report,
-            save=save,
+            save=saveReport,
         )
 
-    x = df[xCol].cast(pl.Float64).to_numpy()
-    y = df[yCol].cast(pl.Float64).to_numpy()
-    result = _run_correlation(method, x, y)
+    x_values = data[xCol].cast(pl.Float64).to_numpy()
+    y_values = data[yCol].cast(pl.Float64).to_numpy()
+    result = _run_correlation(method, x_values, y_values)
 
     layers: list[Any] = []
 
@@ -2593,8 +2593,8 @@ def correlation(
             raise ValueError(f"ci must be True or a confidence level in (0, 1), got {ci!r}")
         if interval not in ("confidence", "prediction"):
             raise ValueError(f"interval must be 'confidence' or 'prediction', got {interval!r}")
-        xs = np.linspace(float(x.min()), float(x.max()), 64)
-        lo, hi = _ols_band(x, y, xs, level=level, kind=interval)
+        xs = np.linspace(float(x_values.min()), float(x_values.max()), 64)
+        lo, hi = _ols_band(x_values, y_values, xs, level=level, kind=interval)
         # Lower bound rides on the yCol-named field so its derived axis title dedupes with the
         # base chart (same trick as the fit line); the upper bound goes in y2 (carries no title).
         band_df = pl.DataFrame({xCol: xs, yCol: lo, "__ci_hi": hi})
@@ -2614,7 +2614,7 @@ def correlation(
 
     # OLS fit line — Pearson only (result["slope"] is None for rank kinds).
     if line and result["slope"] is not None:
-        x0, x1 = float(x.min()), float(x.max())
+        x0, x1 = float(x_values.min()), float(x_values.max())
         slope, intercept = result["slope"], result["intercept"]
         # The sidecar's fields carry the REAL column names: Vega-Lite merges a shared axis's
         # title by joining the layers' DISTINCT titles, so private names ("_x") concatenated
@@ -2668,8 +2668,8 @@ def correlation(
         )
 
     # Structured record → export metadata; printed/written on request.
-    record = _make_correlation_record(result, xCol, yCol, data_checksum=_frame_checksum(df))
-    marker = _emit_report(record, report, save)
+    record = _make_correlation_record(result, xCol, yCol, data_checksum=_frame_checksum(data))
+    marker = _emit_report(record, report, saveReport)
 
     if not layers:
         layers.append(_empty_layer())

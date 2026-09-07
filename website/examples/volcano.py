@@ -22,4 +22,4 @@ df = pl.DataFrame({"gene": [f"G{i}" for i in range(n)], "log2fc": log2fc, "pvalu
 ds.theme(chartWidth=150, chartHeight=110)
 
 # label=8 auto-selects the 8 most significant genes (ranked by |log2fc| x -log10 p).
-chart = ds.biology.volcano(df, geneCol="gene", label=8, legend=False)
+chart = ds.biology.volcano(df, labels="gene", subset=8, legend=False)

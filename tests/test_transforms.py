@@ -84,38 +84,38 @@ class TestJitter:
 
 class TestBeeswarm:
     def test_adds_offset_column(self, group_df):
-        result = beeswarm(group_df, yCol="value", groupBy=["group"])
+        result = beeswarm(group_df, column="value", groupBy=["group"])
         assert "beeswarm_x" in result.columns
 
     def test_output_length_unchanged(self, group_df):
-        result = beeswarm(group_df, yCol="value", groupBy=["group"])
+        result = beeswarm(group_df, column="value", groupBy=["group"])
         assert len(result) == len(group_df)
 
     def test_custom_column_name(self, group_df):
-        result = beeswarm(group_df, yCol="value", groupBy=["group"], outCol="my_swarm")
+        result = beeswarm(group_df, column="value", groupBy=["group"], outCol="my_swarm")
         assert "my_swarm" in result.columns
 
 
 class TestQuasirandom:
     def test_adds_offset_column(self, group_df):
-        result = quasirandom(group_df, yCol="value", groupBy=["group"])
+        result = quasirandom(group_df, column="value", groupBy=["group"])
         assert "quasirandom_x" in result.columns
 
     def test_output_length_unchanged(self, group_df):
-        result = quasirandom(group_df, yCol="value", groupBy=["group"])
+        result = quasirandom(group_df, column="value", groupBy=["group"])
         assert len(result) == len(group_df)
 
     def test_custom_column_name(self, group_df):
-        result = quasirandom(group_df, yCol="value", groupBy=["group"], outCol="my_q")
+        result = quasirandom(group_df, column="value", groupBy=["group"], outCol="my_q")
         assert "my_q" in result.columns
 
     def test_rows_map_back_in_order(self, group_df):
         # the offset must line up with its own row after the group_by/sort round-trip
-        result = quasirandom(group_df, yCol="value", groupBy=["group"])
+        result = quasirandom(group_df, column="value", groupBy=["group"])
         assert result["value"].to_list() == group_df["value"].to_list()
 
     def test_width_and_bandwidth_accepted(self, group_df):
-        result = quasirandom(group_df, yCol="value", groupBy=["group"], width=20.0, bandwidth=0.5)
+        result = quasirandom(group_df, column="value", groupBy=["group"], width=20.0, bandwidth=0.5)
         assert "quasirandom_x" in result.columns and len(result) == len(group_df)
 
 

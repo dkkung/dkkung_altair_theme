@@ -125,9 +125,9 @@ def _multilabel_layer(
     if style not in ("plusminus", "text", "symbol"):
         raise ValueError(f"style must be 'plusminus', 'text', or 'symbol', got {style!r}")
     if labelAlign not in ("left", "right"):
-        raise ValueError(f"labelAlign must be 'left' or 'right', got {labelAlign!r}")
+        raise ValueError(f"labelPosition must be 'left' or 'right', got {labelAlign!r}")
     if orientation not in ("vertical", "horizontal"):
-        raise ValueError(f"orientation must be 'vertical' or 'horizontal', got {orientation!r}")
+        raise ValueError(f"lineOrientation must be 'vertical' or 'horizontal', got {orientation!r}")
     if spanBracketStyle not in ("line", "bracket"):
         raise ValueError(f"spanBracketStyle must be 'line' or 'bracket', got {spanBracketStyle!r}")
     if spanLabelPosition not in ("top", "bottom"):
@@ -637,21 +637,21 @@ def add_multilabel(
     *,
     spacing: int = 0,
     showSampleSize: bool = False,
-    df=None,
-    xCol: str | None = None,
+    data=None,
+    x: str | None = None,
     sampleSizeIndex: int = 0,
     sampleSizeLabel: str = "n =",
     order: list[str] | None = None,
     style: str = "plusminus",
     rowStyles: dict[str, str] | list[str] | None = None,
-    labelAlign: str = "left",
+    labelPosition: str = "left",
     labelPadding: int = 0,
     symbol: str = "circle",
     symbolSize: int | None = None,
     palette: list[str] | None = None,
     strokeWidth: float | None = None,
     connectingLine: bool = True,
-    orientation: str = "vertical",
+    lineOrientation: str = "vertical",
     yPadding: float | None = None,
     chartWidth: int | None = None,
     fontSize: int | None = None,
@@ -702,13 +702,13 @@ def add_multilabel(
         Defaults to ``0`` so the annotation sits flush below the axis line.
     showSampleSize:
         When ``True``, injects a per-category sample size row computed from
-        ``df``. Requires ``df`` and ``xCol``. The row always renders as
+        ``data``. Requires ``data`` and ``x``. The row always renders as
         ``"text"`` regardless of the global ``style`` setting.
-    df:
+    data:
         Source DataFrame (Polars or Pandas) for counting samples per category.
         Only used when ``showSampleSize=True``.
-    xCol:
-        Column name in ``df`` used for x-axis grouping.
+    x:
+        Column name in ``data`` used for x-axis grouping.
         Only used when ``showSampleSize=True``.
     sampleSizeIndex:
         Insertion index among the ``groups`` rows, using ``list.insert()``
@@ -727,7 +727,7 @@ def add_multilabel(
         Global default style for all rows. ``"plusminus"`` renders ``True`` as ``+``
         and ``False`` as ``−``. ``"symbol"`` renders ``True`` as a filled mark and
         ``False`` as an unfilled mark, with a connecting rule between consecutive
-        ``True`` values (direction set by ``orientation``). The mark shape is
+        ``True`` values (direction set by ``lineOrientation``). The mark shape is
         controlled by ``symbol``. ``"text"`` renders raw group values as
         center-aligned strings and is forced automatically per row when any value in
         that row is non-bool. Override per row with ``rowStyles``.
@@ -738,7 +738,7 @@ def add_multilabel(
         same values as ``style``. Non-bool rows always render as ``"text"``
         regardless of this setting. Connecting rules only span between ``"symbol"``
         rows; rows of other styles between symbol rows are skipped in run detection.
-    labelAlign:
+    labelPosition:
         ``"left"`` (default) places row labels to the left of the grid with
         right-aligned text. ``"right"`` places them to the right with left-aligned text.
     labelPadding:
@@ -761,8 +761,8 @@ def add_multilabel(
     connectingLine:
         When ``True`` (default), draws a rule spanning each consecutive run of
         ``True`` values (``"symbol"`` style only). Set to ``False`` to show
-        symbols only. Direction is controlled by ``orientation``.
-    orientation:
+        symbols only. Direction is controlled by ``lineOrientation``.
+    lineOrientation:
         Direction of the connecting rule. ``"vertical"`` (default) draws a rule
         down each column spanning consecutive ``True`` rows. ``"horizontal"``
         draws a rule across each row spanning consecutive ``True`` columns.
@@ -790,7 +790,7 @@ def add_multilabel(
         top-to-bottom. Values rotate about their own center, so they stay centered on
         the category, and rotated rows grow to fit their tallest rotated cell unless
         ``rowHeight`` pins them. Row labels are never rotated. Rotating the default
-        ``"circle"`` symbol has no visible effect; use a shape with orientation, such
+        ``"circle"`` symbol has no visible effect; use a shape with lineOrientation, such
         as ``symbol="triangle-up"``.
 
         A single row's angle may itself be a ``list`` — one angle per x-axis category —
@@ -848,7 +848,7 @@ def add_multilabel(
     --------
     ::
 
-        chart = ds.mark_strip(df, "group", "value", CATEGORIES)
+        chart = ds.mark_strip(data, "group", "value", CATEGORIES)
 
         # Full multilabel with sample sizes and category labels
         composed = ds.add_multilabel(
@@ -857,15 +857,16 @@ def add_multilabel(
             categories=CATEGORIES,
             style="symbol",
             showSampleSize=True,
-            df=df,
-            xCol="group",
+            data=data,
+            x="group",
             categoryLabel=True,
         )
         ds.save(composed, "my_plot")
 
         # Sample sizes only — no groups needed
-        ds.add_multilabel(chart, categories=CATEGORIES, showSampleSize=True, df=df, xCol="group")
+        ds.add_multilabel(chart, categories=CATEGORIES, showSampleSize=True, data=data, x="group")
     """
+    xCol = x
     import copy
 
     if groups is None:
@@ -874,8 +875,8 @@ def add_multilabel(
         categories = []
 
     if showSampleSize:
-        if df is None or xCol is None:
-            raise ValueError("showSampleSize=True requires both 'df' and 'xCol'.")
+        if data is None or xCol is None:
+            raise ValueError("showSampleSize=True requires both 'data' and 'x'.")
         # The injected row shares the groups dict, so a same-named row of the caller's would
         # be silently replaced - by the counts, or by their own values, depending on `order`.
         if sampleSizeLabel in groups:
@@ -884,7 +885,7 @@ def add_multilabel(
                 f"showSampleSize=True adds. Rename that row, or pass sampleSizeLabel= to use "
                 f"a different label for the sample size row."
             )
-        counts = count_n(df, xCol, categories)
+        counts = count_n(data, xCol, categories)
         # Pin each list to its row labels before the n-row joins groups, or the entries
         # shift by one. The basis is the DISPLAY order, matching how _multilabel_layer
         # zips a list, and the length is checked here because that check sees a dict.
@@ -946,14 +947,14 @@ def add_multilabel(
         order=order,
         style=style,
         rowStyles=rowStyles,
-        labelAlign=labelAlign,
+        labelAlign=labelPosition,
         labelPadding=labelPadding,
         symbol=symbol,
         symbolSize=symbolSize,
         palette=palette,
         strokeWidth=strokeWidth,
         connectingLine=connectingLine,
-        orientation=orientation,
+        orientation=lineOrientation,
         yPadding=yPadding,
         chartWidth=chartWidth,
         fontSize=fontSize,

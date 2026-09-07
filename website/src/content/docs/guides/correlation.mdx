@@ -7,7 +7,7 @@ import Example from '../../../components/Example.astro';
 
 [`ds.stats.correlation()`](/reference/stats/#correlation) adds a coefficient, optional p-value, and (for Pearson) an OLS fit line to a
 scatter, as a layer you compose with `+`. Like `ds.stats.comparisons()`, it builds a structured report
-that `save()` embeds in the export metadata (`report=True` prints it, `save=True` writes a file).
+that `save()` embeds in the export metadata (`report=True` prints it, `saveReport=True` writes a file).
 The default readout is a bare `r = …`; rank methods report the coefficient only.
 
 <Example name="correlation" alt="Horsepower versus miles per gallon with an OLS fit line" />
@@ -33,7 +33,7 @@ p-value - no fit line, since a straight line is not their model:
 
 ## Per-series correlation
 
-Pass `groupCol` to fit and report a correlation **per group** - one fit line, CI band, and coefficient
+Pass `groupBy` to fit and report a correlation **per group** - one fit line, CI band, and coefficient
 per level, each coloured to match its points (colour your scatter by the same field). Colour is a
 lookup rather than a position, so no sort parameter is needed. The readouts stack in the corner, one
 per series:

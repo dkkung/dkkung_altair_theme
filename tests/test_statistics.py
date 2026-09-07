@@ -1159,7 +1159,7 @@ class TestAddComparisonsOmnibus:
         assert "Group descriptives:" in capsys.readouterr().out
 
     def test_save_writes_file(self, multi_df, tmp_path):
-        comparisons(multi_df, "group", "value", test="anova", categories=MULTI, save=str(tmp_path))
+        comparisons(multi_df, "group", "value", test="anova", categories=MULTI, saveReport=str(tmp_path))
         files = list(tmp_path.glob("dysonsphere_report_*.txt"))
         assert len(files) == 1 and "ANOVA" in files[0].read_text()
 
@@ -1379,7 +1379,7 @@ class TestAddCorrelation:
         assert band["mark"]["fill"] == "black"
         assert band["mark"]["fillOpacity"] == pytest.approx(0.15)
         assert band["mark"]["stroke"] is None
-        # Lower bound rides on the yCol field (title dedupe); upper bound in y2.
+        # Lower bound rides on the y field (title dedupe); upper bound in y2.
         assert band["encoding"]["y"]["field"] == "y"
         assert band["encoding"]["y2"]["field"] == "__ci_hi"
 
@@ -1424,7 +1424,7 @@ class TestAddCorrelation:
 
 
 class TestGroupedComparisons:
-    """comparisons(xOffsetCol=...) - compare xOffset subgroups within each x-category."""
+    """comparisons(xOffset=...) - compare xOffset subgroups within each x-category."""
 
     @pytest.fixture
     def qpcr_df(self):
@@ -1440,7 +1440,7 @@ class TestGroupedComparisons:
 
     def test_returns_layerchart_two_levels_default_pairs(self, qpcr_df):
         # exactly two levels -> pairs defaults to comparing them
-        r = comparisons(qpcr_df, "gene", "expr", xOffsetCol="cond", categories=["G1", "G2"], xOffsetSort=["Veh", "Trt"])
+        r = comparisons(qpcr_df, "gene", "expr", xOffset="cond", categories=["G1", "G2"], xOffsetSort=["Veh", "Trt"])
         assert isinstance(r, alt.LayerChart)
 
     def test_real_per_category_pvalues(self, qpcr_df):
@@ -1450,7 +1450,7 @@ class TestGroupedComparisons:
             qpcr_df,
             "gene",
             "expr",
-            xOffsetCol="cond",
+            xOffset="cond",
             categories=["G1", "G2"],
             xOffsetSort=["Veh", "Trt"],
             test="ttest_ind",
@@ -1466,7 +1466,7 @@ class TestGroupedComparisons:
 
     def test_bracket_sort_matches_bars(self, qpcr_df):
         # every bracket layer carries the level sort so the shared xOffset scale keeps bar order.
-        r = comparisons(qpcr_df, "gene", "expr", xOffsetCol="cond", categories=["G2", "G1"], xOffsetSort=["Trt", "Veh"])
+        r = comparisons(qpcr_df, "gene", "expr", xOffset="cond", categories=["G2", "G1"], xOffsetSort=["Trt", "Veh"])
         sorts: list[Any] = []
 
         def walk(node):
@@ -1485,7 +1485,7 @@ class TestGroupedComparisons:
 
     def test_per_category_placement(self, qpcr_df):
         # each bracket sits above its OWN category's bars -> the induced gene's bracket is higher.
-        r = comparisons(qpcr_df, "gene", "expr", xOffsetCol="cond", categories=["G1", "G2"], xOffsetSort=["Veh", "Trt"])
+        r = comparisons(qpcr_df, "gene", "expr", xOffset="cond", categories=["G1", "G2"], xOffsetSort=["Veh", "Trt"])
         ys = {}
         for bracket in r.to_dict()["layer"]:
             top_row = bracket["layer"][0]["data"]["values"][0]  # top line's first point
@@ -1495,23 +1495,23 @@ class TestGroupedComparisons:
     def test_three_levels_requires_pairs(self):
         df = pl.DataFrame({"g": ["A"] * 9, "c": ["x", "y", "z"] * 3, "v": [1.0, 2.0, 3.0] * 3})
         with pytest.raises(ValueError, match="pairs is required"):
-            comparisons(df, "g", "v", xOffsetCol="c", categories=["A"], xOffsetSort=["x", "y", "z"])
+            comparisons(df, "g", "v", xOffset="c", categories=["A"], xOffsetSort=["x", "y", "z"])
 
     def test_nonadjacent_pair(self):
         rng = np.random.default_rng(1)
         df = pl.DataFrame(
             {"g": ["A"] * 30, "c": (["x"] * 10 + ["y"] * 10 + ["z"] * 10), "v": list(rng.normal(0, 1, 30))}
         )
-        r = comparisons(df, "g", "v", xOffsetCol="c", pairs=[("x", "z")], categories=["A"], xOffsetSort=["x", "y", "z"])
+        r = comparisons(df, "g", "v", xOffset="c", pairs=[("x", "z")], categories=["A"], xOffsetSort=["x", "y", "z"])
         assert isinstance(r, alt.LayerChart)
 
     def test_unknown_level_raises(self, qpcr_df):
-        with pytest.raises(ValueError, match="not in xOffsetCol"):
+        with pytest.raises(ValueError, match="not in xOffset"):
             comparisons(
                 qpcr_df,
                 "gene",
                 "expr",
-                xOffsetCol="cond",
+                xOffset="cond",
                 pairs=[("Veh", "NOPE")],
                 categories=["G1", "G2"],
                 xOffsetSort=["Veh", "Trt"],
@@ -1523,7 +1523,7 @@ class TestGroupedComparisons:
                 qpcr_df,
                 "gene",
                 "expr",
-                xOffsetCol="cond",
+                xOffset="cond",
                 test="anova",
                 categories=["G1", "G2"],
                 xOffsetSort=["Veh", "Trt"],
@@ -1532,16 +1532,16 @@ class TestGroupedComparisons:
     def test_incomplete_categories_raises(self, qpcr_df):
         # an explicit `categories` that omits a gene in the data would misalign the shared x scale
         with pytest.raises(ValueError, match="categories is missing"):
-            comparisons(qpcr_df, "gene", "expr", xOffsetCol="cond", categories=["G1"], xOffsetSort=["Veh", "Trt"])
+            comparisons(qpcr_df, "gene", "expr", xOffset="cond", categories=["G1"], xOffsetSort=["Veh", "Trt"])
 
     def test_incomplete_xoffsetsort_raises(self, qpcr_df):
         # an explicit `xOffsetSort` that omits a level in the data would misalign the xOffset scale
         with pytest.raises(ValueError, match="xOffsetSort is missing"):
-            comparisons(qpcr_df, "gene", "expr", xOffsetCol="cond", categories=["G1", "G2"], xOffsetSort=["Veh"])
+            comparisons(qpcr_df, "gene", "expr", xOffset="cond", categories=["G1", "G2"], xOffsetSort=["Veh"])
 
 
 class TestGroupedCorrelation:
-    """correlation(groupCol=...) - a fit + coefficient per series."""
+    """correlation(groupBy=...) - a fit + coefficient per series."""
 
     @pytest.fixture
     def grouped_df(self):
@@ -1554,11 +1554,11 @@ class TestGroupedCorrelation:
         return pl.DataFrame(rows)
 
     def test_returns_layerchart(self, grouped_df):
-        assert isinstance(correlation(grouped_df, "x", "y", groupCol="line"), alt.LayerChart)
+        assert isinstance(correlation(grouped_df, "x", "y", groupBy="line"), alt.LayerChart)
 
     def test_one_record_per_group_with_labels(self, grouped_df):
         st._REPORTS.clear()
-        correlation(grouped_df, "x", "y", groupCol="line")
+        correlation(grouped_df, "x", "y", groupBy="line")
         recs = list(st._REPORTS.values())
         assert len(recs) == 3
         by_group = {r["group"]: r for r in recs}
@@ -1570,7 +1570,7 @@ class TestGroupedCorrelation:
 
     def test_fit_lines_colored_by_group(self, grouped_df):
         # every fit line encodes color by the group column (so it merges with the scatter's scale)
-        spec = correlation(grouped_df, "x", "y", groupCol="line").to_dict()
+        spec = correlation(grouped_df, "x", "y", groupBy="line").to_dict()
         line_colors = [
             lyr["encoding"]["color"]["field"]
             for lyr in spec["layer"]
@@ -1579,7 +1579,7 @@ class TestGroupedCorrelation:
         assert line_colors and all(f == "line" for f in line_colors)
 
     def test_one_fit_line_and_readout_per_group(self, grouped_df):
-        spec = correlation(grouped_df, "x", "y", groupCol="line").to_dict()
+        spec = correlation(grouped_df, "x", "y", groupBy="line").to_dict()
         n_lines = sum(1 for lyr in spec["layer"] if lyr["mark"].get("type") == "line")
         n_text = sum(1 for lyr in spec["layer"] if lyr["mark"].get("type") == "text")
         assert n_lines == 3 and n_text == 3
@@ -1587,7 +1587,7 @@ class TestGroupedCorrelation:
     def test_readout_text_neutral_with_colored_swatch(self, grouped_df):
         # the colour link is a per-group SWATCH (a filled point, legend-symbol sized); the readout
         # text stays neutral (no color encoding) so it's legible even for pale palette colours.
-        spec = correlation(grouped_df, "x", "y", groupCol="line").to_dict()
+        spec = correlation(grouped_df, "x", "y", groupBy="line").to_dict()
         texts = [lyr for lyr in spec["layer"] if lyr["mark"].get("type") == "text"]
         swatches = [lyr for lyr in spec["layer"] if lyr["mark"].get("type") == "point"]
         assert len(texts) == 3 and len(swatches) == 3
@@ -1598,16 +1598,16 @@ class TestGroupedCorrelation:
 
     def test_rank_method_no_lines(self, grouped_df):
         # spearman reports the coefficient (readouts) but draws no fit line
-        spec = correlation(grouped_df, "x", "y", groupCol="line", method="spearman").to_dict()
+        spec = correlation(grouped_df, "x", "y", groupBy="line", method="spearman").to_dict()
         assert not [lyr for lyr in spec["layer"] if lyr["mark"].get("type") == "line"]
         assert sum(1 for lyr in spec["layer"] if lyr["mark"].get("type") == "text") == 3
 
     def test_position_none_no_readouts(self, grouped_df):
-        spec = correlation(grouped_df, "x", "y", groupCol="line", position=None).to_dict()
+        spec = correlation(grouped_df, "x", "y", groupBy="line", position=None).to_dict()
         assert not [lyr for lyr in spec["layer"] if lyr["mark"].get("type") == "text"]
 
     def test_ci_band_per_group(self, grouped_df):
-        spec = correlation(grouped_df, "x", "y", groupCol="line", ci=True).to_dict()
+        spec = correlation(grouped_df, "x", "y", groupBy="line", ci=True).to_dict()
         assert sum(1 for lyr in spec["layer"] if lyr["mark"].get("type") == "area") == 3
 
 
@@ -1852,7 +1852,7 @@ class TestReferenceMode:
         assert not any(lbl.startswith("P") for lbl in labels)
 
     def test_rejects_reference_with_xoffsetcol_omnibus_only(self, dose_df):
-        # reference + xOffsetCol is now grouped-reference (not an error); a bad reference level errors.
+        # reference + xOffset is now grouped-reference (not an error); a bad reference level errors.
         rng = np.random.default_rng(3)
         genes = ["A", "B"]
         lvls = ["Veh", "Low", "High"]
@@ -1865,12 +1865,12 @@ class TestReferenceMode:
         )
         # valid grouped reference: 2 genes x 2 non-ref levels = 4 labels
         layer = comparisons(
-            df, "gene", "expr", xOffsetCol="cond", reference="Veh", categories=genes, xOffsetSort=lvls, test="ttest_ind"
+            df, "gene", "expr", xOffset="cond", reference="Veh", categories=genes, xOffsetSort=lvls, test="ttest_ind"
         )
         assert len(_ref_labels(layer)) == len(genes) * (len(lvls) - 1)
         # bad reference level raises
         with pytest.raises(ValueError, match="not a level"):
-            comparisons(df, "gene", "expr", xOffsetCol="cond", reference="Nope", categories=genes, xOffsetSort=lvls)
+            comparisons(df, "gene", "expr", xOffset="cond", reference="Nope", categories=genes, xOffsetSort=lvls)
 
     def test_grouped_record_labels_subgroups(self, dose_df):
         from dysonsphere import _statistics as _st
@@ -1886,7 +1886,7 @@ class TestReferenceMode:
             }
         )
         _st._REPORTS.clear()
-        comparisons(df, "gene", "expr", xOffsetCol="cond", reference="Veh", categories=genes, xOffsetSort=lvls)
+        comparisons(df, "gene", "expr", xOffset="cond", reference="Veh", categories=genes, xOffsetSort=lvls)
         rec = next(iter(_st._REPORTS.values()))
         pairs = [(p["group1"], p["group2"]) for p in rec["comparisons"]["pairs"]]
         assert pairs == [("A (Veh)", "A (Drug)"), ("B (Veh)", "B (Drug)")]
@@ -1929,7 +1929,7 @@ class TestGroupedManualOverrides:
 
     def _call(self, gdf, **kw):
         df, genes, lvls = gdf
-        return comparisons(df, "gene", "expr", xOffsetCol="cond", categories=genes, xOffsetSort=lvls, **kw)
+        return comparisons(df, "gene", "expr", xOffset="cond", categories=genes, xOffsetSort=lvls, **kw)
 
     def test_reference_pvalues_dict_used_and_uncorrected(self, gdf):
         from dysonsphere import _statistics as _st
@@ -2220,7 +2220,7 @@ class TestDropTicks:
             "gene",
             "expr",
             pairs=[("Veh", "Low"), ("Veh", "High")],
-            xOffsetCol="cond",
+            xOffset="cond",
             categories=["G1", "G2"],
             xOffsetSort=["Veh", "Low", "High"],
             bracketStyle="drop",
@@ -2340,7 +2340,7 @@ class TestDropTicks:
             "gene",
             "expr",
             pairs=[("Veh", "LPS")],
-            xOffsetCol="cond",
+            xOffset="cond",
             categories=["G1", "G2"],
             xOffsetSort=["Veh", "LPS"],
             bracketStyle="drop",
@@ -2374,7 +2374,7 @@ class TestDropTicks:
                 "gene",
                 "expr",
                 pairs=[("Veh", "Low")],
-                xOffsetCol="cond",
+                xOffset="cond",
                 categories=["G1", "G2"],
                 xOffsetSort=["Veh", "Low"],
                 bracketStyle="nope",
@@ -2458,7 +2458,7 @@ class TestDropTicks:
             "gene",
             "expr",
             pairs=[("Veh", "Low"), ("Veh", "High")],
-            xOffsetCol="cond",
+            xOffset="cond",
             categories=["G1", "G2"],
             xOffsetSort=["Veh", "Low", "High"],
             bracketStyle="drop",
@@ -2505,7 +2505,7 @@ class TestDropTicks:
                 "gene",
                 "expr",
                 pairs=[("Veh", "Low")],
-                xOffsetCol="cond",
+                xOffset="cond",
                 categories=["G1", "G2"],
                 xOffsetSort=["Veh", "Low"],
                 bracketStyle="drop",
@@ -2552,7 +2552,7 @@ class TestGroupedLabelCentering:
             "gene",
             "expr",
             pairs=[("Veh", "Low")],
-            xOffsetCol="cond",
+            xOffset="cond",
             categories=["G1", "G2"],
             xOffsetSort=levels,
         ).to_dict()
@@ -2573,7 +2573,7 @@ class TestGroupedLabelCentering:
             "gene",
             "expr",
             pairs=[("Veh", "High")],
-            xOffsetCol="cond",
+            xOffset="cond",
             categories=["G1", "G2"],
             xOffsetSort=levels,
         ).to_dict()
@@ -2589,7 +2589,7 @@ class TestGroupedLabelCentering:
             "gene",
             "expr",
             pairs=[("Veh", "D1"), ("D3", "D4")],
-            xOffsetCol="cond",
+            xOffset="cond",
             categories=["G1", "G2"],
             xOffsetSort=levels,
         ).to_dict()
@@ -2617,7 +2617,7 @@ class TestGroupedReverse:
             "gene",
             "expr",
             pairs=self.PAIRS,
-            xOffsetCol="cond",
+            xOffset="cond",
             categories=["G1", "G2"],
             xOffsetSort=self.LV,
             labelStyle="asterisks",
@@ -2700,7 +2700,7 @@ class TestGroupedReverse:
             "gene",
             "expr",
             pairs=[("Veh", "D3")],
-            xOffsetCol="cond",
+            xOffset="cond",
             categories=["G1", "G2"],
             xOffsetSort=levels,
             labelStyle="asterisks",
@@ -2808,7 +2808,7 @@ class TestPairsAll:
             "gene",
             "expr",
             pairs="all",
-            xOffsetCol="cond",
+            xOffset="cond",
             categories=["G1", "G2"],
             xOffsetSort=["Veh", "Low", "High"],
         )

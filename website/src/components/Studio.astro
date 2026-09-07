@@ -676,7 +676,7 @@ high,100,26.4,6`;
 				const rows = parseRows();
 				const opts: string[] = [];
 				if (el<HTMLInputElement>('st-samplesize').checked)
-					opts.push(`showSampleSize=True`, `df=df`, `xCol=${q(x)}`);
+					opts.push(`showSampleSize=True`, `data=df`, `x=${q(x)}`);
 				if (el<HTMLInputElement>('st-catlabels').checked) opts.push('categoryLabel=True');
 				body.push(
 					'',
