@@ -17,10 +17,16 @@ ds.theme(chartWidth=235, chartHeight=160)
 DATA = [(1841, 7.8), (1842, 15.8), (1843, 8.9), (1844, 8.2), (1845, 6.8), (1846, 11.4), (1847, 5.0), (1848, 1.3)]
 df = pl.DataFrame(DATA, schema=["year", "mortality"], orient="row")
 
-base = alt.Chart(df).mark_line(point=True).encode(
-    x=alt.X("year:Q", title="Year", axis=alt.Axis(format="d"), scale=alt.Scale(domain=[1840.5, 1848.5], nice=False)),
-    y=alt.Y("mortality:Q", title="Maternal mortality (%)", scale=alt.Scale(domain=[0, 18], nice=False)),
+base = (
+    alt.Chart(df)
+    .mark_line(point=True)
+    .encode(
+        x=alt.X(
+            "year:Q", title="Year", axis=alt.Axis(format="d"), scale=alt.Scale(domain=[1840.5, 1848.5], nice=False)
+        ),
+        y=alt.Y("mortality:Q", title="Maternal mortality (%)", scale=alt.Scale(domain=[0, 18], nice=False)),
+    )
 )
-rule = ds.add_rule(1847, axis="x", label="handwashing introduced", labelAlign="top", labelPosition="left")
+rule = ds.rule(1847, axis="x", label="handwashing introduced", labelAlign="top", labelPosition="left")
 
 chart = base + rule

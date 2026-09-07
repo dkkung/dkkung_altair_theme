@@ -20,7 +20,7 @@ for g, s, sc in zip(GROUPS, SIZES, SCALES):
 df = pl.DataFrame(rows)
 
 ds.theme()
-df = ds.add_beeswarm(df, yCol="v", groupBy=["g"])
+df = ds.transforms.beeswarm(df, yCol="v", groupBy=["g"])
 
 x = alt.X("g:N", sort=GROUPS, title=None)
 y = alt.Y("v:Q", title=None, scale=alt.Scale(domain=[0, 1000]))

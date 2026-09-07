@@ -7,9 +7,9 @@ from dysonsphere.transforms import (
     _beeswarm_offsets,
     _quasirandom_offsets,
     _van_der_corput,
-    add_beeswarm,
-    add_jitter,
-    add_quasirandom,
+    beeswarm,
+    jitter,
+    quasirandom,
 )
 
 
@@ -63,59 +63,59 @@ class TestBeeswarmOffsets:
         assert len(set(x)) > 1
 
 
-class TestAddJitter:
+class TestJitter:
     def test_adds_offset_column(self, group_df):
-        result = add_jitter(group_df)
+        result = jitter(group_df)
         assert "jitter_x" in result.columns
 
     def test_output_length_unchanged(self, group_df):
-        result = add_jitter(group_df)
+        result = jitter(group_df)
         assert len(result) == len(group_df)
 
     def test_custom_column_name(self, group_df):
-        result = add_jitter(group_df, outCol="my_jitter")
+        result = jitter(group_df, outCol="my_jitter")
         assert "my_jitter" in result.columns
 
     def test_spread_controls_width(self, group_df):
-        tight = add_jitter(group_df, spread=0.5, seed=0)
-        wide = add_jitter(group_df, spread=20.0, seed=0)
+        tight = jitter(group_df, spread=0.5, seed=0)
+        wide = jitter(group_df, spread=20.0, seed=0)
         assert tight["jitter_x"].abs().max() < wide["jitter_x"].abs().max()  # ty: ignore[unsupported-operator]
 
 
-class TestAddBeeswarm:
+class TestBeeswarm:
     def test_adds_offset_column(self, group_df):
-        result = add_beeswarm(group_df, yCol="value", groupBy=["group"])
+        result = beeswarm(group_df, yCol="value", groupBy=["group"])
         assert "beeswarm_x" in result.columns
 
     def test_output_length_unchanged(self, group_df):
-        result = add_beeswarm(group_df, yCol="value", groupBy=["group"])
+        result = beeswarm(group_df, yCol="value", groupBy=["group"])
         assert len(result) == len(group_df)
 
     def test_custom_column_name(self, group_df):
-        result = add_beeswarm(group_df, yCol="value", groupBy=["group"], outCol="my_swarm")
+        result = beeswarm(group_df, yCol="value", groupBy=["group"], outCol="my_swarm")
         assert "my_swarm" in result.columns
 
 
-class TestAddQuasirandom:
+class TestQuasirandom:
     def test_adds_offset_column(self, group_df):
-        result = add_quasirandom(group_df, yCol="value", groupBy=["group"])
+        result = quasirandom(group_df, yCol="value", groupBy=["group"])
         assert "quasirandom_x" in result.columns
 
     def test_output_length_unchanged(self, group_df):
-        result = add_quasirandom(group_df, yCol="value", groupBy=["group"])
+        result = quasirandom(group_df, yCol="value", groupBy=["group"])
         assert len(result) == len(group_df)
 
     def test_custom_column_name(self, group_df):
-        result = add_quasirandom(group_df, yCol="value", groupBy=["group"], outCol="my_q")
+        result = quasirandom(group_df, yCol="value", groupBy=["group"], outCol="my_q")
         assert "my_q" in result.columns
 
     def test_rows_map_back_in_order(self, group_df):
         # the offset must line up with its own row after the group_by/sort round-trip
-        result = add_quasirandom(group_df, yCol="value", groupBy=["group"])
+        result = quasirandom(group_df, yCol="value", groupBy=["group"])
         assert result["value"].to_list() == group_df["value"].to_list()
 
     def test_width_and_bandwidth_accepted(self, group_df):
-        result = add_quasirandom(group_df, yCol="value", groupBy=["group"], width=20.0, bandwidth=0.5)
+        result = quasirandom(group_df, yCol="value", groupBy=["group"], width=20.0, bandwidth=0.5)
         assert "quasirandom_x" in result.columns and len(result) == len(group_df)
 
 

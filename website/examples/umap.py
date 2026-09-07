@@ -36,10 +36,8 @@ points = (
     .properties(view=alt.ViewConfig(stroke=None))
 )
 
-cent = df.group_by("cell type").agg(
-    pl.col("UMAP1").mean().alias("cx"), pl.col("UMAP2").mean().alias("cy")
-)
-label_layer = ds.add_labels(
+cent = df.group_by("cell type").agg(pl.col("UMAP1").mean().alias("cx"), pl.col("UMAP2").mean().alias("cy"))
+label_layer = ds.labels(
     cent,
     "cx",
     "cy",
@@ -50,4 +48,3 @@ label_layer = ds.add_labels(
 )
 
 chart = points + label_layer
-

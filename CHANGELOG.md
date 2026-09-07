@@ -4,6 +4,12 @@
 
 ### Changes
 
+- **Breaking:** annotation constructors are now `ds.rule()`, `ds.text()`, `ds.shade()`, and
+  `ds.labels()`. Offset transforms are `ds.transforms.jitter()`, `ds.transforms.beeswarm()`, and
+  `ds.transforms.quasirandom()`. Former `add_*` spellings are removed without aliases;
+  parameters, generated data, and rendering are unchanged.
+- Display-label helpers moved from `dysonsphere.labels` to `dysonsphere.display_labels` to avoid
+  shadowing the new `ds.labels()` constructor. `ds.label_expr()` is unchanged.
 - **Breaking:** statistical annotations now use `ds.stats.comparisons()` and `ds.stats.correlation()`;
   clear retained records with `ds.stats.clear_stats()`. The former top-level functions and
   `dysonsphere.inference` / `dysonsphere.statistics` modules are removed, without aliases.

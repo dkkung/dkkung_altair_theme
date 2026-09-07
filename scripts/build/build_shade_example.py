@@ -1,5 +1,5 @@
 """
-Generates docs/shade_example.png — the README preview for add_shade().
+Generates docs/shade_example.png - the README preview for shade().
 
 Three panels:
   left   — band mode with default arguments (boxplot)
@@ -50,8 +50,8 @@ ds.theme(palette="blues2", chartWidth=100, legend=False)
 title_params: dict[str, Any] = dict(orient="top", anchor="start", offset=4)
 fontSize = alt.theme.options.get("fontSize", 7)
 
-# ── Left: boxplot, band mode with default add_shade() ─────────────────────
-shade_left = ds.add_shade(CATEGORIES, "group")
+# -- Left: boxplot, band mode with default shade() -----------------------
+shade_left = ds.shade(CATEGORIES, "group")
 boxplot = (
     alt.Chart(box_df)
     .mark_boxplot()
@@ -100,7 +100,7 @@ scatter = (
 )
 
 # ── Middle: axis='y', top-quarter shade, no stroke ─────────────────────────
-shade_mid = ds.add_shade(
+shade_mid = ds.shade(
     positions=[(7.5, 10.0)],
     axis="y",
     palette=[ds.palette("blues")[0]],
@@ -114,7 +114,7 @@ mid = (shade_mid + scatter).properties(
 )
 
 # ── Right: axis='both', top-right corner ──────────────────────────────────
-shade_right = ds.add_shade(
+shade_right = ds.shade(
     positions=[((7.5, 10.0), (7.5, 10.0))],
     axis="both",
     palette=[ds.palette("blues")[0]],

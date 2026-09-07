@@ -56,6 +56,6 @@ scatter = (
         y=alt.Y("velocity:Q", title="Radial velocity (km/s)"),
     )
 )
-label = ds.add_text(f"H₀ ≈ {h0:.0f} km/s/Mpc", position="topLeft")
+label = ds.text(f"H₀ ≈ {h0:.0f} km/s/Mpc", position="topLeft")
 
 chart = scatter + ds.stats.correlation(df, "distance", "velocity", ci=True, position=None) + label

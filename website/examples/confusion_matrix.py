@@ -34,7 +34,7 @@ heat = (
 )
 
 # Cell counts as a field-encoded mark_text: sharing the x/y band scales with the heatmap centers
-# each label exactly on its cell in every renderer (an add_text datum can drift off the band centre
+# each label exactly on its cell in every renderer (a ds.text datum can drift off the band centre
 # in browser Vega). White on the dark high-count cells, black on the light low-count ones.
 labels = (
     alt.Chart(df)
@@ -48,4 +48,3 @@ labels = (
 )
 
 chart = heat + labels
-

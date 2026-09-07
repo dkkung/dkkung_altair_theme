@@ -1288,7 +1288,7 @@ class TestFixFontForIllustrator:
 
 
 class TestShadeBehindAxes:
-    """add_shade draws a background - it must never paint over the axes or the frame."""
+    """shade draws a background - it must never paint over the axes or the frame."""
 
     def _chart(self, closed):
         cats = ["a", "b", "c", "d"]
@@ -1296,7 +1296,7 @@ class TestShadeBehindAxes:
         theme(closed=closed, chartWidth=200, chartHeight=200)
         import dysonsphere as ds
 
-        return ds.add_shade(categories=cats) + alt.Chart(df).mark_bar().encode(
+        return ds.shade(categories=cats) + alt.Chart(df).mark_bar().encode(
             alt.X("g:N", title="g"), alt.Y("v:Q", title="v")
         )
 

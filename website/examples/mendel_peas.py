@@ -28,10 +28,14 @@ df = pl.DataFrame(TRAITS, schema=["trait", "dominant", "recessive"], orient="row
 )
 order = [t[0] for t in TRAITS]
 
-bars = alt.Chart(df).mark_bar().encode(
-    x=alt.X("frac:Q", title="Fraction showing the dominant trait", scale=alt.Scale(domain=[0, 1])),
-    y=alt.Y("trait:N", sort=order, title=None),
+bars = (
+    alt.Chart(df)
+    .mark_bar()
+    .encode(
+        x=alt.X("frac:Q", title="Fraction showing the dominant trait", scale=alt.Scale(domain=[0, 1])),
+        y=alt.Y("trait:N", sort=order, title=None),
+    )
 )
-ref = ds.add_rule(0.75, axis="x", label="expected 3 : 1", labelAlign="top", labelPosition="right")
+ref = ds.rule(0.75, axis="x", label="expected 3 : 1", labelAlign="top", labelPosition="right")
 
 chart = bars + ref

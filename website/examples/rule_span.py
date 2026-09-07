@@ -14,12 +14,16 @@ by_cyl = (
     .group_by("cyl")
     .agg(pl.col("Miles_per_Gallon").mean().alias("mpg"))
 )
-bars = alt.Chart(by_cyl).mark_bar().encode(
-    x=alt.X("cyl:N", sort=cats, title="Cylinders"),
-    y=alt.Y("mpg:Q", title="Miles per gallon"),
+bars = (
+    alt.Chart(by_cyl)
+    .mark_bar()
+    .encode(
+        x=alt.X("cyl:N", sort=cats, title="Cylinders"),
+        y=alt.Y("mpg:Q", title="Miles per gallon"),
+    )
 )
 
 # The 4-cylinder benchmark, sliced with span= across just the 6- and 8-cylinder
-# bars it is being compared against (category-name bounds, resolved like add_shade).
+# bars it is being compared against (category-name bounds, resolved like ds.shade).
 four_cyl = float(by_cyl.filter(pl.col("cyl") == "4")["mpg"].item())
-chart = bars + ds.add_rule(four_cyl, span=("6", "8"), categories=cats, label="4-cyl avg")
+chart = bars + ds.rule(four_cyl, span=("6", "8"), categories=cats, label="4-cyl avg")

@@ -29,7 +29,8 @@ def mark_table(
     textColor: str | dict[str, str] | None = None,
     fontStyle: str | dict[str, str] | None = None,
     fontSize: float | None = None,
-    headerFontStyle: str = 'bold',
+    headerFontStyle: str | None = None,
+    headerFontWeight: str | int = 'bold',
     headerColor: str | None = None,
     headerFill: str | bool = False,
     cellPadding: float | None = None,
@@ -54,7 +55,7 @@ the row/column counts and a per-column content estimate, overriding ``chartWidth
 ``chartHeight``. Column widths are proportional-font estimates (Vega cannot measure text at
 build time); pass ``columnWidths`` for exact control.
 
-**Darkmode** is resolved at BUILD time (like ``add_shade`` / ``add_multilabel``): the stripe
+**Darkmode** is resolved at BUILD time (like ``shade`` / ``add_multilabel``): the stripe
 fills sample the dark end of the palette and the strokes / auto-contrast colours flip when the
 table is built under ``theme(darkmode=True)`` (cell text with no explicit colour follows the
 theme's darkmode-aware ``config.text`` at render). So set the theme before building, or - to
@@ -78,9 +79,10 @@ rebuilt per background::
 - **`nStripes`** (`int`) - Number of stripe colours to alternate through. Default ``2``.
 - **`cellColor`** (`dict[str, str] | None`) - ``{column: palette}`` to shade cells by value (a heatmap column). The column's values map across the palette (a 13-stop diverging palette is centred on 0; otherwise the domain is the column's ``[min, max]``), and each cell's text switches to black or white for contrast. Overrides striping within that column.
 - **`textColor`** (`str | dict[str, str] | None`) - Body cell text colour. ``None`` (default) inherits the theme's darkmode-aware text colour. A single string colours every body cell; a ``{column: colour}`` dict colours per column (unlisted columns inherit). A ``cellColor`` (value-shaded) column keeps its automatic black/white contrast unless you give it an explicit **dict** entry here (a per-column colour is taken as deliberate; a global string does not override the heatmap's contrast).
-- **`fontStyle`** (`str | dict[str, str] | None`) - Body cell font style (e.g. ``"italic"``, ``"bold"``, ``"normal"``). ``None`` (default) inherits. A single string styles every body cell; a ``{column: style}`` dict styles per column (unlisted columns inherit) - e.g. ``{"gene": "italic"}`` for italic gene names.
+- **`fontStyle`** (`str | dict[str, str] | None`) - Body cell font style (``"italic"`` / ``"normal"``; bold is a weight, not a style). ``None`` (default) inherits. A single string styles every body cell; a ``{column: style}`` dict styles per column (unlisted columns inherit) - e.g. ``{"gene": "italic"}`` for italic gene names.
 - **`fontSize`** (`float | None`) - Cell font size. ``None`` (default) reads ``theme(fontSize=…)``.
-- **`headerFontStyle`** (`str`) - Font style for header labels (e.g. ``"bold"``, ``"normal"``, ``"italic"``). Default ``"bold"``.
+- **`headerFontStyle`** (`str | None`) - Font style for header labels (``"italic"`` / ``"normal"``). ``None`` (default) inherits.
+- **`headerFontWeight`** (`str | int`) - Font weight for header labels. Default ``"bold"``; pass ``"normal"`` or a number for regular weight.
 - **`headerColor`** (`str | None`) - Header text colour. ``None`` (default) inherits the theme's text colour, or - when ``headerFill`` is set - auto-contrasts (black/white) against the fill. A string sets a fixed colour.
 - **`headerFill`** (`str | bool`) - Background band behind the header row, following the ``bool | str`` pattern: ``False`` (default) → none; ``True`` → a darkmode-aware default grey band; a string → that colour.
 - **`cellPadding`** (`float | None`) - Horizontal padding inside a cell, in px. ``None`` (default) → ``fontSize * 0.6``.

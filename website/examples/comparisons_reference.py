@@ -16,7 +16,7 @@ df = pl.DataFrame(
         "response": np.concatenate([rng.normal(m, 0.28, 10) for m in means]),
     }
 )
-df = ds.add_quasirandom(df, "response", ["dose"])
+df = ds.transforms.quasirandom(df, "response", ["dose"])
 # Pin the offset domain wider than the data so the swarm stays inside the bars.
 m = df["quasirandom_x"].abs().max() * 1.9
 bar_w = band_geometry(len(CATS), scale="band").step * 0.82  # narrower than the band, so the swarm sits inside

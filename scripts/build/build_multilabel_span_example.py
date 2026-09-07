@@ -41,7 +41,7 @@ CATEGORIES = ["A", "B", "C", "D", "E", "F"]
 
 ds.theme(cornerRadius=True, chartWidth=125, chartHeight=75, chartFill="white")
 
-df = ds.add_beeswarm(
+df = ds.transforms.beeswarm(
     df,
     yCol="value",
     groupBy=["group"],
@@ -62,7 +62,7 @@ points = base.mark_circle().encode(
     xOffset=alt.XOffset("beeswarm_x:Q"),
 )
 
-shade = ds.add_shade(
+shade = ds.shade(
     CATEGORIES,
     "group",
 )

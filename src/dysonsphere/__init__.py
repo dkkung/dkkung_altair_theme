@@ -1,11 +1,11 @@
-# ext and stats are namespaced surfaces; their contents are deliberately NOT star-imported
+# ext, stats, and transforms are namespaced surfaces; their contents are deliberately NOT star-imported
 # into the top namespace.
-from . import ext, stats  # noqa: F401
+from . import ext, stats, transforms  # noqa: F401
 from .annotations import *  # noqa: F403
 from .assembly import *  # noqa: F403
 from .discovery import *  # noqa: F403
+from .display_labels import *  # noqa: F403
 from .export import *  # noqa: F403
-from .labels import *  # noqa: F403
 from .marks import *  # noqa: F403
 from .metadata import *  # noqa: F403
 from .multilabel import *  # noqa: F403
@@ -13,26 +13,18 @@ from .nonlinear import *  # noqa: F403
 from .palettes import *  # noqa: F403
 from .table import *  # noqa: F403
 from .theme import *  # noqa: F403
-from .transforms import *  # noqa: F403
 from .utils import *  # noqa: F403
 
-# The public API - the star-imported modules' __all__ lists plus stats, written out so the
+# The public API - the star-imported modules' __all__ lists plus stats and transforms, written out so the
 # surface is documented in one place and guarded by tests (test_package_namespace). Every
 # module defines its own __all__, so the star-imports above bind exactly these names and
 # nothing else (no leaked stdlib/third-party imports on the dysonsphere namespace).
 __all__ = [
     "BandGeometry",
     "VerifyResult",
-    "add_beeswarm",
-    "add_jitter",
-    "add_labels",
     "add_log_ticks",
     "add_multilabel",
     "add_pow_ticks",
-    "add_quasirandom",
-    "add_rule",
-    "add_shade",
-    "add_text",
     "assemble",
     "band_geometry",
     "categorical",
@@ -44,6 +36,7 @@ __all__ = [
     "extensions",
     "frame_checksum",
     "label_expr",
+    "labels",
     "load",
     "load_extension",
     "log_label_expr",
@@ -52,10 +45,14 @@ __all__ = [
     "mark_violin",
     "palette",
     "read",
+    "rule",
     "save",
+    "shade",
     "show",
     "stats",
+    "text",
     "theme",
+    "transforms",
     "verify",
 ]
 

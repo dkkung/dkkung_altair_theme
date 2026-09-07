@@ -1,5 +1,5 @@
 """
-Demo of add_rule() reference line helper.
+Demo of rule() reference line helper.
 
 Left panel: strip chart with horizontal lines marking a reference range.
 Right panel: time series with a horizontal baseline and a labeled vertical
@@ -30,9 +30,9 @@ ds.theme(palette="blues2", chartWidth=120, chartHeight=110)
 strip = ds.mark_strip(df_strip, "group", "value", GROUPS, yTitle="Measurement")
 left = (
     strip
-    + ds.add_rule(4.0, label="Lower limit", labelPosition="bottom")
-    + ds.add_rule(7.0, label="Upper limit", labelAlign="right")
-).properties(title="add_rule(axis='y')")
+    + ds.rule(4.0, label="Lower limit", labelPosition="bottom")
+    + ds.rule(7.0, label="Upper limit", labelAlign="right")
+).properties(title="rule(axis='y')")
 
 # ── Right: time series with baseline + intervention ───────────────────────────
 t = np.linspace(0, 20, 60)
@@ -67,14 +67,14 @@ lines = (
 )
 right = (
     lines
-    + ds.add_rule(
+    + ds.rule(
         10,
         axis="x",
         label="Intervention",
         labelPosition="right",
         labelAlign="bottom",
     )
-).properties(title="add_rule(axis='x')")
+).properties(title="rule(axis='x')")
 
 chart = alt.hconcat(left, right)
 ds.save(chart, "reference_lines")

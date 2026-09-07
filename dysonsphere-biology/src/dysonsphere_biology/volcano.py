@@ -1,6 +1,6 @@
 """Volcano plot for differential-expression results.
 
-Built entirely on dysonsphere's public surfaces - core (``ds.theme`` / ``ds.add_rule`` /
+Built entirely on dysonsphere's public surfaces - core (``ds.theme`` / ``ds.rule`` /
 ``ds.colors`` / ``ds.ensure_polars``) plus the extension-author primitive surface
 (``dysonsphere.ext``: ``opt`` / ``internal_data`` / ``AltairChart``). It doubles as the
 reference for how an extension composes a first-class dysonsphere chart without reaching into
@@ -143,26 +143,26 @@ def volcano(
     layers: list[ext.AltairChart] = [points]
 
     if thresholdLines:
-        # Dashed theme-styled reference guides at the +-fold-change and p-value cutoffs. add_rule
+        # Dashed theme-styled reference guides at the +-fold-change and p-value cutoffs. ds.rule
         # positions by alt.datum, so it composes here without nulling the axis titles.
-        layers.append(ds.add_rule(-fcThreshold, axis="x"))
-        layers.append(ds.add_rule(fcThreshold, axis="x"))
-        layers.append(ds.add_rule(-math.log10(pThreshold), axis="y"))
+        layers.append(ds.rule(-fcThreshold, axis="x"))
+        layers.append(ds.rule(fcThreshold, axis="x"))
+        layers.append(ds.rule(-math.log10(pThreshold), axis="y"))
 
     chart: ext.AltairChart = alt.layer(*layers)
     if label is not None:
-        # add_labels returns a LayerChart; compose with + (it also self-pins the x/y scale).
+        # ds.labels returns a LayerChart; compose with + (it also self-pins the x/y scale).
         chart = chart + _label_layer(data, label, log2fcCol, geneCol)
     # Tag the chart so ds.save() records dysonsphere-biology's version in the figure's provenance.
     return ext.tag_extension(chart, "biology")
 
 
 def _label_layer(data: pl.DataFrame, label: str | int | list[str], log2fcCol: str, geneCol: str | None):
-    """Select which genes to label (significance-aware) and delegate placement to ``ds.add_labels``.
+    """Select which genes to label (significance-aware) and delegate placement to ``ds.labels``.
 
     The volcano picks the genes itself - top-N by combined score, all significant, or an explicit
-    list - because that ranking is domain-specific (``add_labels``'s own ``labels=n`` is spatial
-    even-spread, which isn't what a volcano wants). It then hands the chosen names to ``add_labels``
+    list - because that ranking is domain-specific (``labels``'s own ``labels=n`` is spatial
+    even-spread, which isn't what a volcano wants). It then hands the chosen names to ``labels``
     as ``labels=[...]`` on the FULL frame, so the force-repel placement, connectors, and scale
     self-pinning all come for free.
     """
@@ -183,6 +183,6 @@ def _label_layer(data: pl.DataFrame, label: str | int | list[str], log2fcCol: st
         chosen = data.filter(pl.col(geneCol).is_in(label))
 
     names = [str(v) for v in chosen[geneCol].to_list()]
-    # add_labels' default connectorGap sizes itself to the theme's mark_point edge radius, which is
+    # ds.labels' default connectorGap sizes itself to the theme's mark_point edge radius, which is
     # exactly what the volcano's dots need - so no explicit gap is required here.
-    return ds.add_labels(data, log2fcCol, _NEGLOG_COL, geneCol, labels=names)
+    return ds.labels(data, log2fcCol, _NEGLOG_COL, geneCol, labels=names)

@@ -152,7 +152,7 @@ class TestChecksumCanonicalization:
 
 class TestBandGeometry:
     def test_offset_scale_formulas(self):
-        # paddingInner=0, paddingOuter=bp (xOffset/mark_circle/add_shade rects)
+        # paddingInner=0, paddingOuter=bp (xOffset/mark_circle/shade rects)
         geo = band_geometry(3, 100, bandPadding=0.1)
         step = 100 / (3 + 2 * 0.1)
         assert geo.step == pytest.approx(step)
@@ -188,7 +188,7 @@ class TestBandGeometry:
         assert geo.starts == geo.centers and geo.ends == geo.centers
 
     def test_adjacent_bands_share_edges(self):
-        # end of band i is the start of band i+1 (offset scale) - what add_shade's
+        # end of band i is the start of band i+1 (offset scale) - what shade's
         # run merging and flush logic rely on
         geo = band_geometry(5, 200)
         for i in range(4):

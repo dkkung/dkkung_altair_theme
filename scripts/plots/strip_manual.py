@@ -31,7 +31,7 @@ df = pl.DataFrame(
 ds.theme(palette="lavenders", xLabelAngle=-45)
 
 # ── Jitter ────────────────────────────────────────────────────────────────────
-df = ds.add_jitter(df)  # adds "jitter_x" column
+df = ds.transforms.jitter(df)  # adds "jitter_x" column
 
 # Offset scale: maps jitter values to pixel offsets within the band center.
 # This mirrors what mark_strip() computes internally.

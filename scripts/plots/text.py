@@ -1,5 +1,5 @@
 """
-Demo of add_text() annotation helper.
+Demo of text() annotation helper.
 
 Shows the three coordinate modes and the position system.
 
@@ -30,10 +30,10 @@ base = ds.mark_strip(df, "group", "value", GROUPS, yTitle="Response")
 
 chart = (
     base
-    + ds.add_text("n = 20", x="Control", y=1.0, align="center")  # nominal x + quantitative y: label at a group center
-    + ds.add_text("ANOVA p < 0.001", position="topLeft")  # position: ANOVA result in the top-right corner, inset 4 px
-    + ds.add_text("Threshold = 5.0", position="bottomRight")  # position: threshold note in the bottom-left corner
-    + ds.add_rule(5)  # add a horizontal reference line at the threshold
+    + ds.text("n = 20", x="Control", y=1.0, align="center")  # nominal x + quantitative y: label at a group center
+    + ds.text("ANOVA p < 0.001", position="topLeft")  # position: ANOVA result in the top-right corner, inset 4 px
+    + ds.text("Threshold = 5.0", position="bottomRight")  # position: threshold note in the bottom-left corner
+    + ds.rule(5)  # add a horizontal reference line at the threshold
 )
 
 multi = {

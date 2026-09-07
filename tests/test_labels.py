@@ -2,7 +2,7 @@ import altair as alt
 import polars as pl
 import pytest
 
-from dysonsphere.labels import label_expr
+from dysonsphere.display_labels import label_expr
 from dysonsphere.theme import theme
 
 

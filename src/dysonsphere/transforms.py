@@ -8,9 +8,8 @@ from scipy.stats import gaussian_kde
 from .theme import _opt
 from .utils import ensure_polars
 
-# The module's public API - star-imported into the dysonsphere namespace. Everything
-# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
-__all__ = ["add_jitter", "add_beeswarm", "add_quasirandom"]
+# Public data transforms, exposed through ds.transforms rather than the root namespace.
+__all__ = ["jitter", "beeswarm", "quasirandom"]
 
 
 def _beeswarm_offsets(
@@ -252,7 +251,7 @@ def _grouped_offsets(
     """Apply a per-group offset function over ``yCol`` and attach the result as ``outCol``.
 
     Shared ``with_row_index`` / ``group_by`` / ``map_groups`` / ``sort`` / ``drop`` plumbing for
-    :func:`add_beeswarm` and :func:`add_quasirandom` (both compute one x-offset per row, per group).
+    :func:`beeswarm` and :func:`quasirandom` (both compute one x-offset per row, per group).
     """
     return (
         df.with_row_index("__offset_idx")
@@ -263,7 +262,7 @@ def _grouped_offsets(
     )
 
 
-def add_beeswarm(
+def beeswarm(
     df: pl.DataFrame | Any,
     yCol: str,
     groupBy: list[str],
@@ -279,7 +278,7 @@ def add_beeswarm(
     non-overlapping. The trade is that tightly-packed rows can look lopsided (an
     even-count row parks a point on the tick, lone points get pushed to one side) -
     inherent to the swarm algorithm. For a symmetric, density-shaped alternative that
-    allows mild overlap, see :func:`add_quasirandom`.
+    allows mild overlap, see :func:`quasirandom`.
 
     ``spread`` is the collision radius in pixels - set it to roughly half the rendered
     point diameter for non-overlapping points. The total horizontal width is emergent
@@ -310,7 +309,7 @@ def add_beeswarm(
     --------
     ::
 
-        df = ds.add_beeswarm(df, yCol="value", groupBy=["group"])
+        df = ds.transforms.beeswarm(df, yCol="value", groupBy=["group"])
         m = df["beeswarm_x"].abs().max()  # pin a symmetric xOffset domain so offset 0 sits on the tick
 
         alt.Chart(df).mark_circle().encode(
@@ -326,7 +325,7 @@ def add_beeswarm(
     return _grouped_offsets(df, yCol, groupBy, outCol, lambda y: _beeswarm_offsets(y, heightPx=heightPx, spread=spread))
 
 
-def add_quasirandom(
+def quasirandom(
     df: pl.DataFrame | Any,
     yCol: str,
     groupBy: list[str],
@@ -342,10 +341,10 @@ def add_quasirandom(
     Wraps :func:`_quasirandom_offsets` - a density-scaled quasirandom spread (van der
     Corput low-discrepancy sequence weighted by a Gaussian KDE), R ggbeeswarm's
     ``geom_quasirandom``. It gives a symmetric, violin-shaped swarm that stays centred
-    on the tick, sidestepping :func:`add_beeswarm`'s lopsided tightly-packed rows. Fully
+    on the tick, sidestepping :func:`beeswarm`'s lopsided tightly-packed rows. Fully
     deterministic (no RNG), so figures reproduce. The trade is that it does NOT guarantee
     non-overlap - the cost of the smoother, symmetric look. It is the better choice for
-    large or heavily-tied groups; use :func:`add_beeswarm` for small groups where exact
+    large or heavily-tied groups; use :func:`beeswarm` for small groups where exact
     non-overlap matters.
 
     Parameters
@@ -360,7 +359,7 @@ def add_quasirandom(
         Chart height in pixels. Defaults to the theme's ``chartHeight``.
     spread:
         Point radius in pixels - the unit the auto ``width`` is built from. Defaults to
-        ``sqrt(markSize / π)`` from the active theme, matching :func:`add_beeswarm`.
+        ``sqrt(markSize / π)`` from the active theme, matching :func:`beeswarm`.
     outCol:
         Name of the output offset column added to the DataFrame.
     width:
@@ -378,7 +377,7 @@ def add_quasirandom(
     --------
     ::
 
-        df = ds.add_quasirandom(df, yCol="value", groupBy=["group"])
+        df = ds.transforms.quasirandom(df, yCol="value", groupBy=["group"])
         m = df["quasirandom_x"].abs().max()  # pin a symmetric xOffset domain so offset 0 sits on the tick
 
         alt.Chart(df).mark_circle().encode(
@@ -397,7 +396,7 @@ def add_quasirandom(
     )
 
 
-def add_jitter(
+def jitter(
     df: pl.DataFrame | Any,
     spread: float | None = None,
     outCol: str = "jitter_x",
@@ -409,7 +408,7 @@ def add_jitter(
     Each offset is drawn independently from N(0, spread²), where ``spread``
     is the standard deviation in pixels.  ~68% of points fall within
     ±spread of centre; ~95% within ±2·spread.  There is no collision
-    avoidance — points can overlap.  Use :func:`add_beeswarm` instead for
+    avoidance — points can overlap.  Use :func:`beeswarm` instead for
     small n where overlap is undesirable.
 
     Parameters
@@ -434,7 +433,7 @@ def add_jitter(
     --------
     ::
 
-        df = ds.add_jitter(df, spread=5)
+        df = ds.transforms.jitter(df, spread=5)
 
         alt.Chart(df).mark_circle().encode(
             x=alt.X("group:N"),

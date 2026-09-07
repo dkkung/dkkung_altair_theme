@@ -10,8 +10,8 @@ The pages in this section are generated directly from dysonsphere's docstrings (
 
 Browse by area in the sidebar:
 
-- **Annotations** - `add_rule()`, `add_text()`, `add_shade()`, `add_labels()`
-- **Display labels** - `label_expr()`
+- **Annotations** - `ds.rule()`, `ds.text()`, `ds.shade()`, `ds.labels()`
+- **[Display labels](/reference/display_labels/)** - `ds.label_expr()`
 - **Extension authoring** - the `dysonsphere.ext` primitive surface
 - **Extensions** - `extensions()`, `load_extension()`
 - **Marks** - `mark_strip()`, `mark_violin()`
@@ -22,7 +22,7 @@ Browse by area in the sidebar:
 - **Saving & loading** - `save()`, `load()`, `show()`
 - **[Statistics](/reference/stats/)** - `ds.stats.comparisons()`, `ds.stats.correlation()`, `ds.stats.clear_stats()`
 - **Theming** - `theme()` and config-file scaffolding (`create_config()`)
-- **Transforms** - `add_jitter()`, `add_beeswarm()`
+- **Transforms** - `ds.transforms.jitter()`, `ds.transforms.beeswarm()`, `ds.transforms.quasirandom()`
 - **Utilities** - `ensure_polars()`, `count_n()`, `band_geometry()`, `frame_checksum()`
 
 Every public function carries type annotations (the package ships a `py.typed` marker), so the

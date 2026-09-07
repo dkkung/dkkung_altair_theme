@@ -1,9 +1,9 @@
 """
-Generates docs/transforms_example.png — the README preview for add_beeswarm and add_jitter.
+Generates docs/transforms_example.png - the README preview for transforms.beeswarm and transforms.jitter.
 
 Two panels showing the same data with different x-offset methods:
-  left  - add_beeswarm() (collision-avoiding, deterministic)
-  right - add_jitter() (Gaussian random)
+  left  - transforms.beeswarm() (collision-avoiding, deterministic)
+  right - transforms.jitter() (Gaussian random)
 
 Usage (from project root):
     uv run python scripts/build/build_transforms_example.py
@@ -48,24 +48,24 @@ x = alt.X("group:N", sort=CATEGORIES, title=None)
 y = alt.Y("value:Q", title=None)
 color = alt.Color("group:N", sort=CATEGORIES, scale=alt.Scale(range=palette), legend=None)
 
-# -- Left: add_beeswarm() ---------------------------------------------------
-bee_df = ds.add_beeswarm(df, yCol="value", groupBy=["group"])
+# -- Left: transforms.beeswarm() -------------------------------------------
+bee_df = ds.transforms.beeswarm(df, yCol="value", groupBy=["group"])
 
 left = (
     alt.Chart(bee_df)
     .mark_circle()
     .encode(x=x, y=y, xOffset=alt.XOffset("beeswarm_x:Q"), color=color)
-    .properties(title=alt.TitleParams(["add_beeswarm(df, ...)"], fontSize=fontSize, **title_params))
+    .properties(title=alt.TitleParams(["transforms.beeswarm(df, ...)"], fontSize=fontSize, **title_params))
 )
 
-# -- Right: add_jitter() ----------------------------------------------------
-jit_df = ds.add_jitter(df, spread=4.0)
+# -- Right: transforms.jitter() --------------------------------------------
+jit_df = ds.transforms.jitter(df, spread=4.0)
 
 right = (
     alt.Chart(jit_df)
     .mark_point()
     .encode(x=x, y=y, xOffset=alt.XOffset("jitter_x:Q"), color=color)
-    .properties(title=alt.TitleParams(["add_jitter(df, spread=4.0)"], fontSize=fontSize, **title_params))
+    .properties(title=alt.TitleParams(["transforms.jitter(df, spread=4.0)"], fontSize=fontSize, **title_params))
 )
 
 chart = alt.hconcat(left, right)

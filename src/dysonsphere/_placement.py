@@ -1,4 +1,4 @@
-"""Pixel-space label placement - the pure geometry engine behind ``annotations.add_labels``.
+"""Pixel-space label placement - the pure geometry engine behind ``annotations.labels``.
 
 No Altair imports here: everything takes and returns plain pixel coordinates, mirroring how
 ``_statistics.py`` is the pure computation engine behind ``stats.py``. Placement is solved
@@ -27,7 +27,7 @@ def _repel_labels(
     obstacles: "list[tuple[float, float]] | None" = None,
     iterations: int = 300,
 ) -> list[tuple[float, float]]:
-    """Nearest-clear-spot label placement (deterministic) - the engine behind :func:`add_labels`.
+    """Nearest-clear-spot label placement (deterministic) - the engine behind :func:`annotations.labels`.
 
     ``anchors`` are the pixel positions of the points being labelled, ``sizes`` each label's
     ``(width, height)`` box, ``obstacles`` all plotted points to avoid covering (default:
@@ -328,7 +328,7 @@ def _sample_spread(xs: list[float], ys: list[float], n: int) -> list[int]:
     """Return the indices of ``n`` points spread as evenly as possible across the (x, y) extent -
     farthest-point sampling, deterministic (no RNG).
 
-    Used by ``add_labels(labels=n)`` to auto-pick a readable, unbiased subset to label without the
+    Used by ``labels(labels=n)`` to auto-pick a readable, unbiased subset to label without the
     caller cherry-picking. Preferred over a uniform random sample, which is density-weighted and so
     would clump labels in the busiest region. Coordinates are normalized to a unit square (so x and
     y weigh equally); the seed is the point nearest the low corner, then each next point is the one
