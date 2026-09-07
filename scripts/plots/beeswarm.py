@@ -6,7 +6,7 @@ import dysonsphere as ds
 
 # Boxplot + beeswarm figure (skewed data: most points low, long tail), with mean "+" markers,
 # sample-size x labels, and significance brackets. Group labels are ordered so their lexical
-# order matches the display order - add_comparisons brackets don't propagate the chart's `sort`,
+# order matches the display order - stats.comparisons brackets don't propagate the chart's `sort`,
 # so lexical-order labels keep the bands aligned with the brackets.
 rng = np.random.default_rng(7)
 GROUPS = ["(181)", "(206)", "(218)", "(230)", "(303)"]
@@ -35,7 +35,7 @@ pts = alt.Chart(df).mark_circle().encode(x=x, y=y, xOffset=alt.XOffset("beeswarm
 means = df.group_by("g").agg(pl.col("v").mean().alias("m"))
 mean_marks = alt.Chart(means).mark_point(shape="cross", color="black", size=10, strokeWidth=1).encode(x=x, y="m:Q")
 
-brackets = ds.add_comparisons(
+brackets = ds.stats.comparisons(
     df,
     xCol="g",
     yCol="v",

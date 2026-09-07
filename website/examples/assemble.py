@@ -55,7 +55,7 @@ def endpoint_quant():
         xTitle=None,
         yTitle="Viability at 48 h (%)",
         palette=ds.palette("ds_cat_2", 3),
-    ) + ds.add_comparisons(
+    ) + ds.stats.comparisons(
         endpoint,
         "dose",
         "viability",
@@ -89,7 +89,7 @@ def activity_fit():
             color=alt.Color("activity:Q", title=None, legend=None, scale=alt.Scale(range=ds.palette("ds_div_1", 9))),
         )
     )
-    return points + ds.add_correlation(activity, "expression", "activity", position="topLeft")
+    return points + ds.stats.correlation(activity, "expression", "activity", position="topLeft")
 
 
 chart = ds.assemble(

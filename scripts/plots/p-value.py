@@ -33,7 +33,7 @@ chart = (
     )
 )
 
-ann = ds.add_comparisons(
+ann = ds.stats.comparisons(
     df,
     "group",
     "value",

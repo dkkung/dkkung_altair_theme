@@ -3,8 +3,8 @@
 Every constructor returns an Altair chart/layer to compose onto a base chart with ``+``:
 ``add_rule`` (reference lines), ``add_text`` (positioned text), ``add_shade`` (background
 shading), and ``add_labels`` (auto-placed point labels with connectors; the pixel placement
-engine lives in ``_placement.py``). Statistical annotations (``add_comparisons``,
-``add_correlation``) live in ``inference.py``.
+engine lives in ``_placement.py``). Statistical annotations (``comparisons``,
+``correlation``) live in ``stats.py``.
 """
 
 import math

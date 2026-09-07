@@ -255,7 +255,7 @@ def _build_provenance(
 
 def _scan_marker_hashes(spec) -> set[str]:
     """Collect the record hashes from every ``__dysonsphere_`` marker ``name`` in a spec."""
-    from .statistics import _marker_hash
+    from ._statistics import _marker_hash
 
     found: set[str] = set()
 
@@ -276,7 +276,7 @@ def _scan_marker_hashes(spec) -> set[str]:
 
 def _strip_markers(spec) -> None:
     """Remove every ``__dysonsphere_`` marker ``name`` from a spec dict, in place."""
-    from .statistics import _MARKER_PREFIX
+    from ._statistics import _MARKER_PREFIX
 
     def walk(o):
         if isinstance(o, dict):
@@ -379,7 +379,7 @@ def _build_block(
     report-free structured blob — so it is machine-readable from all three formats' embedded
     JSON (this is in addition to the native ``description``/``<desc>``/``iTXt Description``).
     """
-    from .statistics import _render_report
+    from ._statistics import _render_report
     from .theme import _BUILTIN_DEFAULTS
 
     provenance = _build_provenance(
@@ -617,7 +617,7 @@ def read(
     if report:
         text = "\n\n".join(report.values())
     else:  # prose wasn't embedded (embedReport=False) — re-render from records
-        from .statistics import _render_report
+        from ._statistics import _render_report
 
         text = "\n\n".join(_render_report(r) for r in block.get("statistics", []))
     print(text)

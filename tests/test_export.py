@@ -954,10 +954,10 @@ class TestFixSuperscriptLabels:
     def test_fixer_typesets_every_generator_superscript(self):
         # Guard against reopening the log-label bug: the SINGLE fixer must convert EVERY Unicode
         # superscript that ANY generator emits (p-value labels, log-axis labels, table columns -
-        # all funnel through utils._SUP / inference._superscript), so no fragile glyph survives
+        # all funnel through utils._SUP / stats._superscript), so no fragile glyph survives
         # into the font-rendered SVG. If a future generator emits a superscript form the fixer's
         # pattern misses, a fragile char is left in the text and this fails.
-        from dysonsphere.inference import _format_pvalue, _superscript
+        from dysonsphere.stats import _format_pvalue, _superscript
         from dysonsphere.utils import _SUP
 
         labels = [
@@ -1224,7 +1224,7 @@ class TestItalicizeStatSymbols:
                 "y": [1.0, 2.0, 3.0, 2.5, 1.5, 2.2, 4.0, 5.0, 4.5, 5.5, 4.8, 5.2],
             }
         )
-        chart = ds.mark_strip(df, "g", "y", ["a", "b"]) + ds.add_comparisons(
+        chart = ds.mark_strip(df, "g", "y", ["a", "b"]) + ds.stats.comparisons(
             df, "g", "y", pairs=[("a", "b")], test="mannwhitneyu"
         )
         save(chart, str(tmp_path / "italic"), format="svg", background=["light"])

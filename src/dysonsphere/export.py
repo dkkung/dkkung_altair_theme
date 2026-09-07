@@ -200,7 +200,7 @@ def save(
           ``environment`` (OS + toolchain versions), then the identity fields
           ``vegaliteChecksum``/``exportIdentifier``/``dataChecksum``. In Jupyter, ``script``
           is ``"<jupyter-notebook>"``; ``user`` falls back to ``"unknown_user"``.
-        - ``statistics`` — the structured records queued by ``add_comparisons`` (groups,
+        - ``statistics`` — the structured records queued by ``stats.comparisons`` (groups,
           omnibus result, comparisons with exact p-values and effect sizes); omitted when
           there are none.
 
@@ -220,13 +220,13 @@ def save(
         get distinct identifiers, and the light/dark variants of one export still share one.
     embedReport:
         If ``True`` (default) and ``saveMetadata`` is on, also embeds the human-readable
-        **report table** (the descriptive + effect-size text from ``add_comparisons`` /
-        ``add_correlation``) so you can read it straight out of the file — as a ``report``
+        **report table** (the descriptive + effect-size text from ``stats.comparisons`` /
+        ``stats.correlation``) so you can read it straight out of the file — as a ``report``
         member of ``usermeta.dysonsphere`` in the **JSON**, and as a dedicated readable
         channel (real newlines, not escaped JSON) in the **SVG**
         (``<metadata id="dysonsphere-report">``) and **PNG** (``iTXt dysonsphere-report``).
         It never touches ``description`` (your text only). Set ``False`` to keep just the
-        structured block. (Also available standalone via ``add_comparisons(report=True)``.)
+        structured block. (Also available standalone via ``stats.comparisons(report=True)``.)
 
     Examples
     --------
@@ -258,12 +258,12 @@ def save(
     _formats = _resolve_choice(format, _opt("saveFormat"), _VALID_FORMATS, "format")
     _backgrounds = _resolve_choice(background, _opt("saveBackground"), _VALID_BACKGROUNDS, "background")
 
-    # Records are NOT drained here.  Instead, each add_comparisons()/add_correlation() tagged
+    # Records are NOT drained here.  Instead, each stats.comparisons()/stats.correlation() tagged
     # its annotation layer with a marker name; below we resolve the chart, find which markers
     # are actually present, and embed ONLY those records — so a record from a chart that was
     # built but never saved can't contaminate this save.  `exportIdentifier` + `timestamp` are
     # generated once (shared by every variant of this export); the checksum is per-variant.
-    from .statistics import _select_reports
+    from ._statistics import _select_reports
 
     # Under SOURCE_DATE_EPOCH both are pinned so two saves of one figure are byte-identical:
     # the timestamp comes from the epoch, and the run id is derived from the first variant's
@@ -997,9 +997,9 @@ def _italicize_stat_symbols(root: ET.Element) -> None:
     as an SVG post-process: each matched symbol is wrapped in a
     ``<tspan font-style="italic">``, rendering with the label font's italic face.
 
-    Covers the dysonsphere-generated labels - ``add_comparisons`` bracket p-values and the
+    Covers the dysonsphere-generated labels - ``stats.comparisons`` bracket p-values and the
     omnibus/test label (``ANOVA F(2, 57) = 6.34, P = 0.003, η² = 0.18``), the
-    ``add_correlation`` readout (``r = 0.85, r² = 0.72, P < 0.001, y = 0.84x + 0.27``), and
+    ``stats.correlation`` readout (``r = 0.85, r² = 0.72, P < 0.001, y = 0.84x + 0.27``), and
     ``add_multilabel``'s ``n =`` sample-size row - and, by the same global-pattern policy as
     :func:`_fix_superscript_labels`, any user text matching the same forms (a hand-written
     ``P = 0.03`` via ``add_text`` gets the identical treatment, keeping typography

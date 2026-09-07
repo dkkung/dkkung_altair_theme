@@ -1,7 +1,7 @@
 """Pixel-space label placement - the pure geometry engine behind ``annotations.add_labels``.
 
 No Altair imports here: everything takes and returns plain pixel coordinates, mirroring how
-``statistics.py`` is the pure computation engine behind ``inference.py``. Placement is solved
+``_statistics.py`` is the pure computation engine behind ``stats.py``. Placement is solved
 outside the renderer (like ggrepel / adjustText / d3-labeler) because Vega-Lite has no
 label-repel primitive; the wrapper feeds the results back to Altair as static positions.
 """

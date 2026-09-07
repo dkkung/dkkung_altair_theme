@@ -45,7 +45,7 @@ for title, ytitle, groups, scales, sizes, ycap, w, h, label_style, bracket_style
     box = alt.Chart(df).mark_boxplot(size=9, outliers=False).encode(x=x, y=y)  # plain band = on the tick
     pts = alt.Chart(df).mark_circle(size=0.5).encode(x=x, y=y, xOffset=alt.XOffset("beeswarm_x:Q"))
 
-    brackets = ds.add_comparisons(
+    brackets = ds.stats.comparisons(
         df,
         xCol="g",
         yCol="v",

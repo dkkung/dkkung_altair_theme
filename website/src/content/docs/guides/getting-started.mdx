@@ -23,7 +23,7 @@ Requires Python >= 3.11. The runtime dependencies install with it:
 - [Altair](https://altair-viz.github.io/) >= 6.0 - the charting layer
 - [Polars](https://pola.rs/) >= 1.19 - the native `DataFrame` ([pandas](https://pandas.pydata.org/) input is accepted and converted)
 - [NumPy](https://numpy.org/) >= 1.26 - numeric primitives
-- [SciPy](https://scipy.org/) >= 1.11 - the statistics behind `add_comparisons()` / `add_correlation()`
+- [SciPy](https://scipy.org/) >= 1.11 - the statistics behind `ds.stats.comparisons()` / `ds.stats.correlation()`
 - [vl-convert](https://github.com/vega/vl-convert) >= 1.9 - the SVG/PNG renderer behind `save()`
 
 `pandas` and `duckdb` are optional - only needed for `read(..., output="pandas"/"duckdb")`.
@@ -42,7 +42,7 @@ Everything hangs off one namespace, `dysonsphere` (conventionally `ds`):
 - **Annotations** - `ds.add_rule()`, `ds.add_text()`, `ds.add_shade()`, `ds.add_labels()` return
   layers you add with `+`. See [Reference lines](/guides/reference-lines/),
   [Shading](/guides/shading/), and [Text & labels](/guides/text-labels/).
-- **Statistics** - `ds.add_comparisons()` and `ds.add_correlation()` draw significance tests and
+- **Statistics** - `ds.stats.comparisons()` and `ds.stats.correlation()` draw significance tests and
   fits that carry a report into the export. See [Comparisons](/guides/comparisons/) and
   [Correlation](/guides/correlation/).
 - **`ds.save()` / `ds.read()` / `ds.load()`** - export figures that carry their own provenance,

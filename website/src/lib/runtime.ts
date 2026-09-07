@@ -94,7 +94,7 @@ def _run_chart(code, dark):
     if ch is None:
         raise RuntimeError("Define a variable named 'chart' (a dysonsphere/Altair chart).")
     spec = ch.to_dict()
-    ds.clear_stats()  # statistics records are per-run; never leak across renders
+    ds.stats.clear_stats()  # statistics records are per-run; never leak across renders
     return json.dumps(spec)
 
 def _read_export(name):

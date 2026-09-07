@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased]
+
+### Changes
+
+- **Breaking:** statistical annotations now use `ds.stats.comparisons()` and `ds.stats.correlation()`;
+  clear retained records with `ds.stats.clear_stats()`. The former top-level functions and
+  `dysonsphere.inference` / `dysonsphere.statistics` modules are removed, without aliases.
+  Parameters, calculations, rendering, and embedded metadata are unchanged.
+
+### Internal
+
+- Move the numerical engine and report registry to `_statistics.py`, separate from the public `stats.py` wrappers.
+- Document the durable API design rules in `API.md`.
+
 ## [3.14.0] - 2026-09-06
 
 ### New features

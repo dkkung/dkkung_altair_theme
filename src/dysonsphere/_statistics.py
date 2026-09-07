@@ -1,7 +1,7 @@
 """Pure statistical computation (no Altair).
 
-Backs the chart-annotation constructors in ``layers.py`` (notably
-``add_comparisons``).  Holds the omnibus tests, hand-rolled post-hoc tests,
+Backs the chart-annotation constructors in ``stats.py`` (notably
+``comparisons``).  Holds the omnibus tests, hand-rolled post-hoc tests,
 effect-size functions, and the descriptive report builder.  Nothing here
 imports Altair, so it is unit-testable in isolation.
 
@@ -22,9 +22,8 @@ from typing import Any
 
 import numpy as np
 
-# The module's public API - star-imported into the dysonsphere namespace. Everything
-# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
-__all__ = ["clear_stats"]
+# Private computation engine; clear_stats is explicitly re-exported by ds.stats.
+__all__: list[str] = []
 
 # Omnibus tests ("are *any* of the groups different?").
 _OMNIBUS_TESTS = {"anova", "kruskal", "friedman", "alexandergovern"}
@@ -46,7 +45,7 @@ _POSTHOC_DEFAULTS = {
 # Pairwise tests usable directly (existing behaviour) or as a post-hoc fallback.
 _PAIRWISE_TESTS = {"mannwhitneyu", "ttest_ind", "ttest_rel", "wilcoxon"}
 
-# Correlation methods (add_correlation). Only "pearson" implies a straight line.
+# Correlation methods (stats.correlation). Only "pearson" implies a straight line.
 _CORRELATION_METHODS = {
     "pearson": ("Pearson", "r", "pearson_r"),
     "spearman": ("Spearman", "ρ", "spearman_rho"),
@@ -71,7 +70,7 @@ _TEST_DISPLAY = {
 
 
 # ── Report registry ────────────────────────────────────────────────────────
-# add_comparisons()/add_correlation() register a structured report *record* (a plain
+# stats.comparisons()/stats.correlation() register a structured report *record* (a plain
 # dict — the single source of truth) here, keyed by a hash of its content, and get back
 # a unique marker name to tag their annotation layer with.  export.save() resolves the
 # chart, finds which markers are actually present, and embeds ONLY those records — so a
@@ -126,8 +125,8 @@ def _select_reports(hashes) -> list[dict[str, Any]]:
 
 
 def clear_stats() -> None:
-    """Discard all pending statistical records queued by ``add_comparisons`` /
-    ``add_correlation``.
+    """Discard all pending statistical records queued by ``stats.comparisons`` /
+    ``stats.correlation``.
 
     ``save()`` embeds only the records whose annotations appear in the chart being saved, so
     stale records never contaminate a save.  But they do accumulate in memory across a long
@@ -328,7 +327,7 @@ def _make_correlation_record(
     (``utils.frame_checksum``), so records from distinct dataframes are distinguishable; it also
     feeds the record's content hash (the marker), so two correlations on different data never
     collapse.  ``None`` when built without a frame (e.g. a direct unit-test call).  ``group`` labels
-    a per-group record in grouped mode (``add_correlation(groupCol=...)``); ``None`` for a single fit.
+    a per-group record in grouped mode (``stats.correlation(groupCol=...)``); ``None`` for a single fit.
     """
     record = {
         "kind": "correlation",

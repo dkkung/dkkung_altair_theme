@@ -78,6 +78,11 @@ in `website/` on `main` and is developed on ordinary feature branches like the r
 
 ## Conventions and gotchas
 
+- **v4 statistics namespace.** Active examples, guides, Studio codegen, and runtime use
+  `ds.stats.comparisons`, `ds.stats.correlation`, and `ds.stats.clear_stats`; parameters and behavior
+  are unchanged. The reference is `reference/stats.md`; griffe includes the intentional
+  `clear_stats` re-export from `_statistics` via `stats.__all__`. Historical notes stay unchanged.
+
 - **Example registry.** Every guide chart is a file in `examples/`; `Example.astro` shows that file
   verbatim (vite `?raw`) AND renders the spec `gen_examples.py` produced from executing it, so shown
   code and chart cannot drift. Each example must define `chart` (the studio-editor contract). To add
@@ -148,7 +153,7 @@ in `website/` on `main` and is developed on ordinary feature branches like the r
   emitted snippet reads the upload with `pl.read_csv("file.csv")` (copy-runnable AND executed
   verbatim, since the upload is in the runtime's virtual FS under that name), and a **code editor**
   (the absorbed playground) seeded from the builder via "Edit as code". The builder can layer
-  statistics (`add_comparisons`/`add_correlation`), a multilabel table (`add_multilabel`), and
+  statistics (`ds.stats.comparisons`/`ds.stats.correlation`), a multilabel table (`add_multilabel`), and
   annotations (`add_rule`, `add_text` with a position preset, `add_shade` bands or a y-range).
   Sample datasets: the synthetic dose-response plus vega_datasets classics (cars/penguins/iris/
   barley/stocks) bundled into the FS as `<name>.csv` by `_load_dataset` so the emitted

@@ -60,7 +60,7 @@ three formats:
   vl-convert (the renderer), dysonsphere (and any extensions that produced the figure), numpy,
   scipy, and polars - then the machine-identity checksums.
 - **theme** - the resolved `ds.theme()` arguments, so the look can be reproduced exactly.
-- **statistics** - the structured records from any `add_comparisons()` / `add_correlation()` on the
+- **statistics** - the structured records from any `ds.stats.comparisons()` / `ds.stats.correlation()` on the
   chart (exact p-values, effect sizes, descriptives).
 - **report** - the human-readable version of those statistics.
 
@@ -71,7 +71,7 @@ Kruskal-Wallis comparison on the classic `cars` dataset:
 
 ```python
 strip = ds.mark_strip(cars, "Origin", "Miles_per_Gallon", origins)
-mpg_comparisons = ds.add_comparisons(
+mpg_comparisons = ds.stats.comparisons(
     cars, "Origin", "Miles_per_Gallon",
     [("USA", "Europe"), ("USA", "Japan")],
     test="kruskal", omnibusVerbose=True, categories=origins,
@@ -347,10 +347,10 @@ ds.verify(ds.load("figure.json"))                  # no - the object has no meta
 
 ## Statistics without a file
 
-`add_comparisons()` and `add_correlation()` can surface their report directly:
+`ds.stats.comparisons()` and `ds.stats.correlation()` can surface their report directly:
 
 ```python
-chart = base + ds.add_comparisons(df, "group", "value", pairs, test="anova", report=True)
+chart = base + ds.stats.comparisons(df, "group", "value", pairs, test="anova", report=True)
 # report=True prints it; save="dir/" writes a timestamped .txt
 ```
 

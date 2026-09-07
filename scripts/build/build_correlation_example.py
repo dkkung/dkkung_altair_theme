@@ -1,5 +1,5 @@
 """
-Generates docs/correlation_example.png — the README preview for add_correlation.
+Generates docs/correlation_example.png - the README preview for stats.correlation.
 
 Three panels:
   left   — method="pearson" default: r + the theme-inherited OLS fit line
@@ -47,17 +47,17 @@ def scatter(df: pl.DataFrame) -> alt.Chart:
     )
 
 
-left = (scatter(linear_df) + ds.add_correlation(linear_df, "x", "y")).properties(
+left = (scatter(linear_df) + ds.stats.correlation(linear_df, "x", "y")).properties(
     title=alt.TitleParams(['method="pearson"'], fontSize=fontSize, **title_params)
 )
 
 middle = (
-    scatter(curved_df) + ds.add_correlation(curved_df, "x", "y", method="spearman", includePvalue=True)
+    scatter(curved_df) + ds.stats.correlation(curved_df, "x", "y", method="spearman", includePvalue=True)
 ).properties(title=alt.TitleParams(['method="spearman"', "includePvalue=True"], fontSize=fontSize, **title_params))
 
 right = (
     scatter(linear_df)
-    + ds.add_correlation(linear_df, "x", "y", verbose=True, color="#c0392b", lineStyle={"strokeDash": [4, 2]})
+    + ds.stats.correlation(linear_df, "x", "y", verbose=True, color="#c0392b", lineStyle={"strokeDash": [4, 2]})
 ).properties(
     title=alt.TitleParams(
         ["verbose=True", 'color="#c0392b", lineStyle={"strokeDash": [4, 2]}'], fontSize=fontSize, **title_params

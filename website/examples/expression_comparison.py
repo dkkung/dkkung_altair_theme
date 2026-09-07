@@ -1,4 +1,4 @@
-"""Group comparison - a beeswarm strip with pairwise Mann-Whitney brackets from add_comparisons."""
+"""Group comparison - a beeswarm strip with pairwise Mann-Whitney brackets from ds.stats.comparisons."""
 
 import altair as alt
 import numpy as np
@@ -14,7 +14,7 @@ rows = [{"group": g, "expr": float(v)} for g, (m, s) in groups.items() for v in 
 df = pl.DataFrame(rows)
 
 strip = ds.mark_strip(df, "group", "expr", list(groups), scatter="beeswarm", yTitle="expression (a.u.)")
-brackets = ds.add_comparisons(
+brackets = ds.stats.comparisons(
     df,
     "group",
     "expr",

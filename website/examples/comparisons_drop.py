@@ -1,5 +1,6 @@
-import dysonsphere as ds
 from vega_datasets import data
+
+import dysonsphere as ds
 
 ds.theme()
 
@@ -10,9 +11,17 @@ origins = ["Europe", "Japan", "USA"]
 # few brackets over groups of comparable height - a tall outlying group lifts the whole
 # stack, and every tick below it gets long.
 chart = ds.mark_strip(
-    cars, "Origin", "Acceleration", origins, yTitle="Acceleration (s)",
-) + ds.add_comparisons(
-    cars, "Origin", "Acceleration",
+    cars,
+    "Origin",
+    "Acceleration",
+    origins,
+    yTitle="Acceleration (s)",
+) + ds.stats.comparisons(
+    cars,
+    "Origin",
+    "Acceleration",
     [("Europe", "Japan"), ("Europe", "USA")],
-    bracketStyle="drop", labelStyle="asterisks", categories=origins,
+    bracketStyle="drop",
+    labelStyle="asterisks",
+    categories=origins,
 )

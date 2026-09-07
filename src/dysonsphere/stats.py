@@ -1,9 +1,9 @@
 """Statistical inference annotations - significance brackets, omnibus labels, correlation readouts.
 
-The annotation wrappers for what ``statistics.py`` computes: ``add_comparisons`` (pairwise
-brackets and omnibus test labels) and ``add_correlation`` (coefficient readout + OLS fit line).
-Pure computation stays in ``statistics.py`` (no Altair there); this module builds the Vega-Lite
-layers that present it. Statistical results are registered in the ``statistics._REPORTS``
+The annotation wrappers for what ``_statistics.py`` computes: ``comparisons`` (pairwise
+brackets and omnibus test labels) and ``correlation`` (coefficient readout + OLS fit line).
+Pure computation stays in ``_statistics.py`` (no Altair there); this module builds the Vega-Lite
+layers that present it. Statistical results are registered in the ``_statistics._REPORTS``
 registry and embedded into exports by ``save()`` via layer-name markers.
 """
 
@@ -13,6 +13,7 @@ from typing import Any, cast
 import altair as alt
 import polars as pl
 
+from ._statistics import clear_stats as clear_stats
 from .annotations import add_text
 from .theme import _opt
 from .utils import (
@@ -25,9 +26,8 @@ from .utils import (
     band_geometry,
 )
 
-# The module's public API - star-imported into the dysonsphere namespace. Everything
-# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
-__all__ = ["add_comparisons", "add_correlation"]
+# The public ds.stats API; its contents are not star-imported into the root namespace.
+__all__ = ["comparisons", "correlation", "clear_stats"]
 
 # Length of a p-value bracket's end ticks in pixels.
 _BRACKET_TICK_PX = 2.0
@@ -86,7 +86,7 @@ def _format_asterisks(p: float) -> str:
     return "ns"
 
 
-# --- shared resolvers for add_comparisons / _add_grouped_comparisons ---------------------------
+# --- shared resolvers for comparisons / _add_grouped_comparisons ---------------------------
 # Extracted so the single-factor and grouped paths share one implementation (they had drifted -
 # see the y-spacing chart_height guard). Pure functions; error messages are load-bearing (pinned
 # by `match=` tests in test_statistics.py) - keep them verbatim.
@@ -95,7 +95,7 @@ def _format_asterisks(p: float) -> str:
 def _resolve_method(test: str, post_hoc: str | None, pvalues: Any, is_omnibus: bool) -> str | None:
     """The comparison method: a post-hoc for omnibus, the test itself for pairwise, None for
     user-supplied p-values. Also the record's ``comparison_test`` (a pure alias)."""
-    from .statistics import _POSTHOC_DEFAULTS
+    from ._statistics import _POSTHOC_DEFAULTS
 
     if pvalues is not None:
         return None
@@ -384,7 +384,7 @@ def _emit_report(record: dict[str, Any], report: bool, save: bool | str) -> str:
     from datetime import datetime
     from pathlib import Path
 
-    from .statistics import _register_report, _render_report
+    from ._statistics import _register_report, _render_report
 
     marker = _register_report(record)
     if report or save:
@@ -516,7 +516,7 @@ def _pvalue_layer(
     # drop ticks differ per end, so each gets its own kwargs
     _lens = (tick_px, tick_px) if isinstance(tick_px, (int, float)) else tick_px
     _tick_kwargs_l, _tick_kwargs_r = dict(_rule_kwargs), dict(_rule_kwargs)
-    # A drop tick ends at a DATA position. add_comparisons cannot see the base chart's y domain,
+    # A drop tick ends at a DATA position. comparisons cannot see the base chart's y domain,
     # so a pixel length measured against a guessed one overshoots through the data it should stop
     # above - the further the rendered domain is from that guess, the worse.
     tick_y2_l, tick_y2_r = tick_data if tick_data is not None else (tick_y2, tick_y2)
@@ -631,7 +631,7 @@ def _bracket_pvalues(
     """Resolve bracket p-values for ``pairs`` via a matrix post-hoc or a pairwise test."""
     from scipy import stats as _stats
 
-    from .statistics import _PAIRWISE_TESTS, _adjust, _post_hoc_matrix
+    from ._statistics import _PAIRWISE_TESTS, _adjust, _post_hoc_matrix
 
     idx = {c: i for i, c in enumerate(categories)}
     if method in _MATRIX_POSTHOCS:
@@ -724,7 +724,7 @@ def _grouped_bracket_layer(
             tk = dict(rk)
             y2_val = y + tick_height if reverse else y - tick_height
             if tend is not None:
-                # A drop tick ends at a DATA position, not a pixel distance. add_comparisons
+                # A drop tick ends at a DATA position, not a pixel distance. comparisons
                 # cannot see the base chart's y domain - an explicit scale=alt.Scale(domain=...)
                 # is invisible to it - so a pixel length measured against a guessed domain runs
                 # straight through the data it should stop above.
@@ -839,7 +839,7 @@ def _add_grouped_comparisons(
     """
     from scipy import stats as _stats
 
-    from .statistics import _adjust, _describe_all, _make_record, _pair_effect
+    from ._statistics import _adjust, _describe_all, _make_record, _pair_effect
     from .utils import frame_checksum
 
     # Guard the sort footgun: `categories`/`xOffsetSort` must match the chart's x/xOffset sort or the
@@ -1290,7 +1290,7 @@ def _add_grouped_comparisons(
     return cast(alt.LayerChart, alt.layer(*layers).properties(name=marker))
 
 
-def add_comparisons(
+def comparisons(
     df: pl.DataFrame | Any,
     xCol: str,
     yCol: str,
@@ -1375,7 +1375,7 @@ def add_comparisons(
     outside the box. Only the upper bound moves - the lower bound, ``zero`` and nice-rounding are
     untouched - and only when there are brackets to clear.
 
-    Combine with your chart using ``+``:  ``chart + add_comparisons(...)``.
+    Combine with your chart using ``+``:  ``chart + ds.stats.comparisons(...)``.
 
     Parameters
     ----------
@@ -1587,7 +1587,7 @@ def add_comparisons(
 
         CATEGORIES = ["A", "B", "C"]
         chart = ds.mark_strip(df, "group", "value", CATEGORIES)
-        chart + ds.add_comparisons(
+        chart + ds.stats.comparisons(
             df, "group", "value",
             pairs=[("A", "B")],
             categories=CATEGORIES,
@@ -1595,7 +1595,7 @@ def add_comparisons(
 
     Multiple comparisons — brackets stacked automatically::
 
-        chart + ds.add_comparisons(
+        chart + ds.stats.comparisons(
             df, "group", "value",
             pairs=[("A", "B"), ("A", "C"), ("B", "C")],
             test="mannwhitneyu",
@@ -1604,7 +1604,7 @@ def add_comparisons(
 
     Every pair, corrected over the whole family::
 
-        chart + ds.add_comparisons(
+        chart + ds.stats.comparisons(
             df, "group", "value",
             pairs="all",
             correction="holm",
@@ -1613,7 +1613,7 @@ def add_comparisons(
 
     Omnibus ANOVA in the corner + Tukey post-hoc brackets::
 
-        chart + ds.add_comparisons(
+        chart + ds.stats.comparisons(
             df, "group", "value",
             pairs=[("A", "B"), ("A", "C")],
             test="anova",
@@ -1623,7 +1623,7 @@ def add_comparisons(
 
     Omnibus-only (no brackets), report printed::
 
-        chart + ds.add_comparisons(
+        chart + ds.stats.comparisons(
             df, "group", "value",
             test="kruskal",
             categories=CATEGORIES,
@@ -1632,7 +1632,7 @@ def add_comparisons(
 
     From pre-computed p-values::
 
-        chart + ds.add_comparisons(
+        chart + ds.stats.comparisons(
             df, "group", "value",
             pairs=[("A", "B"), ("A", "C")],
             pvalues=[0.012, 0.341],
@@ -1648,7 +1648,7 @@ def add_comparisons(
             xOffset=alt.XOffset("condition:N", sort=["Vehicle", "LPS"]),
             y="mean(expr):Q", color="condition:N",
         )
-        bars + ds.add_comparisons(
+        bars + ds.stats.comparisons(
             df, "gene", "expr",
             xOffsetCol="condition",
             categories=GENES, xOffsetSort=["Vehicle", "LPS"],
@@ -1660,13 +1660,13 @@ def add_comparisons(
 
         CATS = ["Ctrl", "Low", "Mid", "High"]
         chart = ds.mark_strip(df, "group", "value", CATS)
-        chart + ds.add_comparisons(
+        chart + ds.stats.comparisons(
             df, "group", "value",
             reference="Ctrl", categories=CATS,
             test="ttest_ind", correction="holm", labelStyle="asterisks",
         )
     """
-    from .statistics import (
+    from ._statistics import (
         _OMNIBUS_TESTS,
         _PARAMETRIC_POSTHOC,
         _TEST_DISPLAY,
@@ -2247,8 +2247,8 @@ def _add_grouped_correlation(
     """
     import numpy as np
 
+    from ._statistics import _make_correlation_record, _ols_band, _run_correlation
     from .annotations import _TEXT_PRESETS
-    from .statistics import _make_correlation_record, _ols_band, _run_correlation
     from .utils import frame_checksum
 
     fontSize = fontSize if fontSize is not None else _opt("fontSize")
@@ -2395,7 +2395,7 @@ def _add_grouped_correlation(
     return cast(alt.LayerChart, alt.layer(*layers))
 
 
-def add_correlation(
+def correlation(
     df: pl.DataFrame | Any,
     xCol: str,
     yCol: str,
@@ -2432,9 +2432,9 @@ def add_correlation(
     Reports the coefficient as a corner label, and — for ``method="pearson"``
     only — draws the ordinary-least-squares regression line. A structured record
     (``kind="correlation"``) is queued for the export metadata (see ``ds.save``),
-    exactly like ``add_comparisons``.
+    exactly like ``comparisons``.
 
-    Combine with your scatter using ``+``:  ``chart + add_correlation(...)``.
+    Combine with your scatter using ``+``:  ``chart + ds.stats.correlation(...)``.
 
     Parameters
     ----------
@@ -2452,7 +2452,7 @@ def add_correlation(
         When set, a fit + coefficient is computed **per group**, each fit line / CI band /
         readout coloured by ``groupCol`` on the *same* colour channel your scatter uses -
         so colour by the same field (``color=alt.Color("cell_line:N")``) and they match
-        (colour is a lookup, so no sort param is needed, unlike ``add_comparisons``).
+        (colour is a lookup, so no sort param is needed, unlike ``comparisons``).
         Readouts stack in the ``position`` corner, each a colour swatch (matching the series)
         plus the coefficient in neutral ink; one record is registered per group. Note: with
         ``ci=True``, give your scatter an explicit
@@ -2490,7 +2490,7 @@ def add_correlation(
         (``7`` under the built-in defaults), matching the axis font.
     sigFigs, notation:
         Significant figures / number format for the readout (coefficient, r², p-value,
-        and fit equation), as in ``add_comparisons``. ``sigFigs=None`` reads the theme.
+        and fit equation), as in ``comparisons``. ``sigFigs=None`` reads the theme.
     color, strokeWidth, strokeDash, opacity:
         Curated style overrides for the fit line (same four knobs as ``add_rule``). Each
         defaults to ``None`` → the line inherits the theme's ``mark_line`` config; set one
@@ -2527,14 +2527,14 @@ def add_correlation(
     ::
 
         scatter = alt.Chart(df).mark_point().encode(x="height:Q", y="weight:Q")
-        scatter + ds.add_correlation(df, "height", "weight")                 # r + r² + OLS line
-        scatter + ds.add_correlation(df, "height", "weight", method="spearman")  # ρ, no line
-        scatter + ds.add_correlation(
+        scatter + ds.stats.correlation(df, "height", "weight")                 # r + r² + OLS line
+        scatter + ds.stats.correlation(df, "height", "weight", method="spearman")  # ρ, no line
+        scatter + ds.stats.correlation(
             df, "height", "weight",
             color="#c0392b", lineStyle={"strokeDash": [4, 2]},
         )
     """
-    from .statistics import _make_correlation_record, _ols_band, _run_correlation
+    from ._statistics import _make_correlation_record, _ols_band, _run_correlation
     from .utils import ensure_polars, frame_checksum
 
     if verbose:  # shortcut for the fullest readout; overrides the individual toggles

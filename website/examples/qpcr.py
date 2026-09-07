@@ -30,10 +30,16 @@ bars = base.mark_bar().encode(
 err = base.mark_errorbar(extent="stderr").encode(y=alt.Y("expr:Q", title=""))
 
 # Real within-gene vehicle-vs-LPS test - one bracket per gene, GAPDH (housekeeping) comes out ns.
-sig = ds.add_comparisons(
-    df, "gene", "expr", xOffsetCol="condition",
-    categories=genes, xOffsetSort=["Vehicle", "LPS"],
-    test="ttest_ind", labelStyle="asterisks", bracketStyle="drop",
+sig = ds.stats.comparisons(
+    df,
+    "gene",
+    "expr",
+    xOffsetCol="condition",
+    categories=genes,
+    xOffsetSort=["Vehicle", "LPS"],
+    test="ttest_ind",
+    labelStyle="asterisks",
+    bracketStyle="drop",
 )
 
 chart = bars + err + sig

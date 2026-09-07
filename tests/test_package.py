@@ -7,6 +7,8 @@ can never silently become public again.
 """
 
 import importlib
+import importlib.util
+from types import ModuleType
 
 import dysonsphere as ds
 
@@ -16,7 +18,6 @@ _MODULE_NAMES = [
     "annotations",
     "discovery",
     "export",
-    "inference",
     "labels",
     "marks",
     "metadata",
@@ -24,7 +25,6 @@ _MODULE_NAMES = [
     "multilabel",
     "nonlinear",
     "palettes",
-    "statistics",
     "table",
     "theme",
     "transforms",
@@ -40,9 +40,26 @@ class TestPackageNamespace:
 
     def test_package_all_is_union_of_module_alls(self):
         # __init__.__all__ is written out explicitly (self-documenting); this keeps it in
-        # exact sync with the modules' own __all__ lists.
-        union = sorted({name for mod in _MODULES for name in mod.__all__})
-        assert sorted(ds.__all__) == union
+        # sync with star-imported modules plus the stats namespace, not its functions.
+        union = {name for mod in _MODULES for name in mod.__all__}
+        assert sorted(ds.__all__) == sorted(union | {"stats"})
+
+    def test_stats_surface_is_namespaced_only(self):
+        assert isinstance(ds.stats, ModuleType)
+        assert ds.stats is importlib.import_module("dysonsphere.stats")
+        assert sorted(ds.stats.__all__) == ["clear_stats", "comparisons", "correlation"]
+        for name in ds.stats.__all__:
+            assert callable(getattr(ds.stats, name))
+            assert name not in ds.__all__
+            assert not hasattr(ds, name), f"stats.{name} leaked onto the top namespace"
+        for name in ("add_comparisons", "add_correlation"):
+            assert not hasattr(ds.stats, name)
+            assert not hasattr(ds, name)
+            assert name not in ds.__all__
+        for name in ("inference", "statistics"):
+            assert importlib.util.find_spec(f"dysonsphere.{name}") is None
+            assert not hasattr(ds, name)
+            assert name not in ds.__all__
 
     def test_every_module_defines_all(self):
         for mod in _MODULES:

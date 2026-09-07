@@ -56,7 +56,7 @@ class TestSaveUsermeta:
         df = pl.DataFrame(
             {"g": [c for c in cats for _ in range(20)], "v": np.concatenate([rng.normal(m, 1, 20) for m in (1, 2, 3)])}
         )
-        return ds.mark_strip(df, "g", "v", cats) + ds.add_comparisons(df, "g", "v", test="anova", categories=cats)
+        return ds.mark_strip(df, "g", "v", cats) + ds.stats.comparisons(df, "g", "v", test="anova", categories=cats)
 
     def _usermeta(self, tmp_path, name="out"):
         return json.loads((tmp_path / f"{name}.json").read_text())["usermeta"]
@@ -105,7 +105,7 @@ class TestSaveUsermeta:
         rng = np.random.default_rng(0)
         x = rng.uniform(0, 10, 40)
         df = pl.DataFrame({"x": x, "y": 0.9 * x + rng.normal(0, 1, 40)})
-        chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q") + ds.add_correlation(df, "x", "y")
+        chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q") + ds.stats.correlation(df, "x", "y")
         save(chart, str(tmp_path / "out"), background=["light"])
         rec = self._usermeta(tmp_path)["dysonsphere"]["statistics"][0]
         assert rec["kind"] == "correlation" and rec["method"] == "pearson"
@@ -328,7 +328,7 @@ class TestReadLoad:
         ds.theme(chartWidth=180, sigFigs=2, saveFormat=["svg", "png", "json"])
         rng = np.random.default_rng(0)
         df = pl.DataFrame({"g": ["A"] * 30 + ["B"] * 30, "v": np.r_[rng.normal(0, 1, 30), rng.normal(2, 1, 30)]})
-        chart = alt.Chart(df).mark_boxplot().encode(x="g:N", y="v:Q") + ds.add_comparisons(
+        chart = alt.Chart(df).mark_boxplot().encode(x="g:N", y="v:Q") + ds.stats.comparisons(
             df, "g", "v", [("A", "B")], categories=["A", "B"]
         )
         ds.save(chart, str(tmp_path / "t"), background=["light"])
@@ -367,7 +367,7 @@ class TestReadLoad:
         import dysonsphere as ds
 
         df = pl.DataFrame({"g": ["A"] * 20 + ["B"] * 20, "v": np.r_[np.zeros(20), np.ones(20)]})
-        chart = alt.Chart(df).mark_boxplot().encode(x="g:N", y="v:Q") + ds.add_comparisons(
+        chart = alt.Chart(df).mark_boxplot().encode(x="g:N", y="v:Q") + ds.stats.comparisons(
             df, "g", "v", [("A", "B")], pvalues=[0.01], categories=["A", "B"]
         )
         ds.save(chart, str(tmp_path / "u"), embedReport=False, background=["light"])
@@ -524,12 +524,12 @@ class TestReadLoad:
             "mark_strip": (ds.mark_strip(df, "g", "v", cats), {"g", "v"}),
             "mark_violin": (ds.mark_violin(df, "g", "v", cats), {"g", "v"}),
             "mark_table": (ds.mark_table(df, cellColor={"v": "greens"}), {"g", "v"}),
-            "add_comparisons": (box + ds.add_comparisons(df, "g", "v", [("A", "B")], categories=cats), {"g", "v"}),
+            "add_comparisons": (box + ds.stats.comparisons(df, "g", "v", [("A", "B")], categories=cats), {"g", "v"}),
             "add_comparisons_reference": (
-                box + ds.add_comparisons(df, "g", "v", reference="A", categories=cats),
+                box + ds.stats.comparisons(df, "g", "v", reference="A", categories=cats),
                 {"g", "v"},
             ),
-            "add_correlation": (pts + ds.add_correlation(dfx, "x", "y"), {"x", "y"}),
+            "add_correlation": (pts + ds.stats.correlation(dfx, "x", "y"), {"x", "y"}),
             "add_rule": (box + ds.add_rule(1.5, label="thr"), {"g", "v"}),
             "add_text": (box + ds.add_text("hi", position="topLeft"), {"g", "v"}),
             "add_shade": (box + ds.add_shade(categories=cats), {"g", "v"}),
@@ -708,7 +708,7 @@ class TestStatsQueueRobustness:
 
         rng = np.random.default_rng(seed)
         df = pl.DataFrame({"g": ["A"] * 20 + ["B"] * 20, "v": np.r_[rng.normal(0, 1, 20), rng.normal(2, 1, 20)]})
-        chart = alt.Chart(df).mark_boxplot().encode(x="g:N", y="v:Q") + ds.add_comparisons(
+        chart = alt.Chart(df).mark_boxplot().encode(x="g:N", y="v:Q") + ds.stats.comparisons(
             df, "g", "v", [("A", "B")], categories=["A", "B"]
         )
         return chart
@@ -835,7 +835,7 @@ class TestStatsQueueRobustness:
 
         df = pl.DataFrame({"g": ["A", "A", "B", "B"], "v": [1.0, 1.5, 3.0, 3.5]})
         plain = alt.Chart(df).mark_boxplot().encode(x="g:N", y="v:Q")
-        annotated = plain + ds.add_comparisons(df, "g", "v", [("A", "B")], categories=["A", "B"])
+        annotated = plain + ds.stats.comparisons(df, "g", "v", [("A", "B")], categories=["A", "B"])
         ds.save(plain, str(tmp_path / "plain"), format="json", background=["light"])
         ds.save(annotated, str(tmp_path / "ann"), format="json", background=["light"])
         assert (
@@ -872,11 +872,11 @@ class TestStatsQueueRobustness:
         x = rng.uniform(0, 10, 30)
         dfA = pl.DataFrame({"x": x, "y": 0.9 * x + rng.normal(0, 1, 30)})
         dfB = pl.DataFrame({"x": x, "y": -0.5 * x + rng.normal(0, 1, 30)})
-        ds.clear_stats()
+        ds.stats.clear_stats()
         chart = (
             alt.Chart(dfA).mark_point().encode(x="x:Q", y="y:Q")
-            + ds.add_correlation(dfA, "x", "y")
-            + ds.add_correlation(dfB, "x", "y")
+            + ds.stats.correlation(dfA, "x", "y")
+            + ds.stats.correlation(dfB, "x", "y")
         )
         ds.save(chart, str(tmp_path / "c"), format="json", background=["light"])
         block = self._um(tmp_path, "c")
@@ -888,8 +888,8 @@ class TestStatsQueueRobustness:
         import dysonsphere as ds
 
         df = pl.DataFrame({"g": ["A", "A", "B", "B"], "v": [1.0, 1.5, 3.0, 3.5]})
-        ds.clear_stats()
-        chart = alt.Chart(df).mark_boxplot().encode(x="g:N", y="v:Q") + ds.add_comparisons(
+        ds.stats.clear_stats()
+        chart = alt.Chart(df).mark_boxplot().encode(x="g:N", y="v:Q") + ds.stats.comparisons(
             df, "g", "v", [("A", "B")], categories=["A", "B"]
         )
         ds.save(chart, str(tmp_path / "s"), format="json", background=["light"])
@@ -897,12 +897,13 @@ class TestStatsQueueRobustness:
         assert rec["dataChecksum"] and rec["dataChecksum"].startswith(_ROW_HASH_PREFIX)
 
     def test_clear_stats_empties_queue(self):
+        from dysonsphere._statistics import _REPORTS
+
         import dysonsphere as ds
-        from dysonsphere.statistics import _REPORTS
 
         self._stats_layer()
         assert len(_REPORTS) >= 1
-        ds.clear_stats()
+        ds.stats.clear_stats()
         assert len(_REPORTS) == 0
 
 
@@ -1203,7 +1204,7 @@ class TestVerifyCompare:
         assert by_number[r.groups["spec"][str(saved / "f3.json")]] == {str(saved / "f3.json")}
 
     def test_statistics_markers_do_not_make_identical_charts_differ(self, tmp_path):
-        # add_comparisons tags its layer with a marker whose name carries a counter that
+        # stats.comparisons tags its layer with a marker whose name carries a counter that
         # increments per build. save() strips markers before hashing, so an in-memory chart has
         # to as well - otherwise two identical charts, and a chart against its own export, differ.
         import numpy as np
@@ -1215,7 +1216,7 @@ class TestVerifyCompare:
         df = pl.DataFrame({"g": [c for c in cats for _ in range(8)], "v": rng.normal(0, 1, 16).tolist()})
 
         def built():
-            return ds.mark_strip(df, "g", "v", cats) + ds.add_comparisons(
+            return ds.mark_strip(df, "g", "v", cats) + ds.stats.comparisons(
                 df, "g", "v", pairs=[("A", "B")], test="ttest_ind"
             )
 

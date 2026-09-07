@@ -1,5 +1,6 @@
-import dysonsphere as ds
 from vega_datasets import data
+
+import dysonsphere as ds
 
 ds.theme()
 
@@ -8,10 +9,18 @@ origins = ["Europe", "Japan", "USA"]
 
 # Asterisk labels (* / ** / *** / ns) and plain-line brackets.
 chart = ds.mark_strip(
-    cars, "Origin", "Horsepower", origins,
-) + ds.add_comparisons(
-    cars, "Origin", "Horsepower",
+    cars,
+    "Origin",
+    "Horsepower",
+    origins,
+) + ds.stats.comparisons(
+    cars,
+    "Origin",
+    "Horsepower",
     [("USA", "Europe"), ("Europe", "Japan")],
-    test="mannwhitneyu", correction="holm",
-    labelStyle="asterisks", bracketStyle="line", categories=origins,
+    test="mannwhitneyu",
+    correction="holm",
+    labelStyle="asterisks",
+    bracketStyle="line",
+    categories=origins,
 )

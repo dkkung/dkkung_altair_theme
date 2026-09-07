@@ -39,7 +39,7 @@ def mark_violin(
 Build an Altair layer combining a violin plot with an inner statistic display.
 
 Returns a ``LayerChart`` that can be saved directly or composed with other
-layers (e.g. ``ds.add_comparisons``).
+layers (e.g. ``ds.stats.comparisons``).
 
 The returned ``LayerChart`` is safe to place in ``alt.hconcat()`` alongside
 ``mark_strip()`` or any other chart - the violin uses absolute ``x:Q``
@@ -129,7 +129,7 @@ statistic the error bars are computed from, so the tick is always centred betwee
 the caps. With ``errorbars=False`` the tick marks the median instead.
 
 Returns a ``LayerChart`` that can be saved directly or composed with other
-layers (e.g. ``ds.add_comparisons``).
+layers (e.g. ``ds.stats.comparisons``).
 
 **Parameters**
 
