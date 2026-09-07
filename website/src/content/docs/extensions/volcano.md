@@ -10,7 +10,7 @@ sidebar:
 Volcano plot for differential-expression results.
 
 Built entirely on dysonsphere's public surfaces - core (``ds.theme`` / ``ds.rule`` /
-``ds.colors`` / ``ds.ensure_polars``) plus the extension-author primitive surface
+``ds.palettes.colors`` / ``ds.utils.ensure_polars``) plus the extension-author primitive surface
 (``dysonsphere.ext``: ``opt`` / ``internal_data`` / ``AltairChart``). It doubles as the
 reference for how an extension composes a first-class dysonsphere chart without reaching into
 core internals.

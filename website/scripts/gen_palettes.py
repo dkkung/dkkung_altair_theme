@@ -23,7 +23,7 @@ OUT = Path("website/src/generated/palettes.json")
 def main() -> None:
     OUT.parent.mkdir(parents=True, exist_ok=True)
     palettes = []
-    for name, colors in ds.colors.items():
+    for name, colors in ds.palettes.colors.items():
         # By stop count: diverging ramps carry 13 (neutral midpoint), sequential ramps 12; the
         # remaining short palettes (nucleotides, proteins, the matplotlib sets) are qualitative.
         # The assembled qualitative palettes (ds_cat_2 carries 12 stops) are hue-cycling, not ramps.

@@ -1,13 +1,32 @@
 ---
 title: "Reading exports"
-description: "Read embedded metadata, statistics, reports, and data back out of exports."
+description: "Read exports, verify figures, and compute data checksums."
 sidebar:
   order: 10
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->
 
+Access these helpers through `ds.metadata`.
+
+## `frame_checksum`
+
+Call as `ds.metadata.frame_checksum(...)`.
+
+```python
+def frame_checksum(df: pl.DataFrame | Any) -> str: ...
+```
+
+Order-independent ``multiset-sha256:<hex>`` fingerprint of a dataframe's rows.
+
+Same algorithm as the provenance ``dataChecksum`` (via :func:`_hash_rows`), so identical
+content in any row order yields the same value.  Used to tag a statistics record with the
+identity of the dataframe it was computed from, so records from distinct dataframes are
+distinguishable (and identical-content frames match regardless of ordering).
+
 ## `read`
+
+Call as `ds.metadata.read(...)`.
 
 ```python
 def read(
@@ -30,6 +49,8 @@ Read back the metadata (or data) embedded by :func:`save` from a PNG, SVG, or JS
 - **`output`** (`str`) - Only for ``what='data'`` — the form to return the data in: ``'polars'`` (default) → ``pl.DataFrame``; ``'pandas'`` → ``pd.DataFrame``; ``'duckdb'`` → a ``DuckDBPyRelation``; ``'records'`` → the raw ``list[dict]`` (no dataframe library needed). ``pandas`` and ``duckdb`` are imported lazily and are not package dependencies.
 
 ## `verify`
+
+Call as `ds.metadata.verify(...)`.
 
 ```python
 def verify(
@@ -88,7 +109,7 @@ on its own is what detects an edit; the two questions are deliberately separate.
 ```python
 ::
 
-    ds.verify("fig.json").ok                 # untampered?
-    ds.verify("fig.png", df=df).dataMatches  # built from this data?
-    ds.verify("fig.json", df=[counts, meta]) # multi-frame chart
+    ds.metadata.verify("fig.json").ok                 # untampered?
+    ds.metadata.verify("fig.png", df=df).dataMatches  # built from this data?
+    ds.metadata.verify("fig.json", df=[counts, meta]) # multi-frame chart
 ```

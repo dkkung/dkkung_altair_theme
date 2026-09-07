@@ -18,7 +18,7 @@ in the guides has an *Open in studio* link that lands here too.
 
 You can also **import a figure saved by `ds.save()`**: a Vega-Lite JSON export rebuilds the chart
 right here through `ds.load()` (theme and all), and JSON, SVG, and PNG exports read back their
-embedded provenance, statistics, and report via `ds.read()`.
+embedded provenance, statistics, and report via `ds.metadata.read()`.
 
 The controls render instantly; the chart appears once the Python runtime finishes loading (a few
 seconds on first visit, then cached). It starts on the classic cars dataset - drop in a file of

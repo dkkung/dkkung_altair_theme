@@ -62,7 +62,7 @@ contract.
 ## The `dysonsphere.ext` surface
 
 Your chart is just a function that returns an Altair object. To make it a *first-class*
-dysonsphere chart - themed, darkmode-aware, and correctly handled by `ds.read()` - use the
+dysonsphere chart - themed, darkmode-aware, and correctly handled by `ds.metadata.read()` - use the
 stable primitive surface, never `_`-private internals:
 
 ```python
@@ -73,10 +73,10 @@ from dysonsphere import ext
 
 
 def yourchart(df, *, xCol="x", yCol="y") -> ext.AltairChart:
-    data = ds.ensure_polars(df)                 # accept polars or pandas
+    data = ds.utils.ensure_polars(df)           # accept polars or pandas
 
     darkmode = bool(ext.opt("darkmode"))        # read the active theme
-    accent = ds.colors["blues2"][10 if darkmode else 2]
+    accent = ds.palettes.colors["blues2"][10 if darkmode else 2]
 
     points = alt.Chart(data).mark_point().encode(
         x=alt.X(f"{xCol}:Q"),
@@ -113,7 +113,7 @@ ds.save(lambda: ds.yourname.yourchart(df), "figure")
 ## Tagging generated data
 
 Composite charts often generate their own small "sidecar" datasets - reference bands, computed
-label coordinates, fit lines. Altair inlines each as a separate dataset, so `ds.read(what="data")`
+label coordinates, fit lines. Altair inlines each as a separate dataset, so `ds.metadata.read(what="data")`
 needs to tell your generated data from the user's frame.
 
 **The rule:** route every dataset *you computed* through `ext.internal_data(...)`, and never tag
@@ -124,7 +124,7 @@ the frame the caller handed you.
 alt.Chart(ext.internal_data(computed_rows))
 
 # the user's own frame -> DO NOT tag it (tagging hides their data from read())
-alt.Chart(ds.ensure_polars(df))
+alt.Chart(ds.utils.ensure_polars(df))
 ```
 
 `internal_data` accepts a `list[dict]` (→ `alt.Data`) or a polars/pandas DataFrame (→ a tagged

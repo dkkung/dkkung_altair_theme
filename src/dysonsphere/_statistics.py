@@ -324,7 +324,7 @@ def _make_correlation_record(
     """Structured record for a correlation (the single source of truth, → usermeta).
 
     ``data_checksum`` is the order-independent fingerprint of the source dataframe
-    (``utils.frame_checksum``), so records from distinct dataframes are distinguishable; it also
+    (``metadata.frame_checksum``), so records from distinct dataframes are distinguishable; it also
     feeds the record's content hash (the marker), so two correlations on different data never
     collapse.  ``None`` when built without a frame (e.g. a direct unit-test call).  ``group`` labels
     a per-group record in grouped mode (``stats.correlation(groupCol=...)``); ``None`` for a single fit.
@@ -553,7 +553,7 @@ def _make_record(
     dicts with keys ``g1``/``g2``/``pvalue`` and optionally ``effectName``/``effect``.
 
     ``data_checksum`` is the order-independent fingerprint of the source dataframe
-    (``utils.frame_checksum``), so records from distinct dataframes are distinguishable; it also
+    (``metadata.frame_checksum``), so records from distinct dataframes are distinguishable; it also
     feeds the record's content hash (the marker).  ``None`` when built without a frame (e.g. a
     direct unit-test call).
     """

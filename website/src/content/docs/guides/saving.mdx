@@ -4,7 +4,7 @@ description: Export self-describing figures and read the provenance, statistics,
 ---
 
 `ds.save()` is more than a renderer: it embeds provenance, the resolved theme, any statistics, and
-your data into the exported files, so every figure is its own lab-notebook entry. `ds.read()` and
+your data into the exported files, so every figure is its own lab-notebook entry. `ds.metadata.read()` and
 `ds.load()` pull that information back.
 
 ## Saving
@@ -79,7 +79,7 @@ mpg_comparisons = ds.stats.comparisons(
 ds.save(strip + mpg_comparisons, "mpg_by_origin", format="json")
 ```
 
-`ds.read("mpg_by_origin.json", what="metadata")` returns a `dict` with four keys - `provenance`,
+`ds.metadata.read("mpg_by_origin.json", what="metadata")` returns a `dict` with four keys - `provenance`,
 `statistics`, `theme`, and `report`. The **provenance** leads with who/when/what, then the full
 rendering environment (the OS and vl-convert pin how text was measured, beyond the library
 versions), and ends with the machine-identity checksums:
@@ -144,7 +144,7 @@ the rounded on-plot labels. One omnibus record from the chart above (trimmed):
 ```
 
 And the **report** key is that same content rendered as the plain-text lab note you get from
-`ds.read("mpg_by_origin.json")` (the default `what="report"`):
+`ds.metadata.read("mpg_by_origin.json")` (the default `what="report"`):
 
 ```
 Statistics | Omnibus | Kruskal-Wallis
@@ -174,7 +174,7 @@ Vega-Lite spec checksum: sha256:53a99fe9…
 Export identifier: ef49895a-2e06-495a-86d3-7b0f2980cd8b
 ```
 
-The **data** itself round-trips too. `ds.read("mpg_by_origin.json", what="data")` returns the
+The **data** itself round-trips too. `ds.metadata.read("mpg_by_origin.json", what="data")` returns the
 original 398-row dataframe - every column Altair inlined, including transform columns like
 `jitter_x` (the honest data of record), with dysonsphere's own sidecar layers (bracket
 coordinates, error bars) filtered out.
@@ -182,29 +182,29 @@ coordinates, error bars) filtered out.
 ## Reading it back
 
 ```python
-ds.read("figure.json")                    # the human-readable report (default)
-ds.read("figure.json", what="statistics") # structured records (list of dicts)
-ds.read("figure.json", what="metadata")   # the whole dysonsphere block (shown above)
-ds.read("figure.json", what="data")       # the original DataFrame
+ds.metadata.read("figure.json")                    # the human-readable report (default)
+ds.metadata.read("figure.json", what="statistics") # structured records (list of dicts)
+ds.metadata.read("figure.json", what="metadata")   # the whole dysonsphere block (shown above)
+ds.metadata.read("figure.json", what="data")       # the original DataFrame
 ```
 
-`read()` works on JSON, SVG, and PNG for metadata and reports; `what="data"` is JSON-only (only the
+`ds.metadata.read()` works on JSON, SVG, and PNG for metadata and reports; `what="data"` is JSON-only (only the
 JSON carries the full data). `what="data"` returns the user's frame, filtering out dysonsphere's
 internal sidecar datasets; pick the output type with `output=` (`"polars"`, `"pandas"`, `"duckdb"`,
 or `"records"`).
 
 ## Verifying a figure
 
-`ds.verify()` re-checks a figure against the checksums it carries, with no access to the original
+`ds.metadata.verify()` re-checks a figure against the checksums it carries, with no access to the original
 script:
 
 ```python
-ds.verify("figure.json")                   # was the spec edited after export?
-ds.verify("figure.png", df=df)             # did this figure come from this data?
-ds.verify("figure.json", df=[counts, meta]) # multi-frame chart
+ds.metadata.verify("figure.json")                   # was the spec edited after export?
+ds.metadata.verify("figure.png", df=df)             # did this figure come from this data?
+ds.metadata.verify("figure.json", df=[counts, meta]) # multi-frame chart
 ```
 
-It returns a `VerifyResult`:
+It returns a `ds.metadata.VerifyResult` (shown below as its printed representation):
 
 ```python
 VerifyResult(
@@ -237,16 +237,16 @@ dataframes are passed in affects the result.
 When a check fails, the two checksum fields are what tell you which frame diverged:
 
 ```python
-r = ds.verify("figure.json", df=edited)
+r = ds.metadata.verify("figure.json", df=edited)
 r.ok           # False
 r.specValid    # True  - the file itself is intact
 r.dataMatches  # False - but it did not come from this data
 ```
 
 A file whose metadata is gone - screenshotted, or re-saved by a tool that drops it - cannot be
-checked at all; `ds.verify()` raises, because there is nothing left to compare against. What
+checked at all; `ds.metadata.verify()` raises, because there is nothing left to compare against. What
 survives is the trail for the *data*: these checksums are recomputed from content rather than
-minted per file, so `ds.frame_checksum(df)` returns the same value for the same rows forever, and a
+minted per file, so `ds.metadata.frame_checksum(df)` returns the same value for the same rows forever, and a
 dataframe can still be matched against an intact sibling export or a checksum recorded elsewhere.
 
 ## Which field answers which question
@@ -261,10 +261,10 @@ Three fields in `provenance` look interchangeable and are not:
 
 ## Comparing figures
 
-Hand `ds.verify()` a list and it compares them instead of checking one:
+Hand `ds.metadata.verify()` a list and it compares them instead of checking one:
 
 ```python
-ds.verify(["fig1.json", "fig2.png", "fig3.svg"])
+ds.metadata.verify(["fig1.json", "fig2.png", "fig3.svg"])
 ```
 
 ```python
@@ -279,7 +279,7 @@ groups    {"spec": {"fig1.json": 0, "fig2.png": 0, "fig3.svg": 1},
 built from the same data, and each came from its own save.
 
 Items may be saved files in any format, or Altair charts you have not saved yet - so
-`ds.verify(["published.json", chart])` asks whether the figure your script builds today still
+`ds.metadata.verify(["published.json", chart])` asks whether the figure your script builds today still
 matches the one you published. A chart in memory has no export identity, so `"save"` comes back
 `None` for the whole call. `what=` narrows it: `what="data"` asks only about the data.
 
@@ -336,11 +336,11 @@ chart renders identically.
 The rebuilt Altair object carries **no metadata**: `load()` strips `usermeta` along with `config`,
 because Altair's schema rejects some of the theme's config values. So loading a figure and then
 checking it does not work - there are no checksums left on the object to check. Verify the file
-itself, which is what `ds.verify()` expects anyway:
+itself, which is what `ds.metadata.verify()` expects anyway:
 
 ```python
-ds.verify("figure.json", df=df)                    # yes - reads the file
-ds.verify(ds.load("figure.json"))                  # no - the object has no metadata
+ds.metadata.verify("figure.json", df=df)                    # yes - reads the file
+ds.metadata.verify(ds.load("figure.json"))                  # no - the object has no metadata
 ```
 
 `ds.load("figure.json", raw=True)` does keep `usermeta`, since it returns the spec untouched.

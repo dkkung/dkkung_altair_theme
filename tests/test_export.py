@@ -822,7 +822,7 @@ class TestScaffoldingMarks:
         svg = (tmp_path / "out.svg").read_text(encoding="utf-8")
         assert 'opacity="0"' not in svg  # no scaffolding marks leaked
         assert "<line" in svg  # minor ticks still drawn
-        assert ds.read(str(tmp_path / "out.json"), what="data").shape == (20, 2)  # one user frame, intact
+        assert ds.metadata.read(str(tmp_path / "out.json"), what="data").shape == (20, 2)  # one user frame, intact
 
     def test_transparent_data_marks_are_preserved(self, tmp_path):
         # The crux of the fix: a user's own opacity-encoded (fully transparent) DATA marks must

@@ -1,7 +1,7 @@
 """Volcano plot for differential-expression results.
 
 Built entirely on dysonsphere's public surfaces - core (``ds.theme`` / ``ds.rule`` /
-``ds.colors`` / ``ds.ensure_polars``) plus the extension-author primitive surface
+``ds.palettes.colors`` / ``ds.utils.ensure_polars``) plus the extension-author primitive surface
 (``dysonsphere.ext``: ``opt`` / ``internal_data`` / ``AltairChart``). It doubles as the
 reference for how an extension composes a first-class dysonsphere chart without reaching into
 core internals.
@@ -106,7 +106,7 @@ def volcano(
     ValueError
         If ``label`` is set without ``geneCol``, or ``label`` is an unrecognized string.
     """
-    data = ds.ensure_polars(df)
+    data = ds.utils.ensure_polars(df)
 
     data = data.with_columns((-pl.col(pvalueCol).clip(lower_bound=_P_FLOOR).log10()).alias(_NEGLOG_COL))
     gained = (pl.col(log2fcCol) >= fcThreshold) & (pl.col(pvalueCol) <= pThreshold)
@@ -118,8 +118,14 @@ def volcano(
     data = data.sort(pl.col(_SIG_COL) != _NONDIFF)
 
     darkmode = bool(ext.opt("darkmode"))
-    gained_color, lost_color = palette if palette is not None else (ds.colors["ds_div_1"][-1], ds.colors["ds_div_1"][0])
-    ns_color = nsColor if nsColor is not None else (ds.colors["greys"][10] if darkmode else ds.colors["greys"][1])
+    gained_color, lost_color = (
+        palette if palette is not None else (ds.palettes.colors["ds_div_1"][-1], ds.palettes.colors["ds_div_1"][0])
+    )
+    ns_color = (
+        nsColor
+        if nsColor is not None
+        else (ds.palettes.colors["greys"][10] if darkmode else ds.palettes.colors["greys"][1])
+    )
 
     x_title = "log2 fold change" if xTitle is _UNSET else xTitle
     y_title = "-log10 P" if yTitle is _UNSET else yTitle

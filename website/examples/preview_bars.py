@@ -1,11 +1,12 @@
 import altair as alt
 import polars as pl
-import dysonsphere as ds
 from vega_datasets import data
+
+import dysonsphere as ds
 
 ds.theme(xLabelAngle=-45, chartWidth=124)
 
-barley = ds.ensure_polars(data.barley())
+barley = ds.utils.ensure_polars(data.barley())
 means = barley.group_by("site").agg(pl.col("yield").mean()).sort("yield", descending=True)
 sites = means["site"].to_list()
 

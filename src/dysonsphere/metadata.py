@@ -22,9 +22,10 @@ from typing import Any, cast
 
 import altair as alt
 
-# The module's public API - star-imported into the dysonsphere namespace. Everything
-# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
-__all__ = ["VerifyResult", "read", "verify"]
+from .utils import _frame_checksum as frame_checksum
+
+# The public ds.metadata API. Everything else here is internal (underscore or not).
+__all__ = ["VerifyResult", "frame_checksum", "read", "verify"]
 
 _REPORT_PREFIX = "dysonsphere-report-"
 
@@ -768,12 +769,10 @@ def verify(figure: Any, df: Any = None, what: str | tuple[str, ...] | list[str] 
     --------
     ::
 
-        ds.verify("fig.json").ok                 # untampered?
-        ds.verify("fig.png", df=df).dataMatches  # built from this data?
-        ds.verify("fig.json", df=[counts, meta]) # multi-frame chart
+        ds.metadata.verify("fig.json").ok                 # untampered?
+        ds.metadata.verify("fig.png", df=df).dataMatches  # built from this data?
+        ds.metadata.verify("fig.json", df=[counts, meta]) # multi-frame chart
     """
-    from .utils import frame_checksum
-
     if isinstance(figure, (list, tuple)):
         if df is not None:
             raise ValueError(

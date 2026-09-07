@@ -5,7 +5,7 @@ import dysonsphere as ds
 
 ds.theme()
 
-cars = ds.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon"])
+cars = ds.utils.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon"])
 
 # ds.transforms.quasirandom() spreads points by local density (a van der Corput sequence weighted by a KDE)
 # for a symmetric, reproducible swarm - avoiding the lopsided tightly-packed rows ds.transforms.beeswarm can

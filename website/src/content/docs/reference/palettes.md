@@ -7,7 +7,13 @@ sidebar:
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->
 
+Use `ds.palette(...)` to select colors. This ordinary root function is implemented in
+`palettes.py`; the catalogue and other helpers live at `ds.palettes.colors`,
+`ds.palettes.categorical(...)`, and `ds.palettes.export_swatches(...)`.
+
 ## `categorical`
+
+Call as `ds.palettes.categorical(...)`.
 
 ```python
 def categorical(
@@ -43,6 +49,8 @@ Paired data, members adjacent within each group::
 ```
 
 ## `palette`
+
+Call as `ds.palette(...)`.
 
 ```python
 def palette(
@@ -96,6 +104,8 @@ Four evenly-spaced colors, reversed:
 
 ## `export_swatches`
 
+Call as `ds.palettes.export_swatches(...)`.
+
 ```python
 def export_swatches(
     directory: str | Path | None = None,
@@ -120,5 +130,5 @@ Produces two files (``name`` defaults to ``"dysonsphere"``):
 **Parameters**
 
 - **`directory`** (`str | Path | None`) - Output directory for the two files. Defaults to the current working directory.
-- **`palettes`** (`list[str] | None`) - Names of the palettes to export (keys of ``dysonsphere.colors``). ``None`` (default) exports every palette. Pass a non-empty list to export only a subset, e.g. ``["reds", "blues", "redsblues"]``. Unknown names raise ``ValueError``.
+- **`palettes`** (`list[str] | None`) - Names of the palettes to export (keys of ``dysonsphere.palettes.colors``). ``None`` (default) exports every palette. Pass a non-empty list to export only a subset, e.g. ``["reds", "blues", "redsblues"]``. Unknown names raise ``ValueError``.
 - **`name`** (`str`) - Base name for the generated files and the Illustrator swatch library. Defaults to ``"dysonsphere"``.

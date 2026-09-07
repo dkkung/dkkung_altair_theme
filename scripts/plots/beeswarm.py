@@ -28,7 +28,7 @@ y = alt.Y("v:Q", title=None, scale=alt.Scale(domain=[0, 1000]))
 box = (
     alt.Chart(df)
     .mark_boxplot()
-    .encode(x=x, y=y, color=alt.Color("g:N", scale=alt.Scale(range=ds.categorical(members=1))))
+    .encode(x=x, y=y, color=alt.Color("g:N", scale=alt.Scale(range=ds.palettes.categorical(members=1))))
 )
 pts = alt.Chart(df).mark_circle().encode(x=x, y=y, xOffset=alt.XOffset("beeswarm_x:Q"))
 

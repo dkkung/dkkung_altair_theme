@@ -11,8 +11,7 @@ ds.theme(chartWidth=170, xLabelAngle=-45)
 # adjacent categories differ in hue - for UNRELATED groups.)
 df = pl.DataFrame(
     {
-        "condition": ["A pre", "A post", "B pre", "B post",
-                      "C pre", "C post", "D pre", "D post"],
+        "condition": ["A pre", "A post", "B pre", "B post", "C pre", "C post", "D pre", "D post"],
         "response": [4.2, 7.8, 3.9, 6.1, 5.0, 9.2, 4.4, 5.5],
     }
 )
@@ -26,7 +25,7 @@ chart = (
         color=alt.Color(
             "condition:N",
             sort=None,
-            scale=alt.Scale(range=ds.categorical(members=2)),
+            scale=alt.Scale(range=ds.palettes.categorical(members=2)),
             legend=None,
         ),
     )

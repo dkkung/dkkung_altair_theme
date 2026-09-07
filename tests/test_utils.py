@@ -1,6 +1,7 @@
 import polars as pl
 import pytest
 
+from dysonsphere.metadata import frame_checksum
 from dysonsphere.theme import theme
 from dysonsphere.utils import (
     _ROW_HASH_PREFIX,
@@ -11,7 +12,6 @@ from dysonsphere.utils import (
     band_geometry,
     count_n,
     ensure_polars,
-    frame_checksum,
     stripe_colors,
 )
 

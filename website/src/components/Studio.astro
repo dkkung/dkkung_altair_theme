@@ -10,7 +10,7 @@
 //
 // "Import an export" takes a file saved by ds.save(): a Vega-Lite JSON rebuilds the chart via
 // ds.load() (seeded + run in the code editor, so the shown snippet is what executed); JSON,
-// SVG, and PNG all read their embedded dysonsphere block back via ds.read() into a metadata
+// SVG, and PNG all read their embedded dysonsphere block back via ds.metadata.read() into a metadata
 // panel (report + structured JSON).
 //
 // Uploaded data is written into the runtime's virtual filesystem under its real filename, so the
@@ -226,7 +226,7 @@ const paletteGroups = [
 			<div class="st__meta">
 				<h4>Report</h4>
 				<pre id="st-meta-report"></pre>
-				<h4>Structured block (<code>ds.read(path, what="metadata")</code>)</h4>
+				<h4>Structured block (<code>ds.metadata.read(path, what="metadata")</code>)</h4>
 				<pre id="st-meta-json"></pre>
 			</div>
 		</div>
@@ -811,7 +811,7 @@ high,100,26.4,6`;
 
 		// A file saved by ds.save(): a JSON spec rebuilds the chart through ds.load() (run in
 		// the code editor, so the shown snippet is exactly what executed); JSON, SVG, and PNG
-		// all surface their embedded dysonsphere block via ds.read().
+		// all surface their embedded dysonsphere block via ds.metadata.read().
 		async function importExport(file: File) {
 			const rt = runtime ?? (await getRuntime());
 			runtime = rt;

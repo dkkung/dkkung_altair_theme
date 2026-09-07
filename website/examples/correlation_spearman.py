@@ -5,7 +5,7 @@ import dysonsphere as ds
 
 ds.theme()
 
-cars = ds.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon", "Weight_in_lbs"])
+cars = ds.utils.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon", "Weight_in_lbs"])
 
 scatter = (
     alt.Chart(cars)

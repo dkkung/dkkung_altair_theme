@@ -12,8 +12,11 @@ remain. Historical references below to inference.py/statistics.py and the old to
 refer to those predecessors. Annotation constructors are now `ds.rule`, `ds.text`, `ds.shade`,
 and `ds.labels`; offsets live at `ds.transforms.jitter`, `beeswarm`, and `quasirandom`.
 Display-label helpers moved from labels.py to display_labels.py so the module cannot shadow
-`ds.labels`. Old annotation/transform spellings below are historical. V4 parameter changes
-are not yet implemented.
+`ds.labels`. Metadata inspection/checksums now live under `ds.metadata`; dataframe/geometry
+helpers under `ds.utils`; color data, categorical construction, and swatch export under `ds.palettes`.
+`ds.palette()` remains top-level. Old public spellings below are historical. V4 parameter changes
+are not yet implemented. The checksum implementation is utils._frame_checksum, re-exported by
+metadata; statistics import the private helper without depending on metadata.
 
 ## Commands
 

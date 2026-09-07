@@ -363,13 +363,13 @@ class TestDataProvenance:
         )
         out = str(tmp_path / "tbl")
         ds.save(chart, out, format="json", background=["light"])
-        recovered = ds.read(out + ".json", what="data")
+        recovered = ds.metadata.read(out + ".json", what="data")
         assert isinstance(recovered, pl.DataFrame)
         assert recovered.equals(df)
-        assert ds.frame_checksum(recovered) == ds.frame_checksum(df)
+        assert ds.metadata.frame_checksum(recovered) == ds.metadata.frame_checksum(df)
 
     def test_datachecksum_single_entry(self, df, tmp_path):
         out = str(tmp_path / "tbl")
         ds.save(mark_table(df), out, format="json", background=["light"])
-        meta = ds.read(out + ".json", what="metadata")
+        meta = ds.metadata.read(out + ".json", what="metadata")
         assert len(meta["provenance"]["dataChecksum"]) == 1

@@ -26,14 +26,11 @@ _MODULE_NAMES = [
     "export",
     "display_labels",
     "marks",
-    "metadata",
     "assembly",
     "multilabel",
     "nonlinear",
-    "palettes",
     "table",
     "theme",
-    "utils",
 ]
 _MODULES = [importlib.import_module(f"dysonsphere.{name}") for name in _MODULE_NAMES]
 
@@ -47,7 +44,40 @@ class TestPackageNamespace:
         # __init__.__all__ is written out explicitly (self-documenting); this keeps it in
         # sync with star-imported modules plus namespaces, not their functions.
         union = {name for mod in _MODULES for name in mod.__all__}
-        assert sorted(ds.__all__) == sorted(union | {"stats", "transforms"})
+        assert sorted(ds.__all__) == sorted(union | {"stats", "transforms", "metadata", "utils", "palettes", "palette"})
+
+    @pytest.mark.parametrize(
+        ("namespace", "names"),
+        [
+            ("metadata", ("read", "verify", "VerifyResult", "frame_checksum")),
+            ("utils", ("band_geometry", "count_n", "ensure_polars", "BandGeometry")),
+            ("palettes", ("colors", "categorical", "export_swatches")),
+        ],
+    )
+    def test_helpers_are_namespaced_only(self, namespace, names):
+        module = getattr(ds, namespace)
+        assert isinstance(module, ModuleType)
+        assert module is importlib.import_module(f"dysonsphere.{namespace}")
+        for name in names:
+            assert name in module.__all__
+            assert getattr(module, name) is not None
+            assert name not in ds.__all__
+            assert not hasattr(ds, name)
+
+    def test_palette_callable_and_registry_survive_module_imports(self):
+        palette = ds.palette
+        colors = ds.palettes.colors
+        assert callable(palette)
+        for name in ("palettes", "theme", "marks", "metadata", "utils"):
+            importlib.import_module(f"dysonsphere.{name}")
+            assert ds.palette is palette is ds.palettes.palette
+            assert ds.palettes.colors is colors
+        assert ds.palettes is importlib.import_module("dysonsphere.palettes")
+
+    def test_public_checksum_reexports_private_helper(self):
+        assert ds.metadata.frame_checksum is ds.utils._frame_checksum
+        assert "frame_checksum" not in ds.utils.__all__
+        assert not hasattr(ds.utils, "frame_checksum")
 
     def test_stats_surface_is_namespaced_only(self):
         assert isinstance(ds.stats, ModuleType)
@@ -67,7 +97,7 @@ class TestPackageNamespace:
             assert name not in ds.__all__
 
     def test_every_module_defines_all(self):
-        for mod in [*_MODULES, ds.stats, ds.transforms, ds.ext]:
+        for mod in [*_MODULES, ds.stats, ds.transforms, ds.metadata, ds.utils, ds.palettes, ds.ext]:
             assert hasattr(mod, "__all__"), f"{mod.__name__} lacks __all__ (would leak its imports)"
 
     def test_transforms_surface_is_namespaced_only(self):

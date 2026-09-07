@@ -85,7 +85,7 @@ def test_dogfood_read_filters_generated_sidecar(tmp_path):
     ds.theme()
     out = tmp_path / "volcano"
     ds.save(lambda: _volcano_like(df), str(out), format="json")
-    frame = ds.read(str(out) + ".json", what="data")
+    frame = ds.metadata.read(str(out) + ".json", what="data")
     # Only the user's frame comes back - the tagged label sidecar is filtered out.
     assert set(frame.columns) == {"gene", "log2fc", "neglog10p"}
     assert frame.height == df.height

@@ -4,7 +4,7 @@ import dysonsphere as ds
 
 ds.theme()
 
-cars = ds.ensure_polars(data.cars()).drop_nulls(["Acceleration"])
+cars = ds.utils.ensure_polars(data.cars()).drop_nulls(["Acceleration"])
 origins = ["Europe", "Japan", "USA"]
 
 # bracketStyle="drop" reaches each end tick down toward the group it sits over. It suits a

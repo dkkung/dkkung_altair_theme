@@ -840,7 +840,7 @@ def _add_grouped_comparisons(
     from scipy import stats as _stats
 
     from ._statistics import _adjust, _describe_all, _make_record, _pair_effect
-    from .utils import frame_checksum
+    from .utils import _frame_checksum
 
     # Guard the sort footgun: `categories`/`xOffsetSort` must match the chart's x/xOffset sort or the
     # shared scale silently reorders the bars. We can't see the chart to check the *order*, but an
@@ -1281,7 +1281,7 @@ def _add_grouped_comparisons(
         comparison_test=test,
         correction=effective_correction,
         pvalues_provided=pval_map is not None,
-        data_checksum=frame_checksum(df),
+        data_checksum=_frame_checksum(df),
     )
     marker = _emit_report(record, report, save)
 
@@ -1675,7 +1675,7 @@ def comparisons(
         _pair_effect,
         _run_omnibus,
     )
-    from .utils import ensure_polars, frame_checksum
+    from .utils import _frame_checksum, ensure_polars
 
     df = ensure_polars(df)
 
@@ -2165,7 +2165,7 @@ def comparisons(
         comparison_test=method,
         correction=effective_correction,
         pvalues_provided=pvalues is not None,
-        data_checksum=frame_checksum(df),
+        data_checksum=_frame_checksum(df),
     )
     marker = _emit_report(record, report, save)
 
@@ -2249,7 +2249,7 @@ def _add_grouped_correlation(
 
     from ._statistics import _make_correlation_record, _ols_band, _run_correlation
     from .annotations import _TEXT_PRESETS
-    from .utils import frame_checksum
+    from .utils import _frame_checksum
 
     fontSize = fontSize if fontSize is not None else _opt("fontSize")
     effective_sigfigs = sigFigs if sigFigs is not None else _opt("sigFigs")
@@ -2384,7 +2384,7 @@ def _add_grouped_correlation(
             )
 
         # One record per group; tag it onto this group's first layer so save() matches all of them.
-        record = _make_correlation_record(result, x_col, y_col, data_checksum=frame_checksum(gdf), group=g)
+        record = _make_correlation_record(result, x_col, y_col, data_checksum=_frame_checksum(gdf), group=g)
         marker = _emit_report(record, report, save)
         if g_layers:
             g_layers[0] = g_layers[0].properties(name=marker)
@@ -2535,7 +2535,7 @@ def correlation(
         )
     """
     from ._statistics import _make_correlation_record, _ols_band, _run_correlation
-    from .utils import ensure_polars, frame_checksum
+    from .utils import _frame_checksum, ensure_polars
 
     if verbose:  # shortcut for the fullest readout; overrides the individual toggles
         coefficient, includePvalue, includeEquation = "both", True, True
@@ -2668,7 +2668,7 @@ def correlation(
         )
 
     # Structured record → export metadata; printed/written on request.
-    record = _make_correlation_record(result, xCol, yCol, data_checksum=frame_checksum(df))
+    record = _make_correlation_record(result, xCol, yCol, data_checksum=_frame_checksum(df))
     marker = _emit_report(record, report, save)
 
     if not layers:
