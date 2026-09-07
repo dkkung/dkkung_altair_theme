@@ -49,7 +49,9 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "gridColor": colors["greys"][0],
     "inwardTicks": False,
     "legend": True,
+    "legendColumnPadding": 4,
     "legendOffset": None,
+    "legendRowPadding": 2,
     "legendStroke": False,
     "markFill": colors["greys"][1],
     "markFillOpacity": 1.0,
@@ -572,6 +574,10 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "titlePadding": 4,
                 "labelOffset": 2,
                 "gradientLabelOffset": 2,
+                # Entry spacing. Vega's own defaults are lopsided - 10 across, 2 down - which
+                # reads loose on a horizontal legend next to this theme's 2/4px gaps.
+                "columnPadding": opts["legendColumnPadding"],
+                "rowPadding": opts["legendRowPadding"],
                 "gradientLength": opts["markSize"] * 5,
                 "gradientThickness": opts["markSize"] * 0.5,
                 "gradientOpacity": opts["markFillOpacity"],

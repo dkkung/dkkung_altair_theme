@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### New features
+
+- **`theme(legendColumnPadding=, legendRowPadding=)`** set the spacing between legend entries. Defaults are 4 across (down from Vega's 10, which read loose on a horizontal legend) and 2 down (unchanged).
+
 ### Changes
 
 - **Text anchored at a plot edge is offset 2px instead of 1px.** Affects `ds.add_rule()` labels, `ds.add_text()` position presets, and the test and correlation labels built on them.

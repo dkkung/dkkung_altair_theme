@@ -177,6 +177,32 @@ class TestThemeDefaults:
         assert alt.theme.options["palette"] == "tableau10"
 
 
+class TestLegendPadding:
+    """Entry spacing. Vega's own defaults are lopsided (10 across, 2 down); the theme evens it up."""
+
+    @staticmethod
+    def _legend():
+        from dysonsphere.theme import _dysonsphere_theme
+
+        return _dysonsphere_theme()["config"]["legend"]
+
+    def test_defaults(self):
+        theme()
+        assert alt.theme.options["legendColumnPadding"] == 4
+        assert alt.theme.options["legendRowPadding"] == 2
+        assert self._legend()["columnPadding"] == 4
+        assert self._legend()["rowPadding"] == 2
+
+    def test_overrides(self):
+        theme(legendColumnPadding=2, legendRowPadding=0)
+        assert self._legend() == {**self._legend(), "columnPadding": 2, "rowPadding": 0}
+
+    def test_row_padding_matches_vegas_default(self):
+        """2 is what Vega already used, so existing vertical legends do not move."""
+        theme()
+        assert alt.theme.options["legendRowPadding"] == 2
+
+
 class TestRangePalettes:
     def _range(self, kind):
         # Raw range value: a bare array for `category` (positional), {"scheme": ...} otherwise.
