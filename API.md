@@ -103,6 +103,9 @@ notes are local working material, not dependencies of this framework or part of 
   styling. A documented override must have the same scope and precedence in grouped modes.
 - Palette options select color sequences or named palettes, not individual literal colors. State
   which options additionally accept renderer scheme names or fixed endpoint pairs.
+- In `theme()`, a non-None master `palette` overrides every per-type palette, including an explicit
+  per-type argument. Otherwise each per-type palette overrides its built-in range default.
+  Configuration source precedence is applied per key before this master override.
 - Custom strip and violin marks expose separate palette and fill arguments. Palette selects
   category colors; fill is a fixed literal color for points or the violin silhouette, not their
   summary/inner statistics. Palette omission/None leaves the encoding range to the active theme.
@@ -112,6 +115,16 @@ notes are local working material, not dependencies of this framework or part of 
   Do not disable legends globally. Preserve category axes and violin group separation.
 - Preserve whole-mark opacity versus fill opacity. Do not apply the same inherited fade twice.
 - Keep font style separate from weight; bold is a weight, not a style.
+- Corrected SVG typography applies to matching handwritten and generated text alike: recognized
+  Latin statistical symbols are italicized; Greek symbols, numbers, operators, and `ns` remain
+  upright unless explicitly styled. Script tokens include `q^2` and boundary-guarded `q__x`;
+  ordinary single-underscore column names are not subscript instructions.
+- Gradient legend titles default to horizontal, above the legend. Save/show do not inject title
+  orientation; callers can customize individual legends through Altair.
+- Multilabel `rowValueAngle` rotates values in text, plusminus, and symbol styles, never row labels.
+  Scalars apply throughout; top-level lists follow row order; mappings select rows and may contain
+  per-cell lists in category order. Rotating a circle may make no visible change. Automatic text
+  row height uses the tallest rotated text bounds, including for symbol rows.
 - Table columnFormat uses Vega/d3 format specifications plus the named scientific, power, e,
   and si notations. sigFigs governs automatic numeric formatting and named notations where
   precision applies; explicit formats such as .2f control their own precision. Power notation
@@ -122,6 +135,11 @@ notes are local working material, not dependencies of this framework or part of 
   Allow fractional values where supported; counts and indices remain integers.
 - Use Padding for gaps/insets and Offset for signed displacement. Names such as Width should
   communicate a physical length rather than a symbol area.
+- `axisOffset` and `viewPadding` are independent. `axisOffset=False` (default) means flush axes;
+  True derives the offset from `tickSize`, and a number supplies pixels. Closed axes remain flush.
+  `viewPadding=True` (default) derives a continuous-scale inset from chart size on open and closed
+  plots; False disables it, and a number supplies pixels. Shared spec fixes suppress implicit
+  automatic domain rounding (`nice`) when continuous padding is present, but preserve explicit `nice` settings.
 - Document construction-time versus render-time defaults and the need for callable rebuilding
   when colors or geometry are already baked into a chart.
 - A dataframe transform's computed offsets are not an unconditional guarantee of rendered pixel
@@ -177,6 +195,20 @@ notes are local working material, not dependencies of this framework or part of 
   supplied values to an unrun test. Require finite numeric probabilities in [0,1], excluding bools;
   apply a consistent zero-underflow policy before both display formatting and record creation.
 - Distinguish report printing, standalone report writing (`saveReport`), and embedding reports.
+- Statistical prose reports use a fixed three significant figures, independent of plot `sigFigs`
+  and notation. Structured numerical records retain calculation values rather than display-rounded
+  values; report p-values do not inherit the plot's display floor.
+- `description` is the user's text only, without appended reports or provenance. Report sections
+  are separate from the description and appear once per export format when embedded.
+- `SOURCE_DATE_EPOCH` pins export time to integer UTC seconds and makes `exportIdentifier`
+  content-derived. Identical inputs in the same producing environment, including variant order,
+  can produce byte-identical re-exports and share an identifier across separate saves. All variants
+  of one save share the identifier, while their spec checksums may differ. Unset or blank uses
+  ordinary time and a fresh identifier; malformed or out-of-range epochs raise, never fall back.
+- Spec, data, and export identities answer different questions. Data identity ignores row order
+  but preserves duplicate rows and excludes generated sidecars. Single-file verification reports
+  True/False for checks that ran and None for unavailable checks; an unavailable check is not a
+  failure or proof of a match. Comparing files' recorded identities is not checking their integrity.
 - Treat filesystem paths consistently as strings or Path objects; distinguish directory arguments
   from output filename stems. Document external effects such as Illustrator swatch installation.
 - Metadata inspection and chart reconstruction depend on the producing environment. V4 does not
