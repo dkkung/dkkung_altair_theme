@@ -32,6 +32,9 @@
 
 ### Internal
 
+- Retire root plotting/build scripts, the Illustrator wrapper, and the old `docs/` gallery.
+  Maintained examples and generators live under `website/`; palette recipes live at
+  `scripts/palettes/print_palettes.py`. Keep the two README logos at their existing URLs.
 - Move the numerical engine and report registry to `_statistics.py`, separate from the public `stats.py` wrappers.
 - Document the durable API design rules in `API.md`.
 

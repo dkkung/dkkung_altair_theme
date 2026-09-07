@@ -20,74 +20,44 @@ and keyword-only controls follow the v4 signature migration; behavior changes an
 removal are still pending. The checksum implementation is utils._frame_checksum, re-exported by
 metadata; statistics import the private helper without depending on metadata.
 
+## Maintained Examples and Tools
+
+Use `website/examples/` and `website/scripts/` for examples and site generation. The old root
+plot scripts, gallery builders, and Illustrator wrapper have been retired; do not recreate or
+migrate historical paths mentioned below. Palette recipes remain at
+`scripts/palettes/print_palettes.py`. Swatch export is `ds.palettes.export_swatches()`.
+`docs/` retains only the two logos referenced by package READMEs, not a gallery or documentation site.
+
 ## Commands
 
 ```sh
 # Lint
-uv run ruff check src/ tests/ scripts/
+uv run ruff check --no-cache src/ tests/ scripts/palettes/ dysonsphere-biology/
 
 # Format
-uv run ruff format src/ tests/ scripts/
+uv run ruff format src/ tests/ scripts/palettes/ dysonsphere-biology/
 
 # Type check
-uv run ty check src/ tests/ scripts/
+uv run ty check .
 
 # Test
-uv run pytest tests/
+uv run pytest tests/ dysonsphere-biology/tests/
 
-# Run all build scripts (globs scripts/build/*.py in sorted order)
-uv run python scripts/build_all.py
+# Print palette hex literals to stdout
+uv run python scripts/palettes/print_palettes.py
 
-# Print palette hex literals to stdout — paste into palettes.py
-uv run python scripts/build/print_palettes.py
+# Rebuild website example specs (optional example names select a subset)
+uv run --with vega-datasets python website/scripts/gen_examples.py
 
-# Rebuild gallery → docs/index.html
-uv run python scripts/build/build_gallery.py
-
-# Rebuild data transforms example → docs/transforms_example.png
-uv run python scripts/build/build_transforms_example.py
-
-# Rebuild custom marks example → docs/marks_example.png
-uv run python scripts/build/build_marks_example.py
-
-# Rebuild multilabel example → docs/multilabel_example.png
-uv run python scripts/build/build_multilabel_example.py
-
-# Rebuild p-value annotation example → docs/pairwise_example.png
-uv run python scripts/build/build_pairwise_example.py
-
-# Rebuild p-value omnibus example → docs/omnibus_example.png
-uv run python scripts/build/build_omnibus_example.py
-
-# Rebuild correlation example → docs/correlation_example.png
-uv run python scripts/build/build_correlation_example.py
-
-# Rebuild shade example → docs/shade_example.png
-uv run python scripts/build/build_shade_example.py
-
-# Rebuild reference line example → docs/reference_line_example.png
-uv run python scripts/build/build_reference_line_example.py
-
-# Rebuild text annotation example → docs/text_example.png
-uv run python scripts/build/build_text_example.py
-
-# Rebuild point labels example → docs/labels_example.png
-uv run python scripts/build/build_labels_example.py
-
-# Rebuild nonlinear scale example → docs/nonlinear_example.png
-uv run python scripts/build/build_nonlinear_example.py
-
-# Rebuild table example → docs/table_example.png
-uv run python scripts/build/build_table_example.py
-
-# Export Illustrator swatches → scripts/illustrator/import_dysonsphere_palettes_to_illustrator.jsx + scripts/illustrator/dysonsphere.ase
-uv run python scripts/illustrator/export_swatches_to_illustrator.py
+# Rebuild API reference pages
+uv run --no-project --with griffe python website/scripts/gen_api.py
 
 # Build package
 uv build
 ```
 
-Validate functional correctness by running `uv run pytest tests/`. Validate visual output by running the build scripts and inspecting the results.
+Validate behavior with core and biology tests. For visual changes, build relevant website examples
+and inspect corrected output from ds.save()/ds.show(); do not use the retired gallery builders.
 
 ## Style conventions
 
@@ -111,10 +81,10 @@ First, **finish the Python side** - everything the checks will cover (docstrings
 3. Add new tests as needed (every new public function gets tests).
 
 Then **verify**, iterating (fix, rerun) until green:
-- `uv run ruff check src/ tests/ scripts/`
-- `uv run ruff format src/ tests/ scripts/`
-- `uv run ty check src/ tests/ scripts/`
-- `uv run pytest tests/` - all pass, zero skips/failures.
+- `uv run ruff check --no-cache src/ tests/ scripts/palettes/ dysonsphere-biology/`
+- `uv run ruff format src/ tests/ scripts/palettes/ dysonsphere-biology/`
+- `uv run ty check .`
+- `uv run pytest tests/ dysonsphere-biology/tests/` - all pass, zero skips/failures.
 
 Then **document** (prose the checks do not touch):
 4. Add a `CHANGELOG.md` entry under `[Unreleased]` for every notable change - entries land WITH the work, in the same PR; releases only finalize + date the section. User-visible changes go under `### New features` / `### Changes` / `### Fixes`; internal-only work (refactors, dedup, tooling with no public API or rendering change) goes under `### Internal`, kept separate so an upgrader can skim just the user-facing sections.
@@ -392,12 +362,13 @@ The packages live under `src/` (`src/dysonsphere/`, `dysonsphere-biology/src/dys
 **In order:**
 
 0. **Major version bumps only:** `grep -rn "DEPRECATED" src/` and remove every API marked for removal at this version (e.g. the `add_pvalue` alias at v2.0), updating tests/docs/CHANGELOG accordingly.
-1. `uv run ruff check src/ tests/ scripts/` — fix any lint errors
-2. `uv run ruff format src/ tests/ scripts/` — format
-3. `uv run ty check src/ tests/ scripts/` — all type checks must pass
-4. `uv run pytest tests/` — all tests must pass
+1. `uv run ruff check --no-cache src/ tests/ scripts/palettes/ dysonsphere-biology/` - fix lint errors
+2. `uv run ruff format src/ tests/ scripts/palettes/ dysonsphere-biology/` - format
+3. `uv run ty check .` - all type checks must pass
+4. `uv run pytest tests/ dysonsphere-biology/tests/` - all tests must pass
 5. Finalize + date the `[Unreleased]` section in `CHANGELOG.md`
-6. **(legacy - skip)** `uv run python scripts/build_all.py` rebuilt the old `docs/` gallery assets, but Pages now deploys the Astro site from `website/` (see below), so `docs/` is no longer served. Website assets need NO release-time regeneration since 2026-07-11: `pages.yml` reruns the four `website/scripts/gen_*.py` generators against the checked-out library on every deploy, so the live site tracks main automatically (committed copies serve local dev only). The Studio/playground still install dysonsphere from PyPI at runtime, so LIVE studio execution of new APIs starts working once the release publishes - no action needed.
+6. Pages regenerates website inputs on deployment; there is no legacy gallery build step.
+   Coordinate deployment with package publication because Studio installs its runtime from PyPI.
 7. Commit everything to a release branch (e.g. `release-vX.Y.Z`) and push it — **`main` is a protected branch: direct pushes are rejected (PRs required, admins included), so a release lands via PR like any other change**
 8. Open a PR into `main` (title e.g. "Release vX.Y.Z") and merge it (0 approvals required, self-merge is fine) — the merge triggers the GitHub Pages deploy (of the Astro `website/`)
 9. `git checkout main && git pull`, then `git tag vX.Y.Z && git push origin vX.Y.Z` — tag the MERGE commit on main (tag pushes are not blocked by branch protection); triggers PyPI publish via OIDC

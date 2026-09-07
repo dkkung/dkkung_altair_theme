@@ -55,8 +55,7 @@ pipenv
 *.svg
 *.json
 *.html
-!docs/*.png
-!docs/*.html
+# Retained logo URLs used by package READMEs.
 !docs/logo.svg
 !docs/logo_with_text.svg
 !website/**/*.json
