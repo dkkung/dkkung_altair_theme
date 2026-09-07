@@ -11,7 +11,7 @@
 //                                 column schema as JSON (used by Chart Studio). Because the file
 //                                 exists in the FS, the emitted `pl.read_csv("file.csv")` snippet
 //                                 runs verbatim - shown code and executed code are the same.
-//   _read_export(name)          - ds.read(name, what="metadata") on a saved JSON/SVG/PNG already
+//   _read_export(name)          - ds.metadata.read(name, what="metadata") on a saved JSON/SVG/PNG already
 //                                 written into the FS (the studio's export-import tools); the
 //                                 JS side also exposes a raw FS writeFile for those uploads.
 // Site render args (darkmode / transparent) are applied just before serializing,
@@ -26,7 +26,7 @@ export interface DsRuntime {
 	writeFile(name: string, data: Uint8Array | string): void;
 	/** Bundle a vega_datasets table into the FS as <name>.csv; returns the schema JSON. */
 	loadDataset(name: string): string;
-	/** ds.read(name, what="metadata") -> the embedded dysonsphere block as a JSON string. */
+	/** ds.metadata.read(name, what="metadata") -> the embedded dysonsphere block as a JSON string. */
 	readExport(name: string): string;
 	/** Palette names of the INSTALLED library (the PyPI release, which can lag the site). */
 	listPalettes(): string[];
@@ -99,9 +99,9 @@ def _run_chart(code, dark):
 
 def _read_export(name):
     # The embedded dysonsphere block (provenance/statistics/theme/report) from a saved
-    # JSON, SVG, or PNG - ds.read parses all three; the file was written into the FS first.
+    # JSON, SVG, or PNG - ds.metadata.read parses all three; the file was written into the FS first.
     import dysonsphere as ds
-    block = ds.read(name, what="metadata")
+    block = ds.metadata.read(name, what="metadata")
     if not block:
         raise RuntimeError("No dysonsphere metadata block found in this file.")
     return json.dumps(block, ensure_ascii=False)
@@ -134,7 +134,7 @@ def _load_dataset(name):
     # pl.read_csv("<name>.csv") line runs exactly as shown.
     import dysonsphere as ds
     from vega_datasets import data
-    df = ds.ensure_polars(getattr(data, name)())
+    df = ds.utils.ensure_polars(getattr(data, name)())
     df.write_csv(f"{name}.csv")
     _studio_tables[f"{name}.csv"] = df
     return _schema_json(df)
@@ -171,7 +171,7 @@ await micropip.install("dysonsphere", deps=False)
 		// call - so the Studio renders them exactly like built-ins until the release
 		// catches up, and the dropdown pruning keeps them.
 		const installed = new Set<string>(
-			JSON.parse(pyodide.runPython('import json, dysonsphere; json.dumps(list(dysonsphere.colors))')),
+			JSON.parse(pyodide.runPython('import json, dysonsphere; json.dumps(list(dysonsphere.palettes.colors))')),
 		);
 		const missing = (sitePalettes as { name: string; colors: string[] }[]).filter((p) => !installed.has(p.name));
 		if (missing.length) {
@@ -197,7 +197,7 @@ await micropip.install("dysonsphere", deps=False)
 			loadDataset: (name: string) => loadDatasetPy(name) as string,
 			readExport: (name: string) => readExportPy(name) as string,
 			listPalettes: () =>
-				JSON.parse(pyodide.runPython('import json, dysonsphere; json.dumps(list(dysonsphere.colors))')),
+				JSON.parse(pyodide.runPython('import json, dysonsphere; json.dumps(list(dysonsphere.palettes.colors))')),
 		};
 	})();
 	bootPromise.catch(() => {

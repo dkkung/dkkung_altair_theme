@@ -356,7 +356,7 @@ class TestBlankSlots:
 
         theme()
         ds.save(assemble([(None, 120, 80), (_chart, 60, 40)]), str(tmp_path / "fig"), format="json")
-        frame = ds.read(str(tmp_path / "fig.json"), what="data")
+        frame = ds.metadata.read(str(tmp_path / "fig.json"), what="data")
         assert list(frame.columns) == ["g", "v"], "the blank must not surface as a user frame"
 
 

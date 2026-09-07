@@ -4,7 +4,7 @@ import dysonsphere as ds
 
 ds.theme()
 
-cars = ds.ensure_polars(data.cars()).drop_nulls(["Horsepower"])
+cars = ds.utils.ensure_polars(data.cars()).drop_nulls(["Horsepower"])
 origins = ["Europe", "Japan", "USA"]
 
 # Pairwise Mann-Whitney U with Holm correction; brackets stack automatically.

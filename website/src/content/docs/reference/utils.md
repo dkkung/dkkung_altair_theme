@@ -1,13 +1,17 @@
 ---
 title: "Utilities"
-description: "Shared helpers: DataFrame handling, counts, band geometry, checksums."
+description: "Shared helpers: DataFrame handling, counts, and band geometry."
 sidebar:
   order: 17
 ---
 
 <!-- Generated from docstrings by website/scripts/gen_api.py - do not edit by hand. -->
 
+Access these helpers through `ds.utils`.
+
 ## `band_geometry`
+
+Call as `ds.utils.band_geometry(...)`.
 
 ```python
 def band_geometry(
@@ -53,6 +57,8 @@ starts at ``step*(outer+i)`` and is ``step*(1-inner)`` wide.
 
 ## `count_n`
 
+Call as `ds.utils.count_n(...)`.
+
 ```python
 def count_n(
     df: pl.DataFrame,
@@ -78,11 +84,13 @@ Count the number of rows in ``df`` belonging to each category.
 ```python
 ::
 
-    counts = ds.count_n(df, "group", ["Control", "Group A", "Group B"])
+    counts = ds.utils.count_n(df, "group", ["Control", "Group A", "Group B"])
     # [12, 15, 11]
 ```
 
 ## `ensure_polars`
+
+Call as `ds.utils.ensure_polars(...)`.
 
 ```python
 def ensure_polars(df: pl.DataFrame) -> pl.DataFrame: ...
@@ -109,23 +117,12 @@ name only.  If ``df`` is neither, a ``TypeError`` is raised.
 
     import pandas as pd
     pdf = pd.DataFrame({"group": ["A", "B"], "value": [1.0, 2.0]})
-    pldf = ds.ensure_polars(pdf)  # returns a polars.DataFrame
+    pldf = ds.utils.ensure_polars(pdf)  # returns a polars.DataFrame
 ```
-
-## `frame_checksum`
-
-```python
-def frame_checksum(df: pl.DataFrame | Any) -> str: ...
-```
-
-Order-independent ``multiset-sha256:<hex>`` fingerprint of a dataframe's rows.
-
-Same algorithm as the provenance ``dataChecksum`` (via :func:`_hash_rows`), so identical
-content in any row order yields the same value.  Used to tag a statistics record with the
-identity of the dataframe it was computed from, so records from distinct dataframes are
-distinguishable (and identical-content frames match regardless of ordering).
 
 ## `resolve_palette`
+
+Call as `ds.utils.resolve_palette(...)`.
 
 ```python
 def resolve_palette(name_or_list: str | list[str]) -> list[str]: ...
@@ -134,6 +131,8 @@ def resolve_palette(name_or_list: str | list[str]) -> list[str]: ...
 A palette name → its hex list (via ``colors``), or a hex list passed straight through.
 
 ## `stripe_colors`
+
+Call as `ds.utils.stripe_colors(...)`.
 
 ```python
 def stripe_colors(

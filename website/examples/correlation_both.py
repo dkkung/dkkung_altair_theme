@@ -6,7 +6,7 @@ import dysonsphere as ds
 # The three-part readout is wide - give it a wider canvas.
 ds.theme(chartWidth=150)
 
-cars = ds.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon", "Horsepower"])
+cars = ds.utils.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon", "Horsepower"])
 
 scatter = (
     alt.Chart(cars)

@@ -5,7 +5,7 @@ import dysonsphere as ds
 
 ds.theme()
 
-cars = ds.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon"])
+cars = ds.utils.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon"])
 
 # ds.transforms.beeswarm() computes collision-avoiding x-offsets per group.
 cars = ds.transforms.beeswarm(cars, "Miles_per_Gallon", groupBy=["Origin"])

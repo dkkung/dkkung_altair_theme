@@ -3,7 +3,7 @@
 `test_entry_point_*` prove the real installed entry point resolves (ds.extensions() /
 ds.biology.volcano), which the monkeypatched core tests can't. The rest cover volcano's
 classification, labeling, and - crucially - that its generated label sidecar is filtered by
-ds.read(what="data"), the payoff of building on the ext.internal_data primitive.
+ds.metadata.read(what="data"), the payoff of building on the ext.internal_data primitive.
 """
 
 import altair as alt
@@ -125,7 +125,7 @@ def test_read_filters_generated_label_sidecar(tmp_path):
     df = _df()
     out = tmp_path / "volcano"
     ds.save(lambda: ds.biology.volcano(df, geneCol="gene", label=3), str(out), format="json")
-    frame = ds.read(str(out) + ".json", what="data")
+    frame = ds.metadata.read(str(out) + ".json", what="data")
     # Only the user's frame returns (with volcano's derived columns) - the tagged label
     # sidecar and the threshold-rule sidecars are all filtered out.
     assert frame.height == df.height
@@ -139,7 +139,7 @@ def test_provenance_records_biology_extension(tmp_path):
 
     out = tmp_path / "volcano"
     ds.save(lambda: ds.biology.volcano(_df()), str(out), format="json")
-    env = ds.read(str(out) + ".json", what="metadata")["provenance"]["environment"]
+    env = ds.metadata.read(str(out) + ".json", what="metadata")["provenance"]["environment"]
     assert env["dysonsphere-extensions"] == {"biology": importlib.metadata.version("dysonsphere-biology")}
 
 

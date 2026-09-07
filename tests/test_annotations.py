@@ -398,7 +398,7 @@ class TestLabels:
         base = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
         out = tmp_path / "c"
         ds.save(lambda: base + labels(df, "x", "y", "g"), str(out), format="json")
-        frame = ds.read(str(out) + ".json", what="data")
+        frame = ds.metadata.read(str(out) + ".json", what="data")
         assert set(frame.columns) == {"x", "y", "g"}  # only the user's frame
 
 

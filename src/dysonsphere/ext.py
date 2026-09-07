@@ -2,7 +2,7 @@
 
 Extensions (e.g. ``dysonsphere-biology``) build composite charts that must behave like
 first-class dysonsphere objects - their generated data filtered correctly by
-``ds.read(what="data")``, their styling driven by the active theme. That requires a handful of
+``ds.metadata.read(what="data")``, their styling driven by the active theme. That requires a handful of
 core primitives which are otherwise ``_``-private. This module is the **stable, versioned
 contract**: import from here (``from dysonsphere import ext``), never reach into
 ``dysonsphere.utils._internal_data`` / ``dysonsphere.theme._opt`` / etc. directly - those
@@ -26,7 +26,7 @@ Surface:
   outside core.
 
 - **``internal_data(data)``** - tag a dysonsphere-GENERATED "sidecar" dataset (label
-  coordinates, computed reference frames, …) so ``ds.read(what="data")`` filters it out and
+  coordinates, computed reference frames, …) so ``ds.metadata.read(what="data")`` filters it out and
   returns only the user's dataframe(s). Accepts a ``list[dict]`` (→ ``alt.Data``) or a
   polars/pandas DataFrame (→ tagged polars df); pass the result straight to
   ``alt.Chart(...)``.

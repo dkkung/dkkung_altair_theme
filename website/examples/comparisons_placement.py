@@ -4,7 +4,7 @@ import dysonsphere as ds
 
 ds.theme()
 
-cars = ds.ensure_polars(data.cars()).drop_nulls(["Horsepower"])
+cars = ds.utils.ensure_polars(data.cars()).drop_nulls(["Horsepower"])
 origins = ["Europe", "Japan", "USA"]
 
 # Left alone each bracket hugs the data it spans, so they sit at uneven heights when the

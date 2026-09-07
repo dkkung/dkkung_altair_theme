@@ -6,7 +6,7 @@ import dysonsphere as ds
 # The verbose omnibus label is long - widen the canvas so it fits.
 ds.theme(chartWidth=200)
 
-cars = ds.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon"])
+cars = ds.utils.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon"])
 origins = ["Europe", "Japan", "USA"]
 
 box = (

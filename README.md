@@ -18,7 +18,7 @@
 - Multilabels that allow for rich annotations of categorical labels, *e.g.* multi-condition axes and sample sizes.
 - Self-documenting exports for reproducible figures:
     - `ds.save()` writes a corrected SVG, print-ready PNG, interactive HTML, and/or Vega-Lite JSON, while also embedding the output file with its provenance: environment versions and sha256 checksums fingerprint both the Vega-Lite spec and the underlying data.
-    - `ds.read()` recovers the statistics report, metadata, and even the original data from a saved figure.
+    - `ds.metadata.read()` recovers the statistics report, metadata, and even the original data from a saved figure.
     - `ds.load()` rebuilds the chart from its JSON.
 
 `dysonsphere` is extensible: you can develop and install packages of field-specific plotting toolkits (e.g. molecular biology, astronomy) for `altair`, which plug into the same theme, palettes, and export pipeline that core `dysonsphere` provides.

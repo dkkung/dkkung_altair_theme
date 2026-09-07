@@ -1,6 +1,6 @@
 /* dysonsphere site skin - "neutral pro".
    Near-monochrome chrome so the charts carry the color. Every neutral surface/text tone is a stop
-   from dysonsphere.colors["greys"] (a pure-neutral Oklab ramp); the only chromatic accent is a
+   from dysonsphere.palettes.colors["greys"] (a pure-neutral Oklab ramp); the only chromatic accent is a
    steel blue derived from colors["blues2"] desaturated ~50% (see git history for the recipe), used
    for links and focus only. The logo keeps its own color - it is the product mark. */
 

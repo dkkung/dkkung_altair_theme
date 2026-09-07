@@ -1,40 +1,29 @@
-# ext, stats, and transforms are namespaced surfaces; their contents are deliberately NOT star-imported
+# Support modules are namespaced surfaces; their contents are deliberately NOT star-imported
 # into the top namespace.
-from . import ext, stats, transforms  # noqa: F401
+from . import ext, metadata, palettes, stats, transforms, utils  # noqa: F401
 from .annotations import *  # noqa: F403
 from .assembly import *  # noqa: F403
 from .discovery import *  # noqa: F403
 from .display_labels import *  # noqa: F403
 from .export import *  # noqa: F403
 from .marks import *  # noqa: F403
-from .metadata import *  # noqa: F403
 from .multilabel import *  # noqa: F403
 from .nonlinear import *  # noqa: F403
-from .palettes import *  # noqa: F403
+from .palettes import palette
 from .table import *  # noqa: F403
 from .theme import *  # noqa: F403
-from .utils import *  # noqa: F403
 
-# The public API - the star-imported modules' __all__ lists plus stats and transforms, written out so the
+# The public API - star-imported names, palette, and public namespaces, written out so the
 # surface is documented in one place and guarded by tests (test_package_namespace). Every
 # module defines its own __all__, so the star-imports above bind exactly these names and
 # nothing else (no leaked stdlib/third-party imports on the dysonsphere namespace).
 __all__ = [
-    "BandGeometry",
-    "VerifyResult",
     "add_log_ticks",
     "add_multilabel",
     "add_pow_ticks",
     "assemble",
-    "band_geometry",
-    "categorical",
-    "colors",
-    "count_n",
     "create_config",
-    "ensure_polars",
-    "export_swatches",
     "extensions",
-    "frame_checksum",
     "label_expr",
     "labels",
     "load",
@@ -43,8 +32,9 @@ __all__ = [
     "mark_strip",
     "mark_table",
     "mark_violin",
+    "metadata",
     "palette",
-    "read",
+    "palettes",
     "rule",
     "save",
     "shade",
@@ -53,7 +43,7 @@ __all__ = [
     "text",
     "theme",
     "transforms",
-    "verify",
+    "utils",
 ]
 
 

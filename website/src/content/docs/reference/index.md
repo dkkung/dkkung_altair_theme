@@ -17,13 +17,16 @@ Browse by area in the sidebar:
 - **Marks** - `mark_strip()`, `mark_violin()`
 - **Multilabels** - `add_multilabel()`
 - **Nonlinear axes** - `add_log_ticks()`, `add_pow_ticks()`, `log_label_expr()`
-- **Palettes** - `palette()`, `categorical()`, `export_swatches()`, and the `colors` catalogue
-- **Reading exports** - `read()`
+- **Palettes** - root selection helper `ds.palette()`, `ds.palettes.categorical()`,
+  `ds.palettes.export_swatches()`, and the `ds.palettes.colors` catalogue
+- **Reading exports** - `ds.metadata.read()`, `ds.metadata.verify()`, `ds.metadata.VerifyResult`,
+  `ds.metadata.frame_checksum()`
 - **Saving & loading** - `save()`, `load()`, `show()`
 - **[Statistics](/reference/stats/)** - `ds.stats.comparisons()`, `ds.stats.correlation()`, `ds.stats.clear_stats()`
 - **Theming** - `theme()` and config-file scaffolding (`create_config()`)
 - **Transforms** - `ds.transforms.jitter()`, `ds.transforms.beeswarm()`, `ds.transforms.quasirandom()`
-- **Utilities** - `ensure_polars()`, `count_n()`, `band_geometry()`, `frame_checksum()`
+- **Utilities** - `ds.utils.ensure_polars()`, `ds.utils.count_n()`, `ds.utils.band_geometry()`,
+  `ds.utils.BandGeometry`
 
 Every public function carries type annotations (the package ships a `py.typed` marker), so the
 signatures shown here are the same contract your editor and type checker see.
@@ -40,5 +43,5 @@ Requires Python >= 3.11. Runtime dependencies (installed automatically):
 | `scipy` | 1.11.0 | statistical tests behind `ds.stats.comparisons()` / `ds.stats.correlation()` |
 | `vl-convert-python` | 1.9.0 | the SVG/PNG renderer behind `save()` (lazily imported) |
 
-Optional: `pandas` / `duckdb` (only for `read(..., output="pandas"/"duckdb")`), `IPython` (only
+Optional: `pandas` / `duckdb` (only for `ds.metadata.read(..., output="pandas"/"duckdb")`), `IPython` (only
 for `show()`).

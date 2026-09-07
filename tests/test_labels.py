@@ -74,5 +74,5 @@ class TestLabelExpr:
             .encode(x=alt.X("g:N", axis=alt.Axis(labelExpr=label_expr({"raw_a": "A"}))), y="v:Q")
         )
         ds.save(chart, str(tmp_path / "raw"), format="json", background="light")
-        frame = ds.read(str(tmp_path / "raw.json"), what="data")
+        frame = ds.metadata.read(str(tmp_path / "raw.json"), what="data")
         assert set(frame["g"].to_list()) == {"raw_a", "raw_b"}

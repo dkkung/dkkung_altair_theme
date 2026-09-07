@@ -50,7 +50,7 @@ Set the defaults for every chart with `theme(heatmapPalette=..., rampPalette=...
 
 ## Qualitative categories
 
-`ds.categorical(members=n)` returns the CVD-robust qualitative palette (blue / pink / yellow /
+`ds.palettes.categorical(members=n)` returns the CVD-robust qualitative palette (blue / pink / yellow /
 green) sized to your group count. The default (`members=1`) is a **flat, tier-major** palette -
 adjacent categories differ in hue, for unrelated groups:
 
@@ -70,6 +70,6 @@ live preview - click any swatch to copy its hex codes and see the charts restyle
 
 ## Illustrator swatches
 
-`ds.export_swatches()` writes an Illustrator ExtendScript and an `.ase` swatch file for the whole
+`ds.palettes.export_swatches()` writes an Illustrator ExtendScript and an `.ase` swatch file for the whole
 catalogue (or a subset), so the exact colors are available in your vector editor. See the
 [Palettes reference](/reference/palettes/).

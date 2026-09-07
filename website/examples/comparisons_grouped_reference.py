@@ -6,7 +6,7 @@ import dysonsphere as ds
 
 ds.theme(chartWidth=250, chartHeight=150, xAxis=False)
 
-G = ds.colors["greys"]
+G = ds.palettes.colors["greys"]
 CTRL_FILL = G[4]  # three shades darker than the default bar fill (greys[1])
 BAR_FILL = G[1]
 

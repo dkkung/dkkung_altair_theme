@@ -5,7 +5,7 @@ import dysonsphere as ds
 
 ds.theme()
 
-cars = ds.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon", "Horsepower"])
+cars = ds.utils.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon", "Horsepower"])
 
 scatter = (
     alt.Chart(cars)
@@ -20,7 +20,7 @@ scatter = (
 # an intersection rectangle spanning both axes. Drawn under the points with +.
 chart = (
     ds.shade(
-        palette=[ds.colors["blues"][0]],
+        palette=[ds.palettes.colors["blues"][0]],
         positions=[((40, 100), (28, 48))],
         axis="both",
         opacity=0.5,

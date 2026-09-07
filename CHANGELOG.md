@@ -4,6 +4,10 @@
 
 ### Changes
 
+- **Breaking:** export inspection and checksums now live under `ds.metadata`; dataframe and
+  band-geometry helpers live under `ds.utils`; palette data, categorical construction, and swatch
+  export live under `ds.palettes`. Their old root names are removed. `ds.palette()`, `ds.save()`,
+  `ds.show()`, and `ds.load()` remain at the top level; behavior and stored metadata are unchanged.
 - **Breaking:** annotation constructors are now `ds.rule()`, `ds.text()`, `ds.shade()`, and
   `ds.labels()`. Offset transforms are `ds.transforms.jitter()`, `ds.transforms.beeswarm()`, and
   `ds.transforms.quasirandom()`. Former `add_*` spellings are removed without aliases;

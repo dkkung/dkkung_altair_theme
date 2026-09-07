@@ -45,7 +45,7 @@ Everything hangs off one namespace, `dysonsphere` (conventionally `ds`):
 - **Statistics** - `ds.stats.comparisons()` and `ds.stats.correlation()` draw significance tests and
   fits that carry a report into the export. See [Comparisons](/guides/comparisons/) and
   [Correlation](/guides/correlation/).
-- **`ds.save()` / `ds.read()` / `ds.load()`** - export figures that carry their own provenance,
+- **`ds.save()` / `ds.metadata.read()` / `ds.load()`** - export figures that carry their own provenance,
   statistics, theme, and data. See [Saving & reading](/guides/saving/).
 
 ## Your first chart
@@ -62,7 +62,7 @@ ds.save(chart, "figure")   # writes figure.svg + figure.json by default
 ```
 
 `save()` bakes provenance, the resolved theme, and (when present) statistics into the file, which
-`ds.read()` and `ds.load()` pull back out later.
+`ds.metadata.read()` and `ds.load()` pull back out later.
 
 ## Try it live
 

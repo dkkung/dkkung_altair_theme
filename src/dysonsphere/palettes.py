@@ -4,8 +4,8 @@ import shutil
 import struct
 from pathlib import Path
 
-# The module's public API - star-imported into the dysonsphere namespace. Everything
-# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
+# The public ds.palettes API; palette is also explicitly exported at the root.
+# Everything else here is internal (underscore or not).
 __all__ = ["colors", "palette", "categorical", "export_swatches"]
 
 _QUALITATIVE_HUES = {
@@ -300,7 +300,7 @@ def export_swatches(
     directory:
         Output directory for the two files. Defaults to the current working directory.
     palettes:
-        Names of the palettes to export (keys of ``dysonsphere.colors``). ``None``
+        Names of the palettes to export (keys of ``dysonsphere.palettes.colors``). ``None``
         (default) exports every palette. Pass a non-empty list to export only a subset,
         e.g. ``["reds", "blues", "redsblues"]``. Unknown names raise ``ValueError``.
     name:
@@ -316,7 +316,9 @@ def export_swatches(
             raise ValueError("palettes must be a non-empty list of palette names, or None to export all")
         unknown = [p for p in palettes if p not in colors]
         if unknown:
-            raise ValueError(f"unknown palette name(s): {unknown}; valid names are the keys of dysonsphere.colors")
+            raise ValueError(
+                f"unknown palette name(s): {unknown}; valid names are the keys of dysonsphere.palettes.colors"
+            )
         selected = {p: colors[p] for p in palettes}
 
     # --- JSX: loads swatches into the active document ---

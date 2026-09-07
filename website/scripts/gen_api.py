@@ -30,13 +30,13 @@ MODULES = [
     ("multilabel", "Multilabels", 7, "Attach a multilabel annotation table below a chart."),
     ("nonlinear", "Nonlinear axes", 8, "Minor ticks and typeset labels for log and power axes."),
     ("palettes", "Palettes", 9, "Perceptually uniform palettes and Adobe Illustrator swatch export."),
-    ("metadata", "Reading exports", 10, "Read embedded metadata, statistics, reports, and data back out of exports."),
+    ("metadata", "Reading exports", 10, "Read exports, verify figures, and compute data checksums."),
     ("export", "Saving & loading", 11, "Export charts to files and rebuild them from the Vega-Lite JSON."),
     ("stats", "Statistics", 12, "Pairwise/omnibus comparisons, correlation layers, and report queue management."),
     ("table", "Tables", 14, "Render a DataFrame as a publication-styled table."),
     ("theme", "Theming", 15, "Register the dysonsphere Altair theme and scaffold config files."),
     ("transforms", "Transforms", 16, "Data transforms for jittered and beeswarm x-offsets."),
-    ("utils", "Utilities", 17, "Shared helpers: DataFrame handling, counts, band geometry, checksums."),
+    ("utils", "Utilities", 17, "Shared helpers: DataFrame handling, counts, and band geometry."),
 ]
 
 # Extension modules documented from a separate distribution's package (not part of core's
@@ -170,9 +170,21 @@ def render_page(mod, title: str, order: int, description: str) -> str:
     # The module docstring introduces the page (ext.py's carries the whole authoring contract).
     if mod.docstring:
         out += [mod.docstring.value.strip(), ""]
+    if mod.name == "palettes":
+        out += [
+            "Use `ds.palette(...)` to select colors. This ordinary root function is implemented in",
+            "`palettes.py`; the catalogue and other helpers live at `ds.palettes.colors`,",
+            "`ds.palettes.categorical(...)`, and `ds.palettes.export_swatches(...)`.",
+            "",
+        ]
+    elif mod.name in {"metadata", "utils"}:
+        out += [f"Access these helpers through `ds.{mod.name}`.", ""]
     for name, f in fns:
         out.append(f"## `{name}`")
         out.append("")
+        if mod.name in {"metadata", "utils", "palettes"}:
+            public_path = f"ds.{name}" if name == "palette" else f"ds.{mod.name}.{name}"
+            out += [f"Call as `{public_path}(...)`.", ""]
         out += ["```python", format_signature(f, name), "```", ""]
         out += render_docstring(f)
     return "\n".join(out).rstrip() + "\n"

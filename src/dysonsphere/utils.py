@@ -8,9 +8,8 @@ import polars as pl
 
 from .theme import _opt
 
-# The module's public API - star-imported into the dysonsphere namespace. Everything
-# else here is internal (underscore or not); keep this list in sync with __init__.__all__.
-__all__ = ["BandGeometry", "band_geometry", "count_n", "ensure_polars", "frame_checksum"]
+# The public ds.utils API. Everything else here is internal (underscore or not).
+__all__ = ["BandGeometry", "band_geometry", "count_n", "ensure_polars"]
 
 
 class BandGeometry(NamedTuple):
@@ -168,7 +167,7 @@ def count_n(df: pl.DataFrame, xCol: str, categories: list[str]) -> list[int]:
     --------
     ::
 
-        counts = ds.count_n(df, "group", ["Control", "Group A", "Group B"])
+        counts = ds.utils.count_n(df, "group", ["Control", "Group A", "Group B"])
         # [12, 15, 11]
     """
     df = ensure_polars(df)
@@ -200,7 +199,7 @@ def ensure_polars(df: pl.DataFrame) -> pl.DataFrame:
 
         import pandas as pd
         pdf = pd.DataFrame({"group": ["A", "B"], "value": [1.0, 2.0]})
-        pldf = ds.ensure_polars(pdf)  # returns a polars.DataFrame
+        pldf = ds.utils.ensure_polars(pdf)  # returns a polars.DataFrame
     """
     if isinstance(df, pl.DataFrame):
         return df
@@ -269,7 +268,7 @@ def _hash_rows(rows: list[dict[str, Any]]) -> str:
     Hashes the *multiset* of per-row canonical-JSON digests (sort the digests, then hash), so a
     reordered-but-identical set yields the same value; duplicate rows are preserved.  The single
     implementation shared by the provenance ``dataChecksum`` (over a spec's inlined datasets) and
-    ``frame_checksum`` (over a raw dataframe), so both compute identical values for identical rows.
+    ``metadata.frame_checksum`` (over a raw dataframe), so both compute identical values for identical rows.
     Every row goes through :func:`_canonicalize` first, so a missing value and a dtype change
     cannot alter the digest; ``default=str`` then keeps it total for non-JSON-native cell types
     (dates, Decimals).
@@ -290,7 +289,7 @@ def _hash_rows(rows: list[dict[str, Any]]) -> str:
     return _ROW_HASH_PREFIX + hashlib.sha256(json.dumps(digests, separators=(",", ":")).encode()).hexdigest()
 
 
-def frame_checksum(df: "pl.DataFrame | Any") -> str:
+def _frame_checksum(df: "pl.DataFrame | Any") -> str:
     """Order-independent ``multiset-sha256:<hex>`` fingerprint of a dataframe's rows.
 
     Same algorithm as the provenance ``dataChecksum`` (via :func:`_hash_rows`), so identical
@@ -305,7 +304,7 @@ def frame_checksum(df: "pl.DataFrame | Any") -> str:
 # dysonsphere's composite marks / annotations generate their own small "sidecar" data
 # (bracket coords, mean/error bars, KDE curves, labels, …).  Altair inlines each of those
 # as a separate named dataset in the saved spec, alongside the user's dataframe.  To let
-# export.read(what="data") return only the USER's frame(s), every internal data source is
+# metadata.read(what="data") return only the USER's frame(s), every internal data source is
 # tagged with this sentinel column; read() treats any dataset carrying it as internal.
 #
 # DISCIPLINE: any NEW code that builds a dysonsphere-generated data source for a chart layer

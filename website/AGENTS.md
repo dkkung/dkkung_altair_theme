@@ -86,6 +86,11 @@ in `website/` on `main` and is developed on ordinary feature branches like the r
   `ds.stats.comparisons`, `ds.stats.correlation`, and `ds.stats.clear_stats`; parameters and behavior
   are unchanged. The reference is `reference/stats.md`; griffe includes the intentional
   `clear_stats` re-export from `_statistics` via `stats.__all__`. Historical notes stay unchanged.
+  Reading, verification, and `frame_checksum` use `ds.metadata`; DataFrame/count/band helpers
+  use `ds.utils`; the catalogue, categorical palettes, and swatch export use `ds.palettes`.
+  `ds.palette` remains the canonical root selection function, implemented in `palettes.py`.
+  Griffe resolves `metadata.frame_checksum` from `utils._frame_checksum`; document it only under
+  metadata. Serialized fields and historical provenance/report examples keep their original data.
 
 - **Example registry.** Every guide chart is a file in `examples/`; `Example.astro` shows that file
   verbatim (vite `?raw`) AND renders the spec `gen_examples.py` produced from executing it, so shown
