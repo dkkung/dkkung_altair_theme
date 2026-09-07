@@ -1,5 +1,5 @@
 """
-Generates docs/reference_line_example.png — the README preview for add_rule().
+Generates docs/reference_line_example.png - the README preview for rule().
 
 Left panel:  strip chart with two horizontal reference lines (axis="y").
 Right panel: time series with a vertical reference line (axis="x").
@@ -56,13 +56,13 @@ fontSize = alt.theme.options.get("fontSize", 7)
 strip = ds.mark_strip(strip_df, "group", "value", GROUPS, yTitle="Measurement")
 left = (
     strip
-    + ds.add_rule(4.0, label="Lower limit", labelPosition="bottom")
-    + ds.add_rule(7.0, label="Upper limit", labelAlign="right")
+    + ds.rule(4.0, label="Lower limit", labelPosition="bottom")
+    + ds.rule(7.0, label="Upper limit", labelAlign="right")
 ).properties(
     title=alt.TitleParams(
         [
-            'add_rule(4.0, label="Lower limit", labelPosition="bottom")',
-            'add_rule(7.0, label="Upper limit", labelAlign="right")',
+            'rule(4.0, label="Lower limit", labelPosition="bottom")',
+            'rule(7.0, label="Upper limit", labelAlign="right")',
         ],
         fontSize=fontSize,
         **title_params,
@@ -86,12 +86,10 @@ lines = (
         ),
     )
 )
-right = (
-    lines + ds.add_rule(10, axis="x", label="Intervention", labelPosition="right", labelAlign="bottom")
-).properties(
+right = (lines + ds.rule(10, axis="x", label="Intervention", labelPosition="right", labelAlign="bottom")).properties(
     title=alt.TitleParams(
         [
-            'add_rule(10, axis="x", label="Intervention",',
+            'rule(10, axis="x", label="Intervention",',
             'labelPosition="right", labelAlign="bottom")',
         ],
         fontSize=fontSize,

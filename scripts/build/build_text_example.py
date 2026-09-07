@@ -1,5 +1,5 @@
 """
-Generates docs/text_example.png — the README preview for add_text().
+Generates docs/text_example.png - the README preview for text().
 
 Usage (from project root):
     uv run python scripts/build/build_text_example.py
@@ -37,16 +37,16 @@ base = ds.mark_strip(df, "group", "value", GROUPS, yTitle="Response")
 
 chart = (
     base
-    + ds.add_text("n = 20", x="Control", y=1.0, align="center")
-    + ds.add_text("ANOVA p < 0.001", position="topLeft")
-    + ds.add_text("Threshold = 5.0", position="bottomRight")
-    + ds.add_rule(5)
+    + ds.text("n = 20", x="Control", y=1.0, align="center")
+    + ds.text("ANOVA p < 0.001", position="topLeft")
+    + ds.text("Threshold = 5.0", position="bottomRight")
+    + ds.rule(5)
 ).properties(
     title=alt.TitleParams(
         [
-            'add_text("ANOVA p < 0.001", position="topLeft")',
-            'add_text("Threshold = 5.0", position="bottomRight")',
-            'add_text("n = 20", x="Control", y=1.0, align="center")',
+            'text("ANOVA p < 0.001", position="topLeft")',
+            'text("Threshold = 5.0", position="bottomRight")',
+            'text("n = 20", x="Control", y=1.0, align="center")',
         ],
         fontSize=fontSize,
         **title_params,

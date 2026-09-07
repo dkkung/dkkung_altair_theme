@@ -30,9 +30,13 @@ df = pl.DataFrame({"rank": rank, "gdt": gdt, "group": ["AlphaFold2"] + ["field"]
 xenc = alt.X("rank:Q", title="Predictor group (ranked by accuracy)")
 yenc = alt.Y("gdt:Q", title="Median GDT_TS")
 
-field = alt.Chart(df.filter(pl.col("group") == "field")).mark_circle(size=15, color=GREY, opacity=0.7).encode(x=xenc, y=yenc)
+field = (
+    alt.Chart(df.filter(pl.col("group") == "field"))
+    .mark_circle(size=15, color=GREY, opacity=0.7)
+    .encode(x=xenc, y=yenc)
+)
 af = alt.Chart(df.filter(pl.col("group") == "AlphaFold2")).mark_circle(size=15, color=NAVY).encode(x=xenc, y=yenc)
-# label just the AlphaFold2 point (auto-placed with a connector); add_labels drives the shared scale
-labels = ds.add_labels(df, "rank", "gdt", "group", labels=(df["group"] == "AlphaFold2"))
+# label just the AlphaFold2 point (auto-placed with a connector); ds.labels drives the shared scale
+labels = ds.labels(df, "rank", "gdt", "group", labels=(df["group"] == "AlphaFold2"))
 
 chart = field + af + labels

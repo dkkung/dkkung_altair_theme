@@ -495,7 +495,7 @@ class TestAddComparisons:
 def _text_labels(layer):
     """Pull rendered text-mark strings from a chart spec.
 
-    add_text (test label, correlation readout) encodes its string via ``alt.value`` (an
+    text (test label, correlation readout) encodes its string via ``alt.value`` (an
     ``encoding.text.value`` literal), not a dataset field - walk the layer tree for those.
     """
     found: list[Any] = []
@@ -1686,7 +1686,7 @@ class TestResolveYSpacing:
 
 def _ref_labels(layer):
     """Pull the rendered p-value strings from reference-mode label layers (each rides a tiny
-    inline dataset with a ``label`` field, unlike add_text's ``value``-encoded labels)."""
+    inline dataset with a ``label`` field, unlike text's ``value``-encoded labels)."""
     found: list[str] = []
 
     def walk(node):

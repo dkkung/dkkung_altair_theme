@@ -14,7 +14,7 @@ import altair as alt
 import polars as pl
 
 from ._statistics import clear_stats as clear_stats
-from .annotations import add_text
+from .annotations import text as _text
 from .theme import _opt
 from .utils import (
     _SUP,
@@ -1339,7 +1339,7 @@ def comparisons(
       overlapping spans are bumped up a level).
     - **Omnibus** (``'anova'``, ``'kruskal'``, ``'friedman'``,
       ``'alexandergovern'``) — runs one "are *any* groups different?" test and
-      places its result as a corner label via ``add_text`` (see
+      places its result as a corner label via ``text`` (see
       ``testLabelPosition``). If ``pairs`` is also given, a post-hoc test (see
       ``postHoc``) fills the brackets.
 
@@ -1547,7 +1547,7 @@ def comparisons(
         keys are pairs (matched either order, unlisted → plain), and the special
         ``"test"`` key sets the omnibus label's notation.
     testLabelPosition:
-        Corner preset (an ``add_text`` position, e.g. ``'topLeft'``,
+        Corner preset (a ``text`` position, e.g. ``'topLeft'``,
         ``'bottomRight'``) for the single test label. Its content adapts: the
         omnibus **result** (``ANOVA P = 0.003``) for an omnibus ``test``, or the
         pairwise **test name** (``Mann-Whitney U``) for a pairwise ``test``.
@@ -1562,10 +1562,10 @@ def comparisons(
         ``ANOVA P = 0.003``; ``True`` → ``ANOVA F(2, 57) = 6.34, P = 0.003,
         η² = 0.18`` (statistic, df, p, and effect size).
     testLabelOffsetX, testLabelOffsetY:
-        Pixel nudges for the test label, forwarded to ``add_text``.
+        Pixel nudges for the test label, forwarded to ``text``.
     testLabelX, testLabelY:
         Explicit coordinates for the test label (data values, category names, or
-        ``alt.value(px)``), forwarded to ``add_text`` where they override the
+        ``alt.value(px)``), forwarded to ``text`` where they override the
         preset. ``None`` (default) uses ``testLabelPosition``.
     report:
         ``True`` prints the full descriptive + effect-size report (per-group
@@ -1831,7 +1831,7 @@ def comparisons(
         else:
             label_text = _TEST_DISPLAY.get(test, test)
         annotation_layers.append(
-            add_text(
+            _text(
                 label_text,
                 testLabelX,
                 testLabelY,
@@ -2283,7 +2283,7 @@ def _add_grouped_correlation(
     if position is not None:
         preset = _TEXT_PRESETS[position]
         cw, chh = _opt("chartWidth"), _opt("chartHeight")
-        pad = 1  # px inset from an edge, matching add_text's edge-inset spirit
+        pad = 1  # px inset from an edge, matching text's edge-inset spirit
         base_x = preset["x_frac"] * cw + (pad if preset["x_frac"] == 0 else -pad if preset["x_frac"] == 1 else 0)
         base_y = preset["y_frac"] * chh + (pad if preset["y_frac"] == 0 else -pad if preset["y_frac"] == 1 else 0)
         line_h = fontSize * 1.5
@@ -2464,7 +2464,7 @@ def correlation(
         (a no-op for the rank methods). Set ``False`` to suppress it and, e.g., compose
         your own line from the returned/recorded slope and intercept.
     position:
-        Corner preset (an ``add_text`` position, e.g. ``'topLeft'``) for the readout.
+        Corner preset (a ``text`` position, e.g. ``'topLeft'``) for the readout.
         Default ``'topLeft'``. ``None`` computes the result for the report/metadata but
         draws no label.
     label:
@@ -2484,7 +2484,7 @@ def correlation(
         (Pearson) / ``ρ = 0.81`` (rank); ``verbose=True`` gives
         ``r = 0.87, r² = 0.76, P < 0.001, y = 0.84x + 0.27``.
     offsetX, offsetY:
-        Pixel nudges for the readout, forwarded to ``add_text``.
+        Pixel nudges for the readout, forwarded to ``text``.
     fontSize:
         Font size of the readout. Defaults to the theme's primary ``fontSize``
         (``7`` under the built-in defaults), matching the axis font.
@@ -2492,7 +2492,7 @@ def correlation(
         Significant figures / number format for the readout (coefficient, r², p-value,
         and fit equation), as in ``comparisons``. ``sigFigs=None`` reads the theme.
     color, strokeWidth, strokeDash, opacity:
-        Curated style overrides for the fit line (same four knobs as ``add_rule``). Each
+        Curated style overrides for the fit line (same four knobs as ``rule``). Each
         defaults to ``None`` → the line inherits the theme's ``mark_line`` config; set one
         to override just that property.
     lineStyle:
@@ -2512,7 +2512,7 @@ def correlation(
         Fill colour of the band. ``None`` (default) inherits the fit line's ``color``,
         falling back to the theme's mark colour (black / white, darkmode-aware). Because
         the default resolves darkmode at build time, wrap chart construction in a callable
-        passed to ``ds.save()`` for correct light/dark exports (as with ``add_shade``).
+        passed to ``ds.save()`` for correct light/dark exports (as with ``shade``).
     ciOpacity:
         Fill opacity of the band. Default ``0.15``.
     report:
@@ -2599,7 +2599,7 @@ def correlation(
         # base chart (same trick as the fit line); the upper bound goes in y2 (carries no title).
         band_df = pl.DataFrame({xCol: xs, yCol: lo, "__ci_hi": hi})
         # Match the fit line's colour (black/white, darkmode-aware at build → callable needed
-        # for save() across backgrounds, like add_shade); pin the stroke off so config.area's
+        # for save() across backgrounds, like shade); pin the stroke off so config.area's
         # grey fill / stroke can't leak through.
         band_fill = ciColor or color or ("white" if _opt("darkmode") else "black")
         layers.append(
@@ -2658,7 +2658,7 @@ def correlation(
             )
         )
         layers.append(
-            add_text(
+            _text(
                 text,
                 position=position,
                 offsetX=offsetX,

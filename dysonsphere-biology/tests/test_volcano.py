@@ -74,7 +74,7 @@ def test_pandas_input():
 
 def test_label_top_n_count():
     chart = ds.biology.volcano(_df(), geneCol="gene", label=2)
-    # top-2 significant by combined score -> 2 gene labels (placed by add_labels)
+    # top-2 significant by combined score -> 2 gene labels (placed by labels)
     assert len(_label_texts(chart)) == 2
 
 
@@ -107,7 +107,7 @@ def test_palette_and_nscolor_override():
 
 
 def test_axis_titles_render():
-    # Regression guard: threshold rules must not null the base axis titles (the add_rule bug).
+    # Regression guard: threshold rules must not null the base axis titles (the rule bug).
     import re
 
     import vl_convert as vlc
@@ -144,7 +144,7 @@ def test_provenance_records_biology_extension(tmp_path):
 
 
 def _label_texts(chart):
-    """Gene-label strings placed by add_labels (each encoded via alt.value)."""
+    """Gene-label strings placed by labels (each encoded via alt.value)."""
     out = []
 
     def walk(node):

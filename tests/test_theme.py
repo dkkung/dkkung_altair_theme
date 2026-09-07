@@ -688,11 +688,11 @@ class TestViewPadding:
         assert _dysonsphere_theme()["config"]["scale"]["continuousPadding"] == 5.0
 
     def test_internal_scales_pinned_against_padding(self):
-        # violin x:Q and add_labels' pinned scales carry padding=0 so viewPadding cannot
+        # violin x:Q and labels' pinned scales carry padding=0 so viewPadding cannot
         # compress their pixel math
         import polars as pl
 
-        from dysonsphere.annotations import add_labels
+        from dysonsphere.annotations import labels
         from dysonsphere.marks import mark_violin
 
         theme(closed=True)
@@ -701,14 +701,14 @@ class TestViewPadding:
         vx = next(lyr for lyr in violin["layer"] if lyr["encoding"]["x"].get("field") == "__x")
         assert vx["encoding"]["x"]["scale"]["padding"] == 0
 
-        # add_labels deliberately does NOT pin padding: its geometry is pixel offsets from each
+        # labels deliberately does NOT pin padding: its geometry is pixel offsets from each
         # marker, so viewPadding insets marker and label together and alignment survives. Forcing
         # padding=0 here would override the user's viewPadding on the shared scale.
         pts = pl.DataFrame({"x": [1.0, 2, 3], "y": [1.0, 2, 3], "n": ["a", "b", "c"]})
-        labels = add_labels(pts, "x", "y", "n").to_dict()
+        labels_spec = labels(pts, "x", "y", "n").to_dict()
         scales = [
             lyr["encoding"][ch]["scale"]
-            for lyr in labels["layer"]
+            for lyr in labels_spec["layer"]
             for ch in ("x", "y")
             if isinstance(lyr.get("encoding", {}).get(ch), dict) and "scale" in lyr["encoding"][ch]
             if isinstance(lyr["encoding"][ch]["scale"], dict) and "domain" in lyr["encoding"][ch]["scale"]

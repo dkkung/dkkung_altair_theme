@@ -1,6 +1,6 @@
 ---
 title: Text & labels
-description: Text annotations with add_text and auto-placed point labels with add_labels.
+description: Text annotations with ds.text and auto-placed point labels with ds.labels.
 ---
 
 import Example from '../../../components/Example.astro';
@@ -9,7 +9,7 @@ Both return native Altair layers you compose with `+`, sharing the base chart's 
 
 ## Text
 
-`add_text()` places annotations at data coordinates (numbers share the quantitative scale, strings
+`ds.text()` places annotations at data coordinates (numbers share the quantitative scale, strings
 snap to categories) or at frame positions via nine presets (`topLeft`, `middleCenter`, …). Add a
 background chip behind the text with `fill` (`True` for a darkmode-aware grey, or a color),
 `fillOpacity`, `stroke`, and `cornerRadius` - useful for keeping the text legible over a busy
@@ -19,7 +19,7 @@ field. The chip is drawn only when `fill` is set.
 
 ## Point labels
 
-`add_labels()` auto-places non-overlapping text labels with connector lines for a set of points -
+`ds.labels()` auto-places non-overlapping text labels with connector lines for a set of points -
 volcano gene labels, rank-order labels, cluster labels. Placement is deterministic (no RNG, so
 figures are reproducible): each label takes the nearest clear spot, and a thin leader line runs
 from each point to its label. Pass the full plotted `df` and let `labels=` select which points to
@@ -35,7 +35,7 @@ species names), and give them a background chip with `fill` / `fillOpacity` / `s
 
 ## Superscripts and subscripts
 
-Any label - an axis title, an `add_text` annotation, a legend title - can carry a superscript or
+Any label - an axis title, a `ds.text` annotation, a legend title - can carry a superscript or
 subscript. It is typeset when you export with `ds.save()` (and on this site's live charts): the run
 becomes a shrunk, shifted plain-ASCII glyph, so it looks right even in fonts that lack the Unicode
 super/subscript characters. Write a superscript with a caret, and a subscript with a **double**

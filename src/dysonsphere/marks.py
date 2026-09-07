@@ -6,9 +6,9 @@ import altair as alt
 import numpy as np
 import polars as pl
 
-from .labels import label_expr
+from .display_labels import label_expr
 from .theme import _opt
-from .transforms import add_beeswarm, add_jitter
+from .transforms import beeswarm, jitter
 from .utils import _internal_data, _nice_domain, band_geometry, ensure_polars
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
@@ -586,10 +586,10 @@ def mark_strip(
         markOpacity = _opt("markFillOpacity")
 
     if scatter == "jitter":
-        df = add_jitter(df, spread=spread)
+        df = jitter(df, spread=spread)
         offset_col = "jitter_x"
     elif scatter == "beeswarm":
-        df = add_beeswarm(df, yCol=yCol, groupBy=[xCol], spread=spread)
+        df = beeswarm(df, yCol=yCol, groupBy=[xCol], spread=spread)
         offset_col = "beeswarm_x"
     else:
         raise ValueError(f"scatter must be 'jitter' or 'beeswarm', got {scatter!r}")

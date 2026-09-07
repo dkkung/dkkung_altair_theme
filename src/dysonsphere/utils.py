@@ -40,7 +40,7 @@ def band_geometry(
     ``outerPadding``, because Vega-Lite has no mark-specific outer padding):
 
     - ``"offset"`` (default) - ``paddingInner=0``, ``paddingOuter=outerPadding``: what an
-      ``xOffset`` encoding (``mark_circle``/``mark_strip``) or an ``add_shade`` rect sees.
+      ``xOffset`` encoding (``mark_circle``/``mark_strip``) or a ``shade`` rect sees.
     - ``"band"`` - ``paddingInner=barPadding``: what ``mark_bar`` sees.
     - ``"rect"`` - ``paddingInner=rectPadding`` (``0`` by default, so cells abut): what a
       ``mark_rect`` heatmap sees - and also ``mark_boxplot`` (and so ``mark_violin``'s
@@ -122,7 +122,7 @@ def _nested_band_centers(nCategories: int, nLevels: int, span: float | None = No
 def _nice_domain(lo: float, hi: float, count: int = 10) -> tuple[float, float]:
     """Round ``(lo, hi)`` outward to nice tick-increment multiples - d3's ``nice()`` algorithm.
 
-    Used by ``add_labels`` to pin the shared scale to nice bounds instead of the raw data extent,
+    Used by ``labels`` to pin the shared scale to nice bounds instead of the raw data extent,
     so the pinned axes read like Vega's own ``nice: true`` (whose rounding this replicates: the
     d3-scale 1/2/5/10 tick increment at ``count`` ~ticks, applied twice so the widened domain can
     settle on a coarser step). Exactness vs Vega does not matter - the caller FORCES the returned
@@ -313,7 +313,7 @@ def frame_checksum(df: "pl.DataFrame | Any") -> str:
 # Miss one, and that sidecar leaks as a phantom "user" dataframe on read.  See AGENTS.md.
 _INTERNAL_COL = "__dysonsphere__"
 
-# Marks an `add_shade` background rect so `export._layer_axes_below_marks` can sink it behind the
+# Marks a `shade` background rect so `export._layer_axes_below_marks` can sink it behind the
 # grid and axes. Deliberately NOT the `__dysonsphere_` prefix: `metadata._strip_markers` deletes
 # that from written output, which would break the fixer after a `ds.load()` round trip.
 _SHADE_PREFIX = "__dsshade_"
@@ -437,7 +437,7 @@ def stripe_colors(palette: "str | list[str]", n: int, *, darkmode: bool) -> list
     darkmode, since a sequential palette runs light to dark.
 
     Shared by ``mark_table``'s cell stripes and ``add_multilabel``'s row bands. NOT used by
-    ``add_shade``, whose darkmode deliberately discards the caller's palette for greys.
+    ``shade``, whose darkmode deliberately discards the caller's palette for greys.
     """
     if n < 1:
         raise ValueError(f"n must be >= 1, got {n}.")

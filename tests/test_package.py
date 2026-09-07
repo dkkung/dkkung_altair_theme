@@ -8,7 +8,13 @@ can never silently become public again.
 
 import importlib
 import importlib.util
+import json
+import re
+from pathlib import Path
 from types import ModuleType
+
+import polars as pl
+import pytest
 
 import dysonsphere as ds
 
@@ -18,7 +24,7 @@ _MODULE_NAMES = [
     "annotations",
     "discovery",
     "export",
-    "labels",
+    "display_labels",
     "marks",
     "metadata",
     "assembly",
@@ -27,7 +33,6 @@ _MODULE_NAMES = [
     "palettes",
     "table",
     "theme",
-    "transforms",
     "utils",
 ]
 _MODULES = [importlib.import_module(f"dysonsphere.{name}") for name in _MODULE_NAMES]
@@ -40,9 +45,9 @@ class TestPackageNamespace:
 
     def test_package_all_is_union_of_module_alls(self):
         # __init__.__all__ is written out explicitly (self-documenting); this keeps it in
-        # sync with star-imported modules plus the stats namespace, not its functions.
+        # sync with star-imported modules plus namespaces, not their functions.
         union = {name for mod in _MODULES for name in mod.__all__}
-        assert sorted(ds.__all__) == sorted(union | {"stats"})
+        assert sorted(ds.__all__) == sorted(union | {"stats", "transforms"})
 
     def test_stats_surface_is_namespaced_only(self):
         assert isinstance(ds.stats, ModuleType)
@@ -62,8 +67,60 @@ class TestPackageNamespace:
             assert name not in ds.__all__
 
     def test_every_module_defines_all(self):
-        for mod in _MODULES:
+        for mod in [*_MODULES, ds.stats, ds.transforms, ds.ext]:
             assert hasattr(mod, "__all__"), f"{mod.__name__} lacks __all__ (would leak its imports)"
+
+    def test_transforms_surface_is_namespaced_only(self):
+        assert isinstance(ds.transforms, ModuleType)
+        assert ds.transforms is importlib.import_module("dysonsphere.transforms")
+        assert sorted(ds.transforms.__all__) == ["beeswarm", "jitter", "quasirandom"]
+        for name in ds.transforms.__all__:
+            assert callable(getattr(ds.transforms, name))
+            assert name not in ds.__all__
+            assert not hasattr(ds, name), f"transforms.{name} leaked onto the top namespace"
+            old_name = f"add_{name}"
+            assert not hasattr(ds.transforms, old_name)
+            assert not hasattr(ds, old_name)
+            assert old_name not in ds.__all__
+
+    def test_annotation_public_names_without_aliases(self):
+        annotations = importlib.import_module("dysonsphere.annotations")
+        assert sorted(annotations.__all__) == ["labels", "rule", "shade", "text"]
+        for name in annotations.__all__:
+            assert callable(getattr(ds, name))
+            assert getattr(ds, name) is getattr(annotations, name)
+            assert name in ds.__all__
+            old_name = f"add_{name}"
+            assert not hasattr(annotations, old_name)
+            assert not hasattr(ds, old_name)
+            assert old_name not in ds.__all__
+
+    @pytest.mark.parametrize("algorithm", ["jitter", "beeswarm", "quasirandom"])
+    def test_studio_transform_calls_use_public_api(self, algorithm):
+        studio = Path(__file__).resolve().parents[1] / "website/src/components/Studio.astro"
+        templates = re.findall(r"`(df = ds\.[^`]+)`", studio.read_text(encoding="utf-8"))
+        template = next(t for t in templates if ("${transform}" in t) == (algorithm != "jitter"))
+        code = (
+            template.replace("${transform}", algorithm)
+            .replace("${q(x)}", json.dumps("group"))
+            .replace("${q(y)}", json.dumps("value"))
+        )
+        assert "${" not in code
+        data = pl.DataFrame({"group": ["a", "a", "a"], "value": [1.0, 2.0, 3.0]})
+        namespace = {"ds": ds, "df": data}
+        exec(code, namespace)
+        result = namespace["df"]
+        assert isinstance(result, pl.DataFrame)
+        assert result.height == data.height
+        assert f"{algorithm}_x" in result.columns
+
+    def test_labels_function_survives_module_imports(self):
+        for name in ("display_labels", "marks", "annotations", "transforms"):
+            importlib.import_module(f"dysonsphere.{name}")
+            assert callable(ds.labels)
+            assert ds.labels is importlib.import_module("dysonsphere.annotations").labels
+        assert ds.label_expr is importlib.import_module("dysonsphere.display_labels").label_expr
+        assert importlib.util.find_spec("dysonsphere.labels") is None
 
     def test_no_leaked_stdlib_or_thirdparty_names(self):
         # the exact names that leaked before v3.0

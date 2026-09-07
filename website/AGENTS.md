@@ -78,7 +78,11 @@ in `website/` on `main` and is developed on ordinary feature branches like the r
 
 ## Conventions and gotchas
 
-- **v4 statistics namespace.** Active examples, guides, Studio codegen, and runtime use
+- **v4 namespaces.** Annotations use `ds.rule`, `ds.text`, `ds.shade`, and `ds.labels`;
+  offsets use `ds.transforms.jitter`, `ds.transforms.beeswarm`, and `ds.transforms.quasirandom`.
+  Parameters stay unchanged, including `labels=` selection. The display helper lives in
+  `display_labels.py` (`reference/display_labels.md`); `ds.label_expr` stays at the root.
+  Active examples, guides, Studio codegen, and runtime use
   `ds.stats.comparisons`, `ds.stats.correlation`, and `ds.stats.clear_stats`; parameters and behavior
   are unchanged. The reference is `reference/stats.md`; griffe includes the intentional
   `clear_stats` re-export from `_statistics` via `stats.__all__`. Historical notes stay unchanged.

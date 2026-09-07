@@ -112,7 +112,7 @@ def _blank() -> _AltairChart:
     """A filled, outlined view that draws nothing and occupies its size.
 
     It rides ``view`` rather than a rect mark, so it traces the reserved area with no
-    encodings; colors are read at build time like ``add_shade``'s, so a ``save()`` across
+    encodings; colors are read at build time like ``shade``'s, so a ``save()`` across
     both backgrounds needs a callable. Its row is tagged internal, keeping a reserved slot
     out of ``read(what="data")`` and the provenance checksums.
     """
@@ -176,7 +176,7 @@ def assemble(
     Charts in one figure share a single ``config.view``, so :func:`theme` alone cannot give
     them different sizes - the last call wins. Sizing with ``.properties()`` instead leaves
     ``markSize``, the corner and arc radii, and the pixel geometry of every annotation
-    (``add_shade`` spans, comparison brackets, ``add_labels`` placement) computed for the
+    (``shade`` spans, comparison brackets, ``labels`` placement) computed for the
     theme's size rather than the one the chart renders at. ``assemble`` builds each member
     while the theme genuinely says its size, so those all land correctly, then stamps the
     size on the chart so the shared config cannot override it.

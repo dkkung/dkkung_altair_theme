@@ -3,7 +3,7 @@ Generates docs/omnibus_example.png — the README preview for the
 omnibus mode of stats.comparisons.
 
 Two panels, each a boxplot with an omnibus test reported in the corner (via the
-add_text hook) plus post-hoc brackets for all three comparisons against Control
+text hook) plus post-hoc brackets for all three comparisons against Control
 (auto-stacked at the default yStep):
   left  — test="anova" (verbose corner label) + Tukey HSD brackets
   right — test="kruskal" (terse asterisk label) + Dunn brackets

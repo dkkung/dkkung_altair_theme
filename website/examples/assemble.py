@@ -39,7 +39,7 @@ def time_course():
     color = alt.Color("dose:N", sort=DOSES, title=None, scale=alt.Scale(range=ds.palette("ds_cat_3", 3)))
     base = alt.Chart(course)
     return (
-        ds.add_shade(positions=[(0, 12)], axis="x", opacity=0.5)
+        ds.shade(positions=[(0, 12)], axis="x", opacity=0.5)
         + base.mark_line().encode(x=x, y=alt.Y("mean(viability):Q", title="Viability (%)"), color=color)
         + base.mark_errorbar(extent="stderr").encode(x=x, y=alt.Y("viability:Q", title=""), detail="dose:N")
         + base.mark_point(filled=True).encode(x=x, y=alt.Y("mean(viability):Q", title=""), color=color)

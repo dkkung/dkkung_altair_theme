@@ -1,5 +1,5 @@
 """
-Generates docs/labels_example.png — the README preview for add_labels().
+Generates docs/labels_example.png - the README preview for labels().
 
 Usage (from project root):
     uv run python scripts/build/build_labels_example.py
@@ -39,9 +39,9 @@ base = (
 )
 
 # labels=8 auto-selects 8 evenly-spread points; the repel places them in open space with connectors.
-chart = (base + ds.add_labels(df, "x", "y", "name", labels=8)).properties(
+chart = (base + ds.labels(df, "x", "y", "name", labels=8)).properties(
     title=alt.TitleParams(
-        ['add_labels(df, "x", "y", "name", labels=8)'],
+        ['labels(df, "x", "y", "name", labels=8)'],
         fontSize=fontSize,
         orient="top",
         anchor="start",

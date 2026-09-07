@@ -1,4 +1,4 @@
-"""A weak-acid / strong-base titration curve - equivalence and pKa marked with add_rule."""
+"""A weak-acid / strong-base titration curve - equivalence and pKa marked with ds.rule."""
 
 import altair as alt
 import numpy as np
@@ -24,13 +24,17 @@ for _ in range(80):
 pH = -np.log10(np.sqrt(lo * hi))
 
 df = pl.DataFrame({"Vb": Vb, "pH": pH})
-curve = alt.Chart(df).mark_line().encode(
-    x=alt.X("Vb:Q", title="Base added (mL)", scale=alt.Scale(domain=[0, 50], nice=False)),
-    y=alt.Y("pH:Q", title="pH", scale=alt.Scale(domain=[2, 13], nice=False)),
+curve = (
+    alt.Chart(df)
+    .mark_line()
+    .encode(
+        x=alt.X("Vb:Q", title="Base added (mL)", scale=alt.Scale(domain=[0, 50], nice=False)),
+        y=alt.Y("pH:Q", title="pH", scale=alt.Scale(domain=[2, 13], nice=False)),
+    )
 )
 
 chart = (
     curve
-    + ds.add_rule(25.0, axis="x", label="equivalence", labelAlign="top", labelPosition="right")
-    + ds.add_rule(4.76, axis="y", strokeDash=True, label="pKa", labelAlign="left")
+    + ds.rule(25.0, axis="x", label="equivalence", labelAlign="top", labelPosition="right")
+    + ds.rule(4.76, axis="y", strokeDash=True, label="pKa", labelAlign="left")
 )

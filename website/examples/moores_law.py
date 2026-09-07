@@ -47,6 +47,6 @@ scatter = (
     .encode(x=xenc, y=alt.Y("log_t:Q", axis=yaxis, scale=alt.Scale(domain=[3, 11], nice=False)))
 )
 fit = ds.stats.correlation(df, "year", "log_t", ci=True, position=None)
-label = ds.add_text(f"doubling every {doubling:.1f} years", position="topLeft")
+label = ds.text(f"doubling every {doubling:.1f} years", position="topLeft")
 
 chart = scatter + fit + label

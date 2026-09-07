@@ -26,7 +26,7 @@ Compose several charts into one figure, each built at its own size.
 Charts in one figure share a single ``config.view``, so :func:`theme` alone cannot give
 them different sizes - the last call wins. Sizing with ``.properties()`` instead leaves
 ``markSize``, the corner and arc radii, and the pixel geometry of every annotation
-(``add_shade`` spans, comparison brackets, ``add_labels`` placement) computed for the
+(``shade`` spans, comparison brackets, ``labels`` placement) computed for the
 theme's size rather than the one the chart renders at. ``assemble`` builds each member
 while the theme genuinely says its size, so those all land correctly, then stamps the
 size on the chart so the shared config cannot override it.

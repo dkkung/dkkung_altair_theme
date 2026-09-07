@@ -22,7 +22,7 @@ from griffe import ParameterKind
 # exception: Extensions precedes Extension authoring (discovery before the SDK).
 MODULES = [
     ("annotations", "Annotations", 1, "Composable annotation layers: reference lines, text, shading, point labels."),
-    ("labels", "Display labels", 2, "Map raw data values to display labels on axes, legends, and headers."),
+    ("display_labels", "Display labels", 2, "Map raw data values to display labels on axes, legends, and headers."),
     ("discovery", "Extensions", 3, "Discover and load installed dysonsphere extensions."),
     ("ext", "Extension authoring", 4, "The stable primitive surface for extension authors (dysonsphere.ext)."),
     ("marks", "Marks", 5, "Composite marks: strip and violin plots."),

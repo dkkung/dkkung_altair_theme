@@ -60,7 +60,12 @@ def deriv(t, y):
 
 
 v0 = -65.0
-y0 = [v0, float(a_m(v0) / (a_m(v0) + b_m(v0))), float(a_h(v0) / (a_h(v0) + b_h(v0))), float(a_n(v0) / (a_n(v0) + b_n(v0)))]
+y0 = [
+    v0,
+    float(a_m(v0) / (a_m(v0) + b_m(v0))),
+    float(a_h(v0) / (a_h(v0) + b_h(v0))),
+    float(a_n(v0) / (a_n(v0) + b_n(v0))),
+]
 sol = solve_ivp(deriv, [0, 55], y0, t_eval=np.linspace(0, 55, 400), max_step=0.05, rtol=1e-6, atol=1e-8)
 tt, vv = sol.t, sol.y[0]
 
@@ -69,22 +74,28 @@ tt, vv = sol.t, sol.y[0]
 troughs = find_peaks(-vv, prominence=5.0)[0]
 bounds = [0.0, *(float(tt[i]) for i in troughs), 55.0]
 bands = [(bounds[i], bounds[i + 1]) for i in range(len(bounds) - 1)]
-shade = ds.add_shade(positions=bands, nShades=2)
+shade = ds.shade(positions=bands, nShades=2)
 
 # color the trace by voltage: a continuous color straight on mark_line degenerates to disconnected
 # points (Vega-Lite groups the line by the color field), so build it from short per-segment lines
 idx = np.repeat(np.arange(len(tt)), 2)[1:-1]
-seg = pl.DataFrame({
-    "t": tt[idx],
-    "V": vv[idx],
-    "seg": np.repeat(np.arange(len(tt) - 1), 2),
-    "mV": np.repeat((vv[:-1] + vv[1:]) / 2, 2),
-})
-line = alt.Chart(seg).mark_line().encode(
-    x=alt.X("t:Q", title="Time (ms)", scale=alt.Scale(domain=[0, 55], nice=False)),
-    y=alt.Y("V:Q", title="Membrane potential (mV)", scale=alt.Scale(domain=[-90, 55], nice=False)),
-    detail="seg:N",
-    color=alt.Color("mV:Q", title="mV"),  # default continuous colormap (australis)
+seg = pl.DataFrame(
+    {
+        "t": tt[idx],
+        "V": vv[idx],
+        "seg": np.repeat(np.arange(len(tt) - 1), 2),
+        "mV": np.repeat((vv[:-1] + vv[1:]) / 2, 2),
+    }
+)
+line = (
+    alt.Chart(seg)
+    .mark_line()
+    .encode(
+        x=alt.X("t:Q", title="Time (ms)", scale=alt.Scale(domain=[0, 55], nice=False)),
+        y=alt.Y("V:Q", title="Membrane potential (mV)", scale=alt.Scale(domain=[-90, 55], nice=False)),
+        detail="seg:N",
+        color=alt.Color("mV:Q", title="mV"),  # default continuous colormap (australis)
+    )
 )
 
 chart = shade + line

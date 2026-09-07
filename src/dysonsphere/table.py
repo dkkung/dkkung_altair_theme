@@ -162,7 +162,7 @@ def mark_table(
     ``chartHeight``. Column widths are proportional-font estimates (Vega cannot measure text at
     build time); pass ``columnWidths`` for exact control.
 
-    **Darkmode** is resolved at BUILD time (like ``add_shade`` / ``add_multilabel``): the stripe
+    **Darkmode** is resolved at BUILD time (like ``shade`` / ``add_multilabel``): the stripe
     fills sample the dark end of the palette and the strokes / auto-contrast colours flip when the
     table is built under ``theme(darkmode=True)`` (cell text with no explicit colour follows the
     theme's darkmode-aware ``config.text`` at render). So set the theme before building, or - to
@@ -313,7 +313,7 @@ def mark_table(
     dark = _opt("darkmode")
     stroke_c = ("white" if dark else "black") if strokeColor is None else strokeColor
 
-    # Header background band + text colour (darkmode-aware, resolved at build like add_shade).
+    # Header background band + text colour (darkmode-aware, resolved at build like shade).
     if headerFill is True:
         from .palettes import colors
 

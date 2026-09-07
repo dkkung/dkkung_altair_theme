@@ -29,7 +29,7 @@ resolving its inner padding from the matching theme key (outer is one shared key
 ``outerPadding``, because Vega-Lite has no mark-specific outer padding):
 
 - ``"offset"`` (default) - ``paddingInner=0``, ``paddingOuter=outerPadding``: what an
-  ``xOffset`` encoding (``mark_circle``/``mark_strip``) or an ``add_shade`` rect sees.
+  ``xOffset`` encoding (``mark_circle``/``mark_strip``) or a ``shade`` rect sees.
 - ``"band"`` - ``paddingInner=barPadding``: what ``mark_bar`` sees.
 - ``"rect"`` - ``paddingInner=rectPadding`` (``0`` by default, so cells abut): what a
   ``mark_rect`` heatmap sees - and also ``mark_boxplot`` (and so ``mark_violin``'s
@@ -124,3 +124,28 @@ Same algorithm as the provenance ``dataChecksum`` (via :func:`_hash_rows`), so i
 content in any row order yields the same value.  Used to tag a statistics record with the
 identity of the dataframe it was computed from, so records from distinct dataframes are
 distinguishable (and identical-content frames match regardless of ordering).
+
+## `resolve_palette`
+
+```python
+def resolve_palette(name_or_list: str | list[str]) -> list[str]: ...
+```
+
+A palette name → its hex list (via ``colors``), or a hex list passed straight through.
+
+## `stripe_colors`
+
+```python
+def stripe_colors(
+    palette: str | list[str],
+    n: int,
+    *,
+    darkmode: bool,
+) -> list[str]: ...
+```
+
+The ``n`` row-striping fills from *palette* - its lightest ``n`` stops, or its darkest in
+darkmode, since a sequential palette runs light to dark.
+
+Shared by ``mark_table``'s cell stripes and ``add_multilabel``'s row bands. NOT used by
+``shade``, whose darkmode deliberately discards the caller's palette for greys.

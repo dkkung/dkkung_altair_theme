@@ -662,7 +662,7 @@ _IDENTITY_TRANSFORMS = (None, "", "translate(0,0)", "translate(0, 0)")
 
 
 def _sink_border_below_shade(root: ET.Element) -> None:
-    """Move a closed plot's border so it paints AFTER the ``add_shade`` background.
+    """Move a closed plot's border so it paints AFTER the ``shade`` background.
 
     Vega emits the stroked view border as a sibling of the group that holds the marks, and the
     border comes first - so an opaque shade rect paints straight over it. The left and bottom
@@ -732,7 +732,7 @@ def _layer_axes_below_marks(root: ET.Element) -> None:
 
     def reorder(el: ET.Element) -> None:
         to_place = []  # axis groups + border strokes, re-inserted after the grid block
-        shade = []  # add_shade backgrounds, sunk behind the grid (never over an axis or border)
+        shade = []  # shade backgrounds, sunk behind the grid (never over an axis or border)
         for child in list(el):
             cls = child.get("class", "")
             if _SHADE_PREFIX in cls:
@@ -1002,7 +1002,7 @@ def _italicize_stat_symbols(root: ET.Element) -> None:
     ``stats.correlation`` readout (``r = 0.85, r² = 0.72, P < 0.001, y = 0.84x + 0.27``), and
     ``add_multilabel``'s ``n =`` sample-size row - and, by the same global-pattern policy as
     :func:`_fix_superscript_labels`, any user text matching the same forms (a hand-written
-    ``P = 0.03`` via ``add_text`` gets the identical treatment, keeping typography
+    ``P = 0.03`` via ``text`` gets the identical treatment, keeping typography
     consistent across a figure).
 
     Must run AFTER :func:`_fix_superscript_labels`: that fixer only scans element ``.text``,

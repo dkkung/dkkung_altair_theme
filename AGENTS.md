@@ -9,7 +9,11 @@ so Claude Code reads it too.
 Statistics now live at `ds.stats.comparisons`, `ds.stats.correlation`, and `ds.stats.clear_stats`;
 the chart wrappers are in `stats.py`, the private engine/registry in `_statistics.py`. No old aliases
 remain. Historical references below to inference.py/statistics.py and the old top-level functions
-refer to those predecessors. Other v4 parameter changes are not yet implemented.
+refer to those predecessors. Annotation constructors are now `ds.rule`, `ds.text`, `ds.shade`,
+and `ds.labels`; offsets live at `ds.transforms.jitter`, `beeswarm`, and `quasirandom`.
+Display-label helpers moved from labels.py to display_labels.py so the module cannot shadow
+`ds.labels`. Old annotation/transform spellings below are historical. V4 parameter changes
+are not yet implemented.
 
 ## Commands
 

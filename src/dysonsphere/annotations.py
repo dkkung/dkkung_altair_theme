@@ -1,8 +1,8 @@
 """Composable chart annotations - reference lines, text, shading, and auto-placed point labels.
 
 Every constructor returns an Altair chart/layer to compose onto a base chart with ``+``:
-``add_rule`` (reference lines), ``add_text`` (positioned text), ``add_shade`` (background
-shading), and ``add_labels`` (auto-placed point labels with connectors; the pixel placement
+``rule`` (reference lines), ``text`` (positioned text), ``shade`` (background
+shading), and ``labels`` (auto-placed point labels with connectors; the pixel placement
 engine lives in ``_placement.py``). Statistical annotations (``comparisons``,
 ``correlation``) live in ``stats.py``.
 """
@@ -19,7 +19,7 @@ from .utils import _SHADE_PREFIX, _empty_layer, _internal_data, _resolve_dash, b
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
-__all__ = ["add_rule", "add_text", "add_shade", "add_labels"]
+__all__ = ["rule", "text", "shade", "labels"]
 
 # Reference lines
 
@@ -50,7 +50,7 @@ def _resolve_rule_span(
 
     Returns ``("q", a, b)`` for a numeric span (data coordinates, shares the base scale via
     ``alt.datum``) or ``("px", lo, hi)`` for a category-name span (resolved to pixels through
-    ``band_geometry`` like ``add_shade``, so it never merges into the base scale). Both bounds
+    ``band_geometry`` like ``shade``, so it never merges into the base scale). Both bounds
     must be the same kind; a string span needs ``categories``.
     """
     if len(span) != 2:
@@ -110,8 +110,8 @@ def _span_label_anchor(la: str, triple: tuple[str, float, float], axis: str) -> 
     return wrap(pick)
 
 
-# Pixel inset for text anchored at a flush plot edge - shared by add_rule's edge labels and
-# add_text's corner presets, which both sit against the spine when the axis is not detached.
+# Pixel inset for text anchored at a flush plot edge - shared by rule's edge labels and
+# text's corner presets, which both sit against the spine when the axis is not detached.
 _EDGE_OFFSET = 2
 
 
@@ -153,7 +153,7 @@ def _rule_label_geometry(
         if span_triple is None:
             chart_width = _opt("chartWidth")
             # A flush spine sits at the content edge, so a left/right-anchored label would hug it;
-            # inset by the same 1px add_text uses. A detached axis already clears it. (Center is far
+            # inset by the same amount text uses. A detached axis already clears it. (Center is far
             # from either edge, so it is left alone.)
             edge_offset = _EDGE_OFFSET if (_opt("closed") or not _opt("axisOffset")) else 0
             perp_anchor = alt.value(
@@ -197,8 +197,8 @@ _DATUM_AGG = "__dsagg"
 def _datum_base(src: Any) -> alt.Chart:
     """Facet-safe datum base: a chart on the shared frame ``src``, collapsed to a single row.
 
-    The foundation of every facet-safe annotation ``data=`` path (``add_rule`` / ``add_text`` /
-    ``add_shade``).  It shares ``src`` so a faceted composition partitions correctly — Altair
+    The foundation of every facet-safe annotation ``data=`` path (``rule`` / ``text`` /
+    ``shade``).  It shares ``src`` so a faceted composition partitions correctly — Altair
     requires all layers of a facet to share one data variable — and the dummy ``transform_aggregate``
     collapses N rows to one so constant ``alt.datum`` / ``alt.value`` marks don't overplot N times.
     Build the mark + a datum/value-only encoding on the result; **never reference a data field**
@@ -245,7 +245,7 @@ def _datum_ref_layers(
     return layers
 
 
-def add_rule(
+def rule(
     value: float | list[float],
     *,
     axis: str = "y",
@@ -280,7 +280,7 @@ def add_rule(
         Optionally slice the line to a portion of its *running* axis (the axis it runs along -
         the opposite of ``axis``), given as a ``(start, end)`` tuple. ``None`` (default) spans the
         full plot. For ``axis="y"`` (horizontal line) the running axis is x; for ``axis="x"``
-        (vertical line) it is y. Two forms, mirroring ``add_shade``:
+        (vertical line) it is y. Two forms, mirroring ``shade``:
 
         - **Numeric** ``(start, end)`` — data coordinates on the running axis; shares the base
           chart's scale (positioned by ``alt.datum``).
@@ -330,7 +330,7 @@ def add_rule(
         dataset — the normal behavior, but **incompatible with faceting** (Altair requires every
         layer of a faceted chart to share one data variable). Pass the **same DataFrame you gave
         the base chart** to switch to datum mode: the rule then shares that data and is positioned
-        by a constant ``alt.datum`` instead of a sidecar dataset, so ``(base + add_rule(..., data=df))``
+        by a constant ``alt.datum`` instead of a sidecar dataset, so ``(base + rule(..., data=df))``
         can be faceted and the line repeats in every panel. Accepts a polars or pandas DataFrame.
 
     Examples
@@ -338,17 +338,17 @@ def add_rule(
     ::
 
         # Horizontal line at y=0
-        chart = base + ds.add_rule(0)
+        chart = base + ds.rule(0)
 
         # Facet-safe: pass the same df as the base, then facet
         df_chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
-        faceted = (df_chart + ds.add_rule(5.0, label="Threshold", data=df)).facet("group:N")
+        faceted = (df_chart + ds.rule(5.0, label="Threshold", data=df)).facet("group:N")
 
         # Labeled horizontal line, label above-left by default
-        chart = base + ds.add_rule(5.0, label="Threshold", color="#c0392b")
+        chart = base + ds.rule(5.0, label="Threshold", color="#c0392b")
 
         # Two horizontal lines, labels at the right end
-        chart = base + ds.add_rule(
+        chart = base + ds.rule(
             [4.0, 8.0],
             label=["Lower limit", "Upper limit"],
             labelAlign="right",
@@ -356,18 +356,18 @@ def add_rule(
         )
 
         # Vertical line, label at top-right by default
-        chart = base + ds.add_rule(10, axis="x", label="Intervention", color="#c0392b")
+        chart = base + ds.rule(10, axis="x", label="Intervention", color="#c0392b")
 
         # Vertical line, label nudged right and down
-        chart = base + ds.add_rule(
+        chart = base + ds.rule(
             10, axis="x", label="t₀", labelOffsetX=4, labelOffsetY=4
         )
 
         # Horizontal line sliced to x ∈ [2, 8] (data coords)
-        chart = base + ds.add_rule(5.0, span=(2.0, 8.0))
+        chart = base + ds.rule(5.0, span=(2.0, 8.0))
 
         # Horizontal line sliced across a range of x categories
-        chart = base + ds.add_rule(
+        chart = base + ds.rule(
             5.0, span=("Control", "Group B"), categories=CATEGORIES
         )
     """
@@ -379,7 +379,7 @@ def add_rule(
     fs = fontSize if fontSize is not None else _opt("fontSize")
 
     # A rule runs along the axis opposite to the one it is pinned on. `span` slices that running
-    # axis; `_resolve_rule_span` returns a data (`"q"`) or pixel (`"px"`) triple (see add_shade).
+    # axis; `_resolve_rule_span` returns a data (`"q"`) or pixel (`"px"`) triple (see shade).
     run_ch = "x" if axis == "y" else "y"
     span_triple = _resolve_rule_span(span, run_ch, categories, flush) if span is not None else None
     span_enc = _span_enc(span_triple, run_ch)
@@ -401,7 +401,7 @@ def add_rule(
     # Both modes position by a constant `alt.datum` (never a data field), so the base chart's axis
     # title survives the Vega-Lite layer merge - see _datum_ref_layers.  They differ only in the
     # per-layer base: datum (facet-safe) mode shares `data` (via _datum_base) so
-    # `(base + add_rule(..., data=df))` can be faceted; the default builds a fresh internal sidecar
+    # `(base + rule(..., data=df))` can be faceted; the default builds a fresh internal sidecar
     # (filtered by read(what="data"), and deliberately NOT facet-safe).
     if data is not None:
         from .utils import ensure_polars
@@ -470,7 +470,7 @@ def _resolve_text_bg(fill: "str | bool", stroke: "str | bool") -> "tuple[str | N
 
     ``fill``/``stroke`` follow the ``bool | str`` pattern: ``False`` -> off; ``True`` -> a
     darkmode-aware default (fill: ``greys[0]`` light / ``greys[11]`` dark; stroke: ``black`` light /
-    ``white`` dark); a string -> that colour. Read ``darkmode`` at build time (like ``add_shade``),
+    ``white`` dark); a string -> that colour. Read ``darkmode`` at build time (like ``shade``),
     so a ``save()`` across backgrounds needs a callable to re-resolve it.
     """
     from .palettes import colors
@@ -562,7 +562,7 @@ def _text_datum_layers(
     return layers
 
 
-def add_text(
+def text(
     text: str | list[str],
     x=None,
     y=None,
@@ -633,7 +633,7 @@ def add_text(
         the border or flush axis line. ``offsetX`` / ``offsetY`` add on top of
         this for further fine-tuning::
 
-            chart + ds.add_text("p = 0.003", position="topRight", offsetX=-4, offsetY=4)
+            chart + ds.text("p = 0.003", position="topRight", offsetX=-4, offsetY=4)
 
     angle:
         Rotation in degrees, clockwise. Vega-Lite requires values in [0, 360];
@@ -672,7 +672,7 @@ def add_text(
     fill:
         Background fill behind the text (a rect chip). ``False`` (default) -> none; ``True`` -> a
         darkmode-aware default (``greys[0]`` light / ``greys[11]`` dark); a string -> that color.
-        Read at build time (like ``add_shade``), so a ``save()`` across backgrounds needs a callable
+        Read at build time (like ``shade``), so a ``save()`` across backgrounds needs a callable
         to re-resolve it. The chip is sized from a rough text estimate (proportional fonts vary, so
         it is approximate) plus padding.
     fillOpacity:
@@ -689,7 +689,7 @@ def add_text(
         Facet-safe (datum) mode. ``None`` (default) builds the annotation from its own internal
         dataset — the normal behavior, but **incompatible with faceting**. Pass the **same
         DataFrame you gave the base chart** to share its data and position the text by ``alt.datum``
-        (data coordinates) / ``alt.value`` (pixels), so ``(base + add_text(..., data=df))`` can be
+        (data coordinates) / ``alt.value`` (pixels), so ``(base + text(..., data=df))`` can be
         faceted and the text repeats in every panel. Accepts a polars or pandas DataFrame.
 
     Examples
@@ -697,30 +697,30 @@ def add_text(
     ::
 
         # Annotation at a data coordinate (quantitative x, quantitative y)
-        chart + ds.add_text("Peak", x=10.5, y=2.3)
+        chart + ds.text("Peak", x=10.5, y=2.3)
 
         # Annotation at a group center (nominal x, quantitative y)
-        chart + ds.add_text("n=20", x="Control", y=8.5, baseline="bottom")
+        chart + ds.text("n=20", x="Control", y=8.5, baseline="bottom")
 
         # Multiple annotations at data coordinates
-        chart + ds.add_text(
+        chart + ds.text(
             ["Low", "High"], x=[1.0, 9.0], y=[0.5, 0.5], align="center"
         )
 
         # Corner position — top-right, inset 4 px from boundary
-        chart + ds.add_text("ANOVA p < 0.001", position="topRight", offsetX=-4, offsetY=4)
+        chart + ds.text("ANOVA p < 0.001", position="topRight", offsetX=-4, offsetY=4)
 
         # Bottom-left with explicit font overrides
-        chart + ds.add_text(
+        chart + ds.text(
             "FDR < 0.05", position="bottomLeft", offsetX=4, offsetY=-4,
             fontSize=6, fontStyle="italic", color="#888888",
         )
 
         # Fixed pixel position via alt.value() passthrough
-        chart + ds.add_text("†", x=alt.value(60), y=alt.value(10))
+        chart + ds.text("†", x=alt.value(60), y=alt.value(10))
 
         # Facet-safe: pass the same df as the base, then facet
-        chart + ds.add_text("★", x="B", y=18.0, data=df)
+        chart + ds.text("★", x="B", y=18.0, data=df)
     """
     if position is not None and position not in _TEXT_PRESETS:
         raise ValueError(f"position must be one of {sorted(_TEXT_PRESETS)}, got {position!r}")
@@ -795,7 +795,7 @@ def add_text(
     # Both modes position each annotation by a constant `alt.datum` (data coords) or `alt.value`
     # (pixels), never a data field, so the base chart's axis titles survive the layer merge - see
     # _text_datum_layers.  They differ only in the per-layer base: datum (facet-safe) mode shares
-    # `data` (via _datum_base) so `(base + add_text(..., data=df))` can be faceted; the default
+    # `data` (via _datum_base) so `(base + text(..., data=df))` can be faceted; the default
     # builds a fresh internal sidecar (filtered by read(what="data"), and deliberately NOT
     # facet-safe).
     if data is not None:
@@ -827,7 +827,7 @@ def _bool_mask(labels: Any, n_rows: int) -> "list[bool] | None":
     length equals ``n_rows`` and whose every element is a boolean (native ``bool``, or a NumPy/Arrow
     boolean that ``to_list``/``tolist`` normalizes to native ``bool``). Anything else - a list of
     label VALUES (strings/ints), a wrong-length sequence, a non-iterable - returns ``None`` so the
-    caller falls back to matching by ``labelCol`` value. This lets ``add_labels(labels=...)`` select
+    caller falls back to matching by ``labelCol`` value. This lets ``labels(labels=...)`` select
     rows positionally (decoupled from the display column), so a non-unique ``labelCol`` can still pick
     exactly the intended rows.
     """
@@ -844,7 +844,7 @@ def _bool_mask(labels: Any, n_rows: int) -> "list[bool] | None":
     return [bool(v) for v in seq]
 
 
-def add_labels(
+def labels(
     df: "pl.DataFrame | Any",
     xCol: str,
     yCol: str,
@@ -876,7 +876,7 @@ def add_labels(
 
     Placement is solved in pixels before Vega renders, but each label is emitted as a pixel offset
     from its own marker, so it lands correctly on whatever scale the base chart uses and the base's
-    axes are left alone. Just compose ``base + ds.add_labels(df, ...)``.
+    axes are left alone. Just compose ``base + ds.labels(df, ...)``.
 
     Parameters
     ----------
@@ -912,7 +912,7 @@ def add_labels(
     fill:
         Background fill behind each label (a rect chip - useful over a dense scatter). ``False``
         (default) -> none; ``True`` -> a darkmode-aware default (``greys[0]`` light / ``greys[11]``
-        dark); a string -> that color. Read at build time (like ``add_shade``), so a ``save()``
+        dark); a string -> that color. Read at build time (like ``shade``), so a ``save()``
         across backgrounds needs a callable. The connector meets the chip's edge, and the text is
         centred inside the chip (overriding the side justification a bare label would use).
     fillOpacity:
@@ -1159,7 +1159,7 @@ def _tag_shade(chart: alt.Chart) -> alt.Chart:
     return chart.properties(name=f"{_SHADE_PREFIX}{_shade_counter}")
 
 
-def add_shade(
+def shade(
     categories: list[str] | None = None,
     xCol: str | None = None,
     *,
@@ -1207,22 +1207,22 @@ def add_shade(
     In both modes, compose behind the main chart with ``+``::
 
         # band mode
-        shade = ds.add_shade(CATEGORIES, "group")
+        shade = ds.shade(CATEGORIES, "group")
         chart = shade + main_chart
 
         # positions mode — shade two category spans on x
-        shade = ds.add_shade(
+        shade = ds.shade(
             positions=[("Control", "Group B"), ("Group D", "Group E")],
             categories=CATEGORIES,
         )
 
         # positions mode — reference band on y (quantitative)
-        shade = ds.add_shade(
+        shade = ds.shade(
             positions=[(5.0, 10.0)], axis='y', palette=["#E8F4F8"]
         )
 
         # positions mode — intersection rect, nominal x + quantitative y
-        shade = ds.add_shade(
+        shade = ds.shade(
             positions=[(("Control", "Group B"), (8.0, 12.0))],
             axis='both',
             categories=CATEGORIES,
@@ -1282,7 +1282,7 @@ def add_shade(
         its own internal dataset — the normal behavior, but **incompatible with faceting**. Pass
         the **same DataFrame you gave the base chart** to share its data and position numeric ranges
         by ``alt.datum`` (string/pixel ranges already use ``alt.value``), so
-        ``(base + add_shade(positions=..., data=df))`` can be faceted and the shading repeats in
+        ``(base + shade(positions=..., data=df))`` can be faceted and the shading repeats in
         every panel. Accepts polars or pandas. **Band mode** (``positions`` omitted) does not
         support ``data=`` and raises.
     """
@@ -1297,7 +1297,7 @@ def add_shade(
         palette = palette[:nShades]
 
     n_colors = len(palette)
-    # None means solid here (add_shade's documented default), so only True needs resolving.
+    # None means solid here (shade's documented default), so only True needs resolving.
     resolved_dash = _resolve_dash(strokeDash) if strokeDash is not None else None
     resolved_stroke_width = (strokeWidth if strokeWidth is not None else _opt("axisWidth")) if stroke else 0
     axis_stroke_color = "white" if _opt("darkmode") else "black"
@@ -1322,7 +1322,7 @@ def add_shade(
         from .utils import ensure_polars
 
         if positions is None:
-            raise ValueError("add_shade(data=...) is a facet-safe positions mode only; band mode does not support it.")
+            raise ValueError("shade(data=...) is a facet-safe positions mode only; band mode does not support it.")
         src = ensure_polars(data)
 
     def _shade_rect(color, *, x=None, y=None) -> alt.Chart:

@@ -594,8 +594,8 @@ high,100,26.4,6`;
 				const off = `${transform}_x`;
 				const call =
 					transform === 'jitter'
-						? `df = ds.add_jitter(df)`
-						: `df = ds.add_${transform}(df, ${q(y)}, groupBy=[${q(x)}])`;
+						? `df = ds.transforms.jitter(df)`
+						: `df = ds.transforms.${transform}(df, ${q(y)}, groupBy=[${q(x)}])`;
 				const enc = [
 					`        x=alt.X("${x}:N", title=None),`,
 					`        y=alt.Y("${y}:Q"),`,
@@ -630,12 +630,12 @@ high,100,26.4,6`;
 
 			// Layers compose with + : shade under, statistics/rules/text over, multilabel wraps.
 			if (categorical && el<HTMLInputElement>('st-shade').checked) {
-				body.push('', `chart = ds.add_shade(categories=categories) + chart`);
+				body.push('', `chart = ds.shade(categories=categories) + chart`);
 			}
 			const shadeLo = el<HTMLInputElement>('st-shade-lo').value.trim();
 			const shadeHi = el<HTMLInputElement>('st-shade-hi').value.trim();
 			if (shadeLo !== '' && shadeHi !== '') {
-				body.push('', `chart = ds.add_shade(positions=[(${+shadeLo}, ${+shadeHi})], axis="y") + chart`);
+				body.push('', `chart = ds.shade(positions=[(${+shadeLo}, ${+shadeHi})], axis="y") + chart`);
 			}
 
 			if (type === 'point' && xtype === 'Q') {
@@ -663,13 +663,13 @@ high,100,26.4,6`;
 			if (rule !== '') {
 				const label = el<HTMLInputElement>('st-rule-label').value.trim();
 				const labelArg = label ? `, label=${q(label)}` : '';
-				body.push('', `chart = chart + ds.add_rule(${+rule}${labelArg})`);
+				body.push('', `chart = chart + ds.rule(${+rule}${labelArg})`);
 			}
 
 			const textNote = el<HTMLInputElement>('st-text').value.trim();
 			if (textNote !== '') {
 				const pos = el<HTMLSelectElement>('st-text-pos').value;
-				body.push('', `chart = chart + ds.add_text(${q(textNote)}, position=${q(pos)})`);
+				body.push('', `chart = chart + ds.text(${q(textNote)}, position=${q(pos)})`);
 			}
 
 			if (categorical && el<HTMLInputElement>('st-multilabel').checked) {

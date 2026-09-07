@@ -26,7 +26,7 @@ df = pl.DataFrame(
 
 # Jitter the points within each sub-bar: a per-level integer slot plus the quasirandom offset.
 idx = {c: i for i, c in enumerate(CONDS)}
-df = ds.add_quasirandom(df, "y", ["grp", "cond"])
+df = ds.transforms.quasirandom(df, "y", ["grp", "cond"])
 jmax = df["quasirandom_x"].abs().max()
 df = df.with_columns((pl.col("cond").replace_strict(idx) + pl.col("quasirandom_x") / jmax * 0.34).alias("xoff"))
 

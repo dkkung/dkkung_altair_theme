@@ -19,8 +19,8 @@ figure = ds.assemble(
 That matters because `ds.theme()` alone cannot size charts in one figure independently - they share
 one `config.view`, so the last call wins - while `.properties()` sizes the box but leaves `markSize`,
 the corner radii and every pixel annotation computed for the theme's size. `assemble` runs each
-builder while the theme genuinely says that member's size, so `add_shade` spans, comparison brackets
-and `add_labels` placement all land correctly.
+builder while the theme genuinely says that member's size, so `ds.shade` spans, comparison brackets
+and `ds.labels` placement all land correctly.
 
 Nest lists to make rows; `spacing` is a number, or `{"row": n, "column": n}`:
 

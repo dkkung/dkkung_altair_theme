@@ -530,9 +530,9 @@ class TestReadLoad:
                 {"g", "v"},
             ),
             "add_correlation": (pts + ds.stats.correlation(dfx, "x", "y"), {"x", "y"}),
-            "add_rule": (box + ds.add_rule(1.5, label="thr"), {"g", "v"}),
-            "add_text": (box + ds.add_text("hi", position="topLeft"), {"g", "v"}),
-            "add_shade": (box + ds.add_shade(categories=cats), {"g", "v"}),
+            "rule": (box + ds.rule(1.5, label="thr"), {"g", "v"}),
+            "text": (box + ds.text("hi", position="topLeft"), {"g", "v"}),
+            "shade": (box + ds.shade(categories=cats), {"g", "v"}),
             "add_multilabel": (ds.add_multilabel(box, categories=cats), {"g", "v"}),
             "add_log_ticks": (ds.add_log_ticks(logc, dlog, "y"), {"x", "y"}),
         }
