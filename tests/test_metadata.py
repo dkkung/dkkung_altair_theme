@@ -897,9 +897,8 @@ class TestStatsQueueRobustness:
         assert rec["dataChecksum"] and rec["dataChecksum"].startswith(_ROW_HASH_PREFIX)
 
     def test_clear_stats_empties_queue(self):
-        from dysonsphere._statistics import _REPORTS
-
         import dysonsphere as ds
+        from dysonsphere._statistics import _REPORTS
 
         self._stats_layer()
         assert len(_REPORTS) >= 1

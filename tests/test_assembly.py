@@ -289,7 +289,6 @@ class TestProvenance:
         # sharing the statistics prefix would both feed junk hashes to the record scan and get
         # the markers stripped from written output, which broke ds.load() parity
         from dysonsphere._statistics import _MARKER_PREFIX
-
         from dysonsphere.assembly import _FIGURE_PREFIX
 
         assert not _FIGURE_PREFIX.startswith(_MARKER_PREFIX)

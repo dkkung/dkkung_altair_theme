@@ -10,9 +10,9 @@ import os
 import tempfile
 
 import pytest
-from dysonsphere._statistics import _REPORTS
 
 import dysonsphere as ds
+from dysonsphere._statistics import _REPORTS
 
 
 @pytest.fixture(autouse=True)

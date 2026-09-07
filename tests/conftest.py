@@ -2,6 +2,7 @@ import os
 import tempfile
 
 import pytest
+
 from dysonsphere._statistics import _REPORTS
 
 

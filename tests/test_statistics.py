@@ -5,6 +5,8 @@ import altair as alt
 import numpy as np
 import polars as pl
 import pytest
+
+from dysonsphere.marks import mark_violin
 from dysonsphere.stats import (
     _BRACKET_TICK_PX,
     _bracket_offsets,
@@ -17,8 +19,6 @@ from dysonsphere.stats import (
     comparisons,
     correlation,
 )
-
-from dysonsphere.marks import mark_violin
 from dysonsphere.theme import _opt, theme
 from dysonsphere.utils import _nested_band_centers, band_geometry
 
@@ -1082,8 +1082,8 @@ class TestReportPValues:
         import sys
 
         import polars as pl
-        from dysonsphere.stats import comparisons
 
+        from dysonsphere.stats import comparisons
         from dysonsphere.theme import theme
 
         theme(chartWidth=200, chartHeight=200)
