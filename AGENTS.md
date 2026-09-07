@@ -1,14 +1,15 @@
 # Repository Guidance
 
 Dysonsphere extends Altair with publication styling, composable charts, and self-documenting exports.
-`CLAUDE.md` points here. Keep this file short; API contracts belong in `API.md`, implementation details
-in source/tests, and release history in `CHANGELOG.md`.
+`CLAUDE.md` points here. Keep this file short; API contracts belong in `API.md`, design reasons in
+`DESIGN.md`, implementation details in source/tests, and release history in `CHANGELOG.md`.
 
 ## Start Here
 
 - Read `API.md` for the intended public contract; inspect source/tests to establish current behavior.
   V4 namespace and parameter naming are migrated; remaining behavior changes and deprecation removal
   are separate work. Do not assume every intended contract is implemented.
+- Read the relevant sections of [DESIGN.md](DESIGN.md) before changing the decisions they cover.
 - Core: `src/dysonsphere/`. Biology: `dysonsphere-biology/src/dysonsphere_biology/`, a separate
   distribution installed through the uv workspace. Test both packages.
 - Maintained examples and site generators: `website/examples/` and `website/scripts/`.
