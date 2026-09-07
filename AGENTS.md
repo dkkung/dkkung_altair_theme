@@ -3,6 +3,14 @@
 This file provides guidance to coding agents working in this repository. `CLAUDE.md` points here,
 so Claude Code reads it too.
 
+## Current API Migration
+
+`API.md` defines the intended public API. V4 feature branches start from and target `v4.0.0`.
+Statistics now live at `ds.stats.comparisons`, `ds.stats.correlation`, and `ds.stats.clear_stats`;
+the chart wrappers are in `stats.py`, the private engine/registry in `_statistics.py`. No old aliases
+remain. Historical references below to inference.py/statistics.py and the old top-level functions
+refer to those predecessors. Other v4 parameter changes are not yet implemented.
+
 ## Commands
 
 ```sh

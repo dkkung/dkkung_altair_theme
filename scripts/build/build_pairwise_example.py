@@ -1,5 +1,5 @@
 """
-Generates docs/pairwise_example.png — the README preview for add_comparisons.
+Generates docs/pairwise_example.png - the README preview for stats.comparisons.
 
 Shows labelStyle="p", notation="scientific", and labelStyle="asterisks" on the
 same three-group comparison, plus a reverse-bracket + test-name-label demo on the right.
@@ -82,13 +82,13 @@ pvalue_kwargs: dict[str, Any] = dict(
 title_params: dict[str, Any] = dict(orient="top", anchor="start", offset=4)
 fontSize = alt.theme.options.get("fontSize", 7)
 
-left = (left_base + ds.add_comparisons(**pvalue_kwargs, labelStyle="p", bracketStyle="line")).properties(
+left = (left_base + ds.stats.comparisons(**pvalue_kwargs, labelStyle="p", bracketStyle="line")).properties(
     title=alt.TitleParams(['labelStyle="p"', 'bracketStyle="line"'], fontSize=fontSize, **title_params)
 )
-scientific = (scientific_base + ds.add_comparisons(**pvalue_kwargs, labelStyle="p", notation="scientific")).properties(
-    title=alt.TitleParams(['labelStyle="p"', 'notation="scientific"'], fontSize=fontSize, **title_params)
-)
-right = (right_base + ds.add_comparisons(**pvalue_kwargs, labelStyle="asterisks", bracketStyle="bracket")).properties(
+scientific = (
+    scientific_base + ds.stats.comparisons(**pvalue_kwargs, labelStyle="p", notation="scientific")
+).properties(title=alt.TitleParams(['labelStyle="p"', 'notation="scientific"'], fontSize=fontSize, **title_params))
+right = (right_base + ds.stats.comparisons(**pvalue_kwargs, labelStyle="asterisks", bracketStyle="bracket")).properties(
     title=alt.TitleParams(
         ['labelStyle="asterisks"', 'bracketStyle="bracket"'],
         fontSize=fontSize,
@@ -104,7 +104,7 @@ third_base = (
 )
 third = (
     third_base
-    + ds.add_comparisons(
+    + ds.stats.comparisons(
         third_df,
         "group",
         "value",

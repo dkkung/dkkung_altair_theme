@@ -643,7 +643,7 @@ high,100,26.4,6`;
 				if (method) {
 					const opts = [`method=${q(method)}`];
 					if (el<HTMLInputElement>('st-corr-verbose').checked) opts.push('verbose=True');
-					body.push('', `chart = chart + ds.add_correlation(df, ${q(x)}, ${q(y)}, ${opts.join(', ')})`);
+					body.push('', `chart = chart + ds.stats.correlation(df, ${q(x)}, ${q(y)}, ${opts.join(', ')})`);
 				}
 			}
 
@@ -653,9 +653,9 @@ high,100,26.4,6`;
 				if (labelStyle !== 'p') opts.push(`labelStyle=${q(labelStyle)}`);
 				if (wantsBrackets) {
 					body.push('', `pairs = list(combinations(categories, 2))`);
-					body.push(`chart = chart + ds.add_comparisons(df, ${q(x)}, ${q(y)}, pairs, ${opts.join(', ')})`);
+						body.push(`chart = chart + ds.stats.comparisons(df, ${q(x)}, ${q(y)}, pairs, ${opts.join(', ')})`);
 				} else {
-					body.push('', `chart = chart + ds.add_comparisons(df, ${q(x)}, ${q(y)}, ${opts.join(', ')})`);
+						body.push('', `chart = chart + ds.stats.comparisons(df, ${q(x)}, ${q(y)}, ${opts.join(', ')})`);
 				}
 			}
 

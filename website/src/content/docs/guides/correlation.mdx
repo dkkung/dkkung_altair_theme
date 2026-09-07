@@ -1,12 +1,12 @@
 ---
 title: Correlation
-description: Correlation coefficients and OLS fit lines with add_correlation, including per-series fits.
+description: Correlation coefficients and OLS fit lines with ds.stats.correlation, including per-series fits.
 ---
 
 import Example from '../../../components/Example.astro';
 
-`add_correlation()` adds a coefficient, optional p-value, and (for Pearson) an OLS fit line to a
-scatter, as a layer you compose with `+`. Like `add_comparisons()`, it builds a structured report
+[`ds.stats.correlation()`](/reference/stats/#correlation) adds a coefficient, optional p-value, and (for Pearson) an OLS fit line to a
+scatter, as a layer you compose with `+`. Like `ds.stats.comparisons()`, it builds a structured report
 that `save()` embeds in the export metadata (`report=True` prints it, `save=True` writes a file).
 The default readout is a bare `r = …`; rank methods report the coefficient only.
 

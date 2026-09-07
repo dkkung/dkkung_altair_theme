@@ -1,11 +1,11 @@
 ---
 title: Comparisons
-description: Pairwise and omnibus significance tests with add_comparisons - brackets, asterisks, reference and grouped modes.
+description: Pairwise and omnibus significance tests with ds.stats.comparisons - brackets, asterisks, reference and grouped modes.
 ---
 
 import Example from '../../../components/Example.astro';
 
-`add_comparisons()` computes significance tests with scipy and draws them as a layer you compose
+[`ds.stats.comparisons()`](/reference/stats/#comparisons) computes significance tests with scipy and draws them as a layer you compose
 with `+`. Every call also builds a structured report - descriptives, exact p-values, and effect
 sizes - that `save()` embeds in the export metadata, so a figure carries its own analysis. Pass
 `report=True` to print it, or `save=True` to write a text file.

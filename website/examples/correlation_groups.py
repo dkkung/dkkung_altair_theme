@@ -18,11 +18,15 @@ for cell, (slope, inter, noise) in lines.items():
     rows += [{"biomarker": float(a), "response": float(b), "cell line": cell} for a, b in zip(x, y)]
 df = pl.DataFrame(rows)
 
-scatter = alt.Chart(df).mark_circle(size=11, opacity=0.7).encode(
-    x=alt.X("biomarker:Q", title="Biomarker (log₂ TPM)"),
-    y=alt.Y("response:Q", title="Drug response"),  # explicit title: keeps the CI band's field out of it
-    color=alt.Color("cell line:N", title="Cell line"),
+scatter = (
+    alt.Chart(df)
+    .mark_circle(size=11, opacity=0.7)
+    .encode(
+        x=alt.X("biomarker:Q", title="Biomarker (log₂ TPM)"),
+        y=alt.Y("response:Q", title="Drug response"),  # explicit title: keeps the CI band's field out of it
+        color=alt.Color("cell line:N", title="Cell line"),
+    )
 )
 
 # One OLS fit + r per cell line, each coloured to match its points (color=groupCol shares the scale).
-chart = scatter + ds.add_correlation(df, "biomarker", "response", groupCol="cell line", ci=True)
+chart = scatter + ds.stats.correlation(df, "biomarker", "response", groupCol="cell line", ci=True)

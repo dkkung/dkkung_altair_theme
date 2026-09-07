@@ -1,6 +1,6 @@
 """
 Generates docs/omnibus_example.png — the README preview for the
-omnibus mode of add_comparisons.
+omnibus mode of stats.comparisons.
 
 Two panels, each a boxplot with an omnibus test reported in the corner (via the
 add_text hook) plus post-hoc brackets for all three comparisons against Control
@@ -69,13 +69,13 @@ common: dict[str, Any] = dict(
 title_params: dict[str, Any] = dict(orient="top", anchor="start", offset=4)
 fontSize = alt.theme.options.get("fontSize", 7)
 
-left = (boxplot() + ds.add_comparisons(**common, test="anova", omnibusVerbose=True)).properties(
+left = (boxplot() + ds.stats.comparisons(**common, test="anova", omnibusVerbose=True)).properties(
     title=alt.TitleParams(
         ['test="anova"', "omnibusVerbose=True", "post-hoc: Tukey HSD"], fontSize=fontSize, **title_params
     )
 )
 
-right = (boxplot() + ds.add_comparisons(**common, test="kruskal", labelStyle="asterisks")).properties(
+right = (boxplot() + ds.stats.comparisons(**common, test="kruskal", labelStyle="asterisks")).properties(
     title=alt.TitleParams(
         ['test="kruskal"', 'labelStyle="asterisks"', "post-hoc: Dunn"], fontSize=fontSize, **title_params
     )

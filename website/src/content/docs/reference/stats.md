@@ -1,6 +1,6 @@
 ---
-title: "Statistical annotations"
-description: "Pairwise/omnibus comparisons and correlation layers."
+title: "Statistics"
+description: "Pairwise/omnibus comparisons, correlation layers, and report queue management."
 sidebar:
   order: 12
 ---
@@ -9,16 +9,30 @@ sidebar:
 
 Statistical inference annotations - significance brackets, omnibus labels, correlation readouts.
 
-The annotation wrappers for what ``statistics.py`` computes: ``add_comparisons`` (pairwise
-brackets and omnibus test labels) and ``add_correlation`` (coefficient readout + OLS fit line).
-Pure computation stays in ``statistics.py`` (no Altair there); this module builds the Vega-Lite
-layers that present it. Statistical results are registered in the ``statistics._REPORTS``
+The annotation wrappers for what ``_statistics.py`` computes: ``comparisons`` (pairwise
+brackets and omnibus test labels) and ``correlation`` (coefficient readout + OLS fit line).
+Pure computation stays in ``_statistics.py`` (no Altair there); this module builds the Vega-Lite
+layers that present it. Statistical results are registered in the ``_statistics._REPORTS``
 registry and embedded into exports by ``save()`` via layer-name markers.
 
-## `add_comparisons`
+## `clear_stats`
 
 ```python
-def add_comparisons(
+def clear_stats() -> None: ...
+```
+
+Discard all pending statistical records queued by ``stats.comparisons`` /
+``stats.correlation``.
+
+``save()`` embeds only the records whose annotations appear in the chart being saved, so
+stale records never contaminate a save.  But they do accumulate in memory across a long
+session — e.g. a notebook where you build many stats charts and display them without
+saving each.  Call this to drop the pending queue.
+
+## `comparisons`
+
+```python
+def comparisons(
     df: pl.DataFrame | Any,
     xCol: str,
     yCol: str,
@@ -104,7 +118,7 @@ the brackets, and a closed plot (``ds.theme(closed=True)``), whose border would 
 outside the box. Only the upper bound moves - the lower bound, ``zero`` and nice-rounding are
 untouched - and only when there are brackets to clear.
 
-Combine with your chart using ``+``:  ``chart + add_comparisons(...)``.
+Combine with your chart using ``+``:  ``chart + ds.stats.comparisons(...)``.
 
 **Parameters**
 
@@ -151,7 +165,7 @@ Single comparison::
 
     CATEGORIES = ["A", "B", "C"]
     chart = ds.mark_strip(df, "group", "value", CATEGORIES)
-    chart + ds.add_comparisons(
+    chart + ds.stats.comparisons(
         df, "group", "value",
         pairs=[("A", "B")],
         categories=CATEGORIES,
@@ -159,7 +173,7 @@ Single comparison::
 
 Multiple comparisons — brackets stacked automatically::
 
-    chart + ds.add_comparisons(
+    chart + ds.stats.comparisons(
         df, "group", "value",
         pairs=[("A", "B"), ("A", "C"), ("B", "C")],
         test="mannwhitneyu",
@@ -168,7 +182,7 @@ Multiple comparisons — brackets stacked automatically::
 
 Every pair, corrected over the whole family::
 
-    chart + ds.add_comparisons(
+    chart + ds.stats.comparisons(
         df, "group", "value",
         pairs="all",
         correction="holm",
@@ -177,7 +191,7 @@ Every pair, corrected over the whole family::
 
 Omnibus ANOVA in the corner + Tukey post-hoc brackets::
 
-    chart + ds.add_comparisons(
+    chart + ds.stats.comparisons(
         df, "group", "value",
         pairs=[("A", "B"), ("A", "C")],
         test="anova",
@@ -187,7 +201,7 @@ Omnibus ANOVA in the corner + Tukey post-hoc brackets::
 
 Omnibus-only (no brackets), report printed::
 
-    chart + ds.add_comparisons(
+    chart + ds.stats.comparisons(
         df, "group", "value",
         test="kruskal",
         categories=CATEGORIES,
@@ -196,7 +210,7 @@ Omnibus-only (no brackets), report printed::
 
 From pre-computed p-values::
 
-    chart + ds.add_comparisons(
+    chart + ds.stats.comparisons(
         df, "group", "value",
         pairs=[("A", "B"), ("A", "C")],
         pvalues=[0.012, 0.341],
@@ -212,7 +226,7 @@ bar chart (``xOffset="condition"``); one bracket per gene, a real per-gene test:
         xOffset=alt.XOffset("condition:N", sort=["Vehicle", "LPS"]),
         y="mean(expr):Q", color="condition:N",
     )
-    bars + ds.add_comparisons(
+    bars + ds.stats.comparisons(
         df, "gene", "expr",
         xOffsetCol="condition",
         categories=GENES, xOffsetSort=["Vehicle", "LPS"],
@@ -224,17 +238,17 @@ Reference mode - compare every dose against the control, a bare mark above each
 
     CATS = ["Ctrl", "Low", "Mid", "High"]
     chart = ds.mark_strip(df, "group", "value", CATS)
-    chart + ds.add_comparisons(
+    chart + ds.stats.comparisons(
         df, "group", "value",
         reference="Ctrl", categories=CATS,
         test="ttest_ind", correction="holm", labelStyle="asterisks",
     )
 ```
 
-## `add_correlation`
+## `correlation`
 
 ```python
-def add_correlation(
+def correlation(
     df: pl.DataFrame | Any,
     xCol: str,
     yCol: str,
@@ -272,9 +286,9 @@ Annotate a scatter with a correlation coefficient (and an OLS fit line for Pears
 Reports the coefficient as a corner label, and — for ``method="pearson"``
 only — draws the ordinary-least-squares regression line. A structured record
 (``kind="correlation"``) is queued for the export metadata (see ``ds.save``),
-exactly like ``add_comparisons``.
+exactly like ``comparisons``.
 
-Combine with your scatter using ``+``:  ``chart + add_correlation(...)``.
+Combine with your scatter using ``+``:  ``chart + ds.stats.correlation(...)``.
 
 **Parameters**
 
@@ -282,7 +296,7 @@ Combine with your scatter using ``+``:  ``chart + add_correlation(...)``.
 - **`xCol`** (`str`) - Column names for the two **continuous** variables.
 - **`yCol`** (`str`) - Column names for the two **continuous** variables.
 - **`method`** (`str`) - ``'pearson'`` (default) — linear correlation ``r`` + ``r²`` + slope/intercept, with an OLS line. ``'spearman'`` — rank correlation ``ρ``. ``'kendall'`` — rank correlation ``τ``. The rank methods report the coefficient only (no ``r²``, no line — a straight line isn't their model). Matches pandas' ``DataFrame.corr``.
-- **`groupCol`** (`str | None`) - **Grouped mode.** A column to split the scatter into series (e.g. ``"cell_line"``). When set, a fit + coefficient is computed **per group**, each fit line / CI band / readout coloured by ``groupCol`` on the *same* colour channel your scatter uses - so colour by the same field (``color=alt.Color("cell_line:N")``) and they match (colour is a lookup, so no sort param is needed, unlike ``add_comparisons``). Readouts stack in the ``position`` corner, each a colour swatch (matching the series) plus the coefficient in neutral ink; one record is registered per group. Note: with ``ci=True``, give your scatter an explicit y-axis title (``alt.Y("val:Q", title="…")``) - otherwise Vega merges the band's internal upper-bound field into the axis title (a Vega title-merge quirk that also affects the single-series ``ci`` path).
+- **`groupCol`** (`str | None`) - **Grouped mode.** A column to split the scatter into series (e.g. ``"cell_line"``). When set, a fit + coefficient is computed **per group**, each fit line / CI band / readout coloured by ``groupCol`` on the *same* colour channel your scatter uses - so colour by the same field (``color=alt.Color("cell_line:N")``) and they match (colour is a lookup, so no sort param is needed, unlike ``comparisons``). Readouts stack in the ``position`` corner, each a colour swatch (matching the series) plus the coefficient in neutral ink; one record is registered per group. Note: with ``ci=True``, give your scatter an explicit y-axis title (``alt.Y("val:Q", title="…")``) - otherwise Vega merges the band's internal upper-bound field into the axis title (a Vega title-merge quirk that also affects the single-series ``ci`` path).
 - **`line`** (`bool`) - Draw the OLS fit line. Default ``True``. Only applies to ``method="pearson"`` (a no-op for the rank methods). Set ``False`` to suppress it and, e.g., compose your own line from the returned/recorded slope and intercept.
 - **`position`** (`str | None`) - Corner preset (an ``add_text`` position, e.g. ``'topLeft'``) for the readout. Default ``'topLeft'``. ``None`` computes the result for the report/metadata but draws no label.
 - **`label`** (`str | None`) - Override string for the corner readout. ``None`` builds it from the parts below.
@@ -293,8 +307,8 @@ Combine with your scatter using ``+``:  ``chart + add_correlation(...)``.
 - **`offsetX`** (`int`) - Pixel nudges for the readout, forwarded to ``add_text``.
 - **`offsetY`** (`int`) - Pixel nudges for the readout, forwarded to ``add_text``.
 - **`fontSize`** (`int | None`) - Font size of the readout. Defaults to the theme's primary ``fontSize`` (``7`` under the built-in defaults), matching the axis font.
-- **`sigFigs`** (`int | None`) - Significant figures / number format for the readout (coefficient, r², p-value, and fit equation), as in ``add_comparisons``. ``sigFigs=None`` reads the theme.
-- **`notation`** (`int | None`) - Significant figures / number format for the readout (coefficient, r², p-value, and fit equation), as in ``add_comparisons``. ``sigFigs=None`` reads the theme.
+- **`sigFigs`** (`int | None`) - Significant figures / number format for the readout (coefficient, r², p-value, and fit equation), as in ``comparisons``. ``sigFigs=None`` reads the theme.
+- **`notation`** (`int | None`) - Significant figures / number format for the readout (coefficient, r², p-value, and fit equation), as in ``comparisons``. ``sigFigs=None`` reads the theme.
 - **`color`** (`str | None`) - Curated style overrides for the fit line (same four knobs as ``add_rule``). Each defaults to ``None`` → the line inherits the theme's ``mark_line`` config; set one to override just that property.
 - **`strokeWidth`** (`str | None`) - Curated style overrides for the fit line (same four knobs as ``add_rule``). Each defaults to ``None`` → the line inherits the theme's ``mark_line`` config; set one to override just that property.
 - **`strokeDash`** (`str | None`) - Curated style overrides for the fit line (same four knobs as ``add_rule``). Each defaults to ``None`` → the line inherits the theme's ``mark_line`` config; set one to override just that property.
@@ -313,9 +327,9 @@ Combine with your scatter using ``+``:  ``chart + add_correlation(...)``.
 ::
 
     scatter = alt.Chart(df).mark_point().encode(x="height:Q", y="weight:Q")
-    scatter + ds.add_correlation(df, "height", "weight")                 # r + r² + OLS line
-    scatter + ds.add_correlation(df, "height", "weight", method="spearman")  # ρ, no line
-    scatter + ds.add_correlation(
+    scatter + ds.stats.correlation(df, "height", "weight")                 # r + r² + OLS line
+    scatter + ds.stats.correlation(df, "height", "weight", method="spearman")  # ρ, no line
+    scatter + ds.stats.correlation(
         df, "height", "weight",
         color="#c0392b", lineStyle={"strokeDash": [4, 2]},
     )

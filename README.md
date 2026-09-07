@@ -11,7 +11,7 @@
 
 `dysonsphere` also comes with several intuitive and powerful utilities for `altair` charts; some highlights include:
 - The ability to quickly and easily layer `altair` charts with annotations like reference lines, shades, text, and data labels.
-- Statistical inference with `scipy`, layered directly onto `alt.Chart` and conveniently exported as metadata in your saved chart:
+- Statistical inference with `scipy` through `ds.stats.comparisons()` and `ds.stats.correlation()`, layered directly onto `alt.Chart` and exported as metadata in your saved chart:
     - Omnibus tests with effect sizes.
     - Brackets and *p*-values for pairwise and post hoc comparisons.
     - Correlations with fit lines.

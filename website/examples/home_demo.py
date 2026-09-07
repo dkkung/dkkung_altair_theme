@@ -1,6 +1,7 @@
 import altair as alt
 import numpy as np
 import polars as pl
+
 import dysonsphere as ds
 
 ds.theme(chartWidth=140, heatmapPalette="eclipse")
@@ -19,4 +20,4 @@ heatmap = (
     )
 )
 
-chart = heatmap + ds.add_correlation(df, "rep1", "rep2")
+chart = heatmap + ds.stats.correlation(df, "rep1", "rep2")

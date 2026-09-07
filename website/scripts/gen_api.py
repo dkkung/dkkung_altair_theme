@@ -32,8 +32,7 @@ MODULES = [
     ("palettes", "Palettes", 9, "Perceptually uniform palettes and Adobe Illustrator swatch export."),
     ("metadata", "Reading exports", 10, "Read embedded metadata, statistics, reports, and data back out of exports."),
     ("export", "Saving & loading", 11, "Export charts to files and rebuild them from the Vega-Lite JSON."),
-    ("inference", "Statistical annotations", 12, "Pairwise/omnibus comparisons and correlation layers."),
-    ("statistics", "Statistics registry", 13, "Statistics report queue management."),
+    ("stats", "Statistics", 12, "Pairwise/omnibus comparisons, correlation layers, and report queue management."),
     ("table", "Tables", 14, "Render a DataFrame as a publication-styled table."),
     ("theme", "Theming", 15, "Register the dysonsphere Altair theme and scaffold config files."),
     ("transforms", "Transforms", 16, "Data transforms for jittered and beeswarm x-offsets."),
@@ -56,7 +55,7 @@ EXTENSION_MODULES = [
 EXT_OUT = Path("website/src/content/docs/extensions")
 
 # Signatures longer than this render one-parameter-per-line instead of on a single line, so
-# wide APIs (theme, add_comparisons, ...) never force horizontal scrolling.
+# wide APIs (theme, stats.comparisons, ...) never force horizontal scrolling.
 ONE_LINE_LIMIT = 76
 
 OUT = Path("website/src/content/docs/reference")
@@ -66,7 +65,7 @@ def public_functions(mod):
     """Public functions of this module, in source order.
 
     Includes deliberate re-exports (aliases listed in the module's ``__all__``, e.g. the whole
-    ``dysonsphere.ext`` surface, which re-exports private core primitives under public names) -
+    ``dysonsphere.ext`` surface and ``stats.clear_stats`` from ``_statistics``) -
     plain imports are skipped, since they are documented in their home module.
     """
     exports = set(mod.exports or [])
@@ -83,7 +82,7 @@ def public_functions(mod):
                 continue
         if obj.kind.value == "function":
             fns.append((name, obj))
-    fns.sort(key=lambda pair: (pair[1].lineno or 0))
+    fns.sort(key=lambda pair: pair[1].lineno or 0)
     return fns
 
 
