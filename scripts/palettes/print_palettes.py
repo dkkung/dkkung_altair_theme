@@ -1,8 +1,7 @@
 """
-Generator for theme/palettes.py custom palette family.
+Generator for src/dysonsphere/palettes.py custom palette families.
 
-Lives at /scripts/ rather than /theme/theme/ so the build logic is version
-controlled but doesn't ship with the installed package.
+Palette-authoring tooling, version controlled separately from the installed package.
 
 Documents and reproduces every recipe used to construct the custom
 sequential and diverging palettes:
@@ -47,7 +46,7 @@ Color spaces:
     current state of the art for perceptual uniformity.
 
 Usage:
-    uv run python scripts/build/print_palettes.py
+    uv run python scripts/palettes/print_palettes.py
 
 Prints Python literals for each built palette to stdout.  Use to diff
 against palettes.py or to extend with new families.
