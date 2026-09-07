@@ -122,6 +122,9 @@ to a single number, which aligns every label in a flat row:
 `notation=` controls the p-value format (`"scientific"`, `"e"`, `"power"`), and `sigFigs=` sets the
 precision.
 
+Zero p-values are displayed as bounds in every notation, using the minimum normal positive float
+as the record bound; they are not reported as exact zero. Positive subnormal p-values remain valid.
+
 <Example name="comparisons_notation" alt="Comparison bracket with scientific-notation p-value" />
 
 ### Per-pair control
@@ -144,8 +147,14 @@ them opts that chart out of pixel placement, so the gaps then follow the y domai
 
 <Example name="comparisons_placement" alt="Three comparison brackets on an evenly spaced manual ladder" />
 
-`pvalues=` skips the test entirely and draws numbers you supply - useful when the statistics come
-from somewhere else.
+`pvalues=` draws final numbers supplied from somewhere else. In pairwise mode it skips the test;
+correction and pair effects are not computed. In omnibus mode,
+the omnibus test still runs, but the report contains only the requested supplied pairs; without
+supplied values, an omnibus report contains every post-hoc pair.
+
+Statistical columns used by the annotation must exist and contain numeric, finite observations.
+Missing or non-finite group IDs and required computed results raise an error; unrelated dataframe
+columns are ignored. Supplied p-values must be real, finite, non-bool numbers in `[0, 1]`.
 
 ## Grouped (two-factor) comparisons
 
@@ -156,6 +165,12 @@ sitting above its own group's bars. Set `categories` and `xOffsetSort` to match 
 `xOffset` sort (it raises if they don't cover the data):
 
 <Example name="qpcr" alt="Grouped qPCR bars with a within-gene significance bracket per gene" />
+
+Grouped mode supports the pairwise tests only. `postHoc` is not supported; notation mappings and
+`yPositions` lists are rejected. Grouped test-label options still apply to the shared test label.
+When correction is used, `nComparisons` must be a positive non-bool integer at least as large as
+the full computed family (`categories × pairs`), even if fewer brackets are drawn. A larger value
+is allowed. Supplied p-values are not corrected again.
 
 `reverse=` and `bracketStyle="drop"` work here too. In grouped mode `reverse` names xOffset **levels**,
 like `pairs`, and applies in every category:

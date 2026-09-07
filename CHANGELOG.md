@@ -30,6 +30,15 @@
   `dysonsphere.inference` / `dysonsphere.statistics` modules are removed, without aliases.
   Calculations, rendering, and embedded metadata are unchanged by the namespace move.
 
+### Fixes
+
+- Statistical annotations now reject missing/non-finite used values and undefined required results,
+  ignore unused fields, validate supplied p-values and correction-family sizes, and preserve final
+  supplied comparisons without inventing tests, effects, or corrections. Zero p-values render as
+  bounds; positive subnormal values remain valid in records and scientific-notation labels.
+- Grouped comparisons and correlation now validate unsupported option shapes consistently and retain
+  grouped label, color, and line-style behavior across dispatch paths.
+
 ### Internal
 
 - Retire root plotting/build scripts, the Illustrator wrapper, and the old `docs/` gallery.
