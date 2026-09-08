@@ -433,6 +433,12 @@ class TestAddComparisons:
         with pytest.raises(ValueError, match="categories is missing"):
             comparisons(df, "group", "value", [("A", "B")], categories=["A", "B"])
 
+    @pytest.mark.parametrize("categories", [["A", "B", "D"], ["A", "B", "B"]])
+    def test_categories_reject_extra_or_duplicate_values(self, categories):
+        df = pl.DataFrame({"group": ["A"] * 5 + ["B"] * 5, "value": list(range(10))})
+        with pytest.raises(ValueError, match="categories"):
+            comparisons(df, "group", "value", [("A", "B")], pvalues=[0.1], categories=categories)
+
     def test_notation_scientific(self, group_df):
         result = comparisons(
             group_df,
@@ -1538,6 +1544,11 @@ class TestGroupedComparisons:
         # an explicit `xOffsetSort` that omits a level in the data would misalign the xOffset scale
         with pytest.raises(ValueError, match="xOffsetSort is missing"):
             comparisons(qpcr_df, "gene", "expr", xOffset="cond", categories=["G1", "G2"], xOffsetSort=["Veh"])
+
+    @pytest.mark.parametrize("sort", [["Veh", "Other"], ["Veh", "Veh"]])
+    def test_xoffsetsort_rejects_extra_or_duplicate_values(self, qpcr_df, sort):
+        with pytest.raises(ValueError, match="xOffsetSort"):
+            comparisons(qpcr_df, "gene", "expr", xOffset="cond", categories=["G1", "G2"], xOffsetSort=sort)
 
 
 class TestGroupedCorrelation:

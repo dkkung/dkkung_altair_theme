@@ -36,6 +36,14 @@
 
 ### Fixes
 
+- Tables preserve source rows and recovered data when missing or non-finite cells serialize as
+  `null`; those cells render blank while zero remains visible. Formatting validates known input
+  columns, supports d3 formats for strings and booleans, and uses corrected precision and width
+  estimates.
+- Plot category orders and grouped `xOffsetSort` require observed values exactly once while
+  preserving sequence order; count helpers still allow subsets, duplicates, and zero-count entries.
+- Multilabel row selection rejects duplicate or unknown rows while per-row mappings validate all
+  supplied groups, including groups omitted from the displayed order.
 - Statistical annotations now reject missing/non-finite used values and undefined required results,
   ignore unused fields, validate supplied p-values and correction-family sizes, and preserve final
   supplied comparisons without inventing tests, effects, or corrections. Zero p-values render as

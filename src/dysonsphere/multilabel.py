@@ -108,11 +108,14 @@ def _multilabel_layer(
     """
     from .palettes import colors
 
-    row_order = order if order is not None else list(groups.keys())
+    row_order = list(order) if order is not None else list(groups.keys())
 
     unknown_rows = [label for label in row_order if label not in groups]
     if unknown_rows:
         raise ValueError(f"order names row(s) {unknown_rows} that are not in groups. Rows are {list(groups)}.")
+    duplicate_rows = [label for i, label in enumerate(row_order) if label in row_order[:i]]
+    if duplicate_rows:
+        raise ValueError(f"order contains duplicate row label(s) {duplicate_rows}.")
 
     for label in row_order:
         if len(groups[label]) != len(categories):
@@ -138,6 +141,10 @@ def _multilabel_layer(
         if len(rowStyles) != len(row_order):
             raise ValueError(f"rowStyles list has {len(rowStyles)} entries but there are {len(row_order)} rows.")
         rowStyles = dict(zip(row_order, rowStyles))
+    elif isinstance(rowStyles, dict):
+        unknown = [label for label in rowStyles if label not in groups]
+        if unknown:
+            raise ValueError(f"rowStyles has unknown row label(s) {unknown}. Rows are {list(groups)}.")
 
     # Per-row style resolution: rowStyles overrides global style; non-bool values always
     # force "text" regardless. Check isinstance(v, bool) before isinstance(v, int) because
@@ -174,9 +181,9 @@ def _multilabel_layer(
             return {}
         if isinstance(value, dict):
             mapping = cast(dict[str, Any], value)
-            unknown = [k for k in mapping if k not in row_order]
+            unknown = [k for k in mapping if k not in groups]
             if unknown:
-                raise ValueError(f"{name} has unknown row label(s) {unknown}. Rows are {row_order}.")
+                raise ValueError(f"{name} has unknown row label(s) {unknown}. Rows are {list(groups)}.")
             return dict(mapping)
         if isinstance(value, (list, tuple)):
             seq = cast(list[Any], value)
@@ -721,8 +728,9 @@ def add_multilabel(
         ``order`` to place the row yourself.
     order:
         Row display order (top to bottom). Defaults to ``dict`` insertion order.
-        Every label must be a key of ``groups``; listing only some of them displays
-        only those rows.
+        Every listed label must be a key of ``groups`` and must occur only once; listing only some
+        rows displays only those rows. Per-row mapping options are checked against all keys in
+        ``groups``, including rows omitted from ``order``.
     style:
         Global default style for all rows. ``"plusminus"`` renders ``True`` as ``+``
         and ``False`` as ``−``. ``"symbol"`` renders ``True`` as a filled mark and

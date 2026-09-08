@@ -32,6 +32,7 @@ from .utils import (
     _nested_band_centers,
     _nice_domain,
     _resolve_dash,
+    _validate_category_order,
     band_geometry,
 )
 
@@ -310,15 +311,10 @@ def _resolve_pairs(
 def _check_coverage(
     df: pl.DataFrame, col: str, values: list[Any] | None, param_name: str, noun: str, tail: str
 ) -> None:
-    """Raise if an explicit ordering ``values`` for ``param_name`` omits any value present in
-    ``df[col]`` - a guaranteed mis-position of the band geometry / shared-scale reorder. No-op
-    when ``values`` is None (the caller supplies its own default order). ``noun``/``tail`` carry
-    the exact per-param message wording."""
+    """Require an explicit scale order to cover the observed values exactly once."""
     if values is None:
         return
-    missing = set(df[col].unique().to_list()) - set(values)
-    if missing:
-        raise ValueError(f"{param_name} is missing {col!r} {noun} present in the data: {sorted(missing)}. {tail}")
+    _validate_category_order(df, col, values, name=param_name, tail=tail)
 
 
 def _stack_levels(spans: list[tuple[int, int]]) -> list[int]:
@@ -1679,9 +1675,10 @@ def comparisons(
         pairs, slightly off the midpoint only for an asymmetric 3+-level pair.
     xOffsetSort:
         Grouped mode - the subgroup level order. Must match the ``sort`` on your
-        chart's ``xOffset`` encoding (and ``categories`` must match the ``x``
-        sort), or the shared scale reorders the bars. ``None`` (default) reads the
-        data's first-appearance order.
+        chart's ``xOffset`` encoding (and ``categories`` must match the ``x`` sort), or the shared
+        scale reorders the bars. Explicit values must match observed levels exactly once; tuple/
+        list order and numeric category values are preserved. ``None`` (default) reads the data's
+        first-appearance order.
     yPositions:
         Explicit y positions (data units) for the annotations. **A single number** puts
         *every* annotation at that y - one global flat row. **Pairwise:** a list, one per
@@ -1707,8 +1704,10 @@ def comparisons(
         Padding (data units) above the data maximum, when placement is in data units. Setting
         it opts out of the automatic pixel placement described above.
     categories:
-        Ordered list of all x-axis categories. Inferred from ``data`` (sorted
-        alphabetically) when not provided.
+        Ordered list of all x-axis categories. For data-backed comparisons, supplied values must
+        match observed values exactly once; tuple/list order and numeric values are preserved.
+        Inferred from ``data`` (sorted alphabetically) when not provided. Standalone reference
+        annotations without data do not receive observed-coverage validation.
     chartWidth:
         Width of the chart in pixels, used to compute text x positions.
         Auto-detected from ``ds.theme()`` when not set.

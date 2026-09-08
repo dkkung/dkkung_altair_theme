@@ -9,6 +9,9 @@ dysonsphere's composite marks return native Altair layers, so you compose them w
 Altair's full API. The jitter, beeswarm, and quasirandom offsets they use are also available as
 standalone [transforms](/guides/transforms/).
 
+For strip and violin marks, `categories` sets display order and must contain each observed group
+exactly once. Filter the dataframe first when plotting a subset of groups.
+
 ## Strip plot
 
 `mark_strip()` draws a categorical scatter with a summary. By default, the summary is the group
@@ -74,7 +77,14 @@ rest of the library, typeset with real superscripts); a numeric column can be sh
 `cellPalette`; and `strokes` picks which rules to draw (`"outer"`, `"header"`, `"rows"`, `"cols"`,
 `"grid"` for the interior, or `"all"` for every rule). Numeric columns are right-aligned by default
 so figures line up on the decimal; everything else is left. The source DataFrame is never mutated, so
-`ds.metadata.read(what="data")` recovers it exactly - and every cell background is its own rect, so you can
+`ds.metadata.read(what="data")` recovers the inlined data - and every cell background is its own rect, so you can
 recolour individual cells in Illustrator.
 
-<Example name="table" alt="Styled results table with per-column formatting and a value-shaded column" />
+Missing or non-finite values serialize as `null` and render as blank cells without dropping rows;
+zero remains `0`. Named numeric notations reject non-missing strings, while explicit d3 formats
+use Vega's formatter and may format strings (including padded `c` values). Booleans accept numeric
+formats, and all-missing columns stay blank. Widths are estimates, not a second Python formatter;
+use `columnWidths=` for exact control. Formatting maps validate known input columns, while
+`headerLabels` remains a permissive display map.
+
+<Example name="table" alt="Styled results table with per-column formatting" />

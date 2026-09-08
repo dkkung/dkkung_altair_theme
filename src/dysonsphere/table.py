@@ -1,6 +1,7 @@
 """Render a DataFrame as a publication-styled table via a composite Altair mark."""
 
 import math
+import re
 from collections.abc import Sequence
 from typing import Any, cast
 
@@ -17,14 +18,32 @@ __all__ = ["mark_table"]
 # The stroke placements composable via the `strokes` set. "grid" expands to rows+cols (the
 # interior grid); "all" expands to every rule (outer+header+rows+cols).
 _STROKE_KINDS = frozenset({"outer", "header", "rows", "cols", "grid", "all"})
+# d3 parses a single alphabetic type slot and intentionally falls back to its default formatter
+# for letters without a specialised type. Keep that grammar permissive so the width estimate never
+# rejects a format the renderer accepts.
+_D3_FORMAT_RE = re.compile(
+    r"^(?:(?P<fill>.)(?P<align>[<>=^])|(?P<align_only>[<>=^]))?"
+    r"(?P<sign>[+\-( ])?(?P<symbol>[$#])?(?P<zero>0)?(?P<width>\d+)?(?P<comma>,)?"
+    r"(?:\.(?P<precision>\d+))?(?P<trim>~)?(?P<type>[A-Za-z%])?$"
+)
 
 
 # ── Number formatting ────────────────────────────────────────────────────────
 # Two parallel formatters keep the recovered df byte-identical: display strings are
 # measured in Python (Vega can't measure text at build time) but RENDERED without
-# mutating the frame - printf/e/si via native alt.Text(format=), and the two Unicode
+# mutating the frame - d3/e/si via native alt.Text(format=), and the two Unicode
 # superscript notations via a transform_calculate expression (a computed field is never
 # inlined into data.values, so read(what="data") returns the frame untouched).
+
+
+def _is_missing(value: Any) -> bool:
+    """Match the non-finite-to-null policy used when export data is serialized."""
+    if value is None:
+        return True
+    try:
+        return not math.isfinite(value)
+    except TypeError:
+        return False
 
 
 def _sup(n: int) -> str:
@@ -34,6 +53,8 @@ def _sup(n: int) -> str:
 
 def _fmt_scientific(v: float, sig_figs: int) -> str:
     """``1.23×10⁻⁵`` - Python side, for width measurement + sidecar rendering."""
+    if _is_missing(v):
+        return ""
     if v == 0:
         return "0"
     mant, _, exp = f"{abs(v):.{max(sig_figs - 1, 0)}e}".partition("e")
@@ -43,6 +64,8 @@ def _fmt_scientific(v: float, sig_figs: int) -> str:
 
 def _fmt_power(v: float, sig_figs: int) -> str:
     """``10⁻⁵`` (nearest power of ten) - Python side."""
+    if _is_missing(v):
+        return ""
     if v == 0:
         return "0"
     e = round(math.log10(abs(v)))
@@ -51,18 +74,91 @@ def _fmt_power(v: float, sig_figs: int) -> str:
 
 def _fmt_si(v: float, sig_figs: int) -> str:
     """Rough SI-prefix string - width measurement only (render uses native ``~s``)."""
+    if _is_missing(v):
+        return ""
     if v == 0:
         return "0"
     for exp, suffix in ((9, "G"), (6, "M"), (3, "k"), (0, ""), (-3, "m"), (-6, "µ"), (-9, "n")):
         if abs(v) >= 10.0**exp or exp == -9:
-            return f"{v / 10.0**exp:.{max(sig_figs - 1, 0)}g}{suffix}"
+            return f"{v / 10.0**exp:.{max(sig_figs, 1)}g}{suffix}"
     return f"{v:g}"
 
 
 def _sup_js(abs_exp: str) -> str:
     """Vega sub-expression: superscript the (already-absolute) exponent expression."""
-    sup = f"'{_SUP}'"
-    return f"({abs_exp} >= 10 ? {sup}[floor({abs_exp}/10)] + {sup}[{abs_exp}%10] : {sup}[{abs_exp}])"
+    result = f"format({abs_exp}, 'd')"
+    for digit, superscript in enumerate(_SUP):
+        result = f"replace({result}, regexp('{digit}', 'g'), '{superscript}')"
+    return result
+
+
+def _parse_d3_format(spec: str) -> dict[str, Any]:
+    """Parse the small, stable d3-format grammar used by Vega-Lite text marks."""
+    if not isinstance(spec, str):
+        raise ValueError(f"format must be a string, got {spec!r}")
+    match = _D3_FORMAT_RE.fullmatch(spec)
+    if match is None:
+        raise ValueError(f"invalid d3 format {spec!r}")
+    groups = match.groupdict()
+    return {
+        "align": groups["align"] or groups["align_only"],
+        "sign": groups["sign"],
+        "symbol": groups["symbol"],
+        "zero": groups["zero"] is not None,
+        "width": int(groups["width"]) if groups["width"] is not None else None,
+        "comma": groups["comma"] is not None,
+        "precision": int(groups["precision"]) if groups["precision"] is not None else None,
+        "trim": groups["trim"] is not None,
+        "type": groups["type"],
+    }
+
+
+def _d3_width_estimate(value: Any, spec: str) -> str:
+    """Return a non-rendering width estimate without applying Python's incompatible format grammar."""
+    parts = _parse_d3_format(spec)
+    if _is_missing(value):
+        return ""
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return str(value).rjust(parts["width"] or 0)
+    if not math.isfinite(numeric):
+        return ""
+
+    precision = parts["precision"]
+    format_type = parts["type"]
+    if format_type == "s":
+        length = len(_fmt_si(numeric, max(6 if precision is None else precision, 1)))
+    elif format_type in ("f", "%", "p"):
+        log10 = math.floor(math.log10(abs(numeric))) if numeric else 0
+        integer_digits = max(1, log10 + 1)
+        if format_type in ("%", "p"):
+            integer_digits = max(1, integer_digits + 2)
+        decimals = 6 if precision is None else precision
+        length = integer_digits + (decimals + 1 if decimals else 0)
+        if parts["comma"]:
+            length += max(0, (integer_digits - 1) // 3)
+        if format_type in ("%", "p"):
+            length += 1
+    elif format_type == "e":
+        decimals = 6 if precision is None else precision
+        exponent_digits = max(2, len(str(abs(math.floor(math.log10(abs(numeric))))) if numeric else "0"))
+        length = 1 + (decimals + 1 if decimals else 0) + 1 + 1 + exponent_digits
+    else:
+        try:
+            length = len(format(numeric, f".{precision}g")) if precision is not None else len(str(value))
+        except (ValueError, TypeError):
+            length = len(str(value))
+        if parts["comma"]:
+            length += max(0, (len(str(int(abs(numeric)))) - 1) // 3)
+
+    if numeric < 0 or parts["sign"] in ("+", " "):
+        length += 1
+    if parts["symbol"] is not None:
+        length += 1
+    if parts["sign"] == "(" and numeric < 0:
+        length += 1
+    return "0" * max(length, parts["width"] or 0)
 
 
 def _calc_expr(col: str, notation: str, sig_figs: int) -> str:
@@ -79,11 +175,18 @@ def _calc_expr(col: str, notation: str, sig_figs: int) -> str:
     sign = f"({v} < 0 ? '−' : '')"
     if notation == "power":
         e = f"round({log10})"
-        return f"({v} == null || {v} == 0 ? '0' : {sign} + '10' + ({e} < 0 ? '⁻' : '') + {_sup_js(f'abs({e})')})"
-    # scientific
-    e = f"floor({log10})"
-    mant = f"format({av}/pow(10,{e}), '.{max(sig_figs - 1, 0)}f')"
-    return f"({v} == null || {v} == 0 ? '0' : {sign} + {mant} + '×10' + ({e} < 0 ? '⁻' : '') + {_sup_js(f'abs({e})')})"
+        superscript = _sup_js(f"abs({e})")
+        return f"(!isValid({v}) ? '' : {v} == 0 ? '0' : {sign} + '10' + ({e} < 0 ? '⁻' : '') + {superscript})"
+    # Use d3's native scientific formatter to split the mantissa and exponent. Dividing by
+    # 10**exponent looks simple, but underflows for subnormal values and mishandles rounding carry
+    # (e.g. 9.999 -> 10.00 x 10^0 instead of 1.00 x 10^1).
+    decimals = max(sig_figs - 1, 0)
+    formatted = f"format({av}, '.{decimals}e')"
+    exponent_start = f"indexof({formatted}, 'e')"
+    mant = f"slice({formatted}, 0, {exponent_start})"
+    e = f"+slice({formatted}, {exponent_start} + 1, length({formatted}))"
+    superscript = _sup_js(f"abs({e})")
+    return f"(!isValid({v}) ? '' : {v} == 0 ? '0' : {sign} + {mant} + '×10' + ({e} < 0 ? '⁻' : '') + {superscript})"
 
 
 # ── Value-based cell colouring ───────────────────────────────────────────────
@@ -171,6 +274,11 @@ def mark_table(
 
         ds.save(lambda: ds.mark_table(data, ...), "table", background=["light", "dark"])
 
+    Missing and non-finite values serialize as ``null`` and render as blank cells. They do not
+    remove their rows, and the recovered user dataframe is unchanged; zero remains a displayed
+    zero. Named numeric formats raise on non-missing string values. An explicit valid d3 format
+    may format a string column, while an all-missing column remains blank.
+
     Parameters
     ----------
     data:
@@ -180,15 +288,20 @@ def mark_table(
     header:
         Draw the header row of column labels. Default ``True``.
     headerLabels:
-        ``{column: display label}`` to rename headers (unlisted columns keep their name).
+        ``{column: display label}`` to rename headers (unlisted columns keep their name). This is
+        a permissive display map; unknown keys are ignored.
     columnFormat:
         ``{column: format}`` for numeric columns. Each value is either a **notation keyword** -
         ``"scientific"`` (``1.23×10⁻⁵``), ``"power"`` (``10⁻⁵``, nearest power of ten), ``"e"``
-        (``1.2e-5``), ``"si"`` (``12k``) - honouring ``sigFigs``, or any **d3/printf format
+        (``1.2e-5``), ``"si"`` (``12k``) - honouring ``sigFigs``, or any **Vega/d3 format
         spec** (``".2g"``, ``".1f"``, ``","`` …). The two superscript notations reuse the SVG
         typesetting the rest of dysonsphere applies, so exponents render aligned and any leading
         statistical symbol is italicised. Unlisted numeric columns default to ``sigFigs``
-        significant figures; string columns render verbatim.
+        significant figures; string columns render verbatim. ``"power"`` uses the nearest power
+        of ten and ignores ``sigFigs``. An explicit d3 format uses Vega's format expression and
+        supplies its own precision; it can also format string columns. Boolean columns support
+        numeric formatting. Named numeric notations raise for non-missing string values, while an
+        all-missing column remains blank.
     sigFigs:
         Significant figures for the notation keywords and the numeric default. ``None`` (default)
         reads ``theme(sigFigs=…)``.
@@ -214,7 +327,8 @@ def mark_table(
         ``{column: palette}`` to shade cells by value (a heatmap column). The column's values map
         across the palette (a 13-stop diverging palette is centred on 0; otherwise the domain is
         the column's ``[min, max]``), and each cell's text switches to black or white for
-        contrast. Overrides striping within that column.
+        contrast. Overrides striping within that column. Mapping keys must be input column names;
+        a known column need not be in ``columns``.
     textColor:
         Body cell text colour. ``None`` (default) inherits the theme's darkmode-aware text
         colour. A single string colours every body cell; a ``{column: colour}`` dict colours
@@ -247,7 +361,10 @@ def mark_table(
         same height.
     columnWidths:
         Override the estimated widths: a list in ``columns`` order, or a ``{column: width}`` dict
-        (unlisted columns keep their estimate).
+        (unlisted shown columns keep their estimate). Mapping keys must be input column names.
+        The same known-input-column rule applies to ``columnFormat``, dict ``align``,
+        ``cellPalette``, dict ``textColor``, and dict ``fontStyle``; known columns may be omitted
+        from ``columns``. ``headerLabels`` is the permissive exception.
     strokeColor:
         Rule colour. ``None`` (default) → darkmode-aware black/white.
     strokeWidth:
@@ -297,10 +414,21 @@ def mark_table(
         raise ValueError(f"nStripes must be >= 1, got {nStripes}.")
 
     cellPalette = cellPalette or {}
+    for name, mapping in (
+        ("columnFormat", columnFormat),
+        ("align", align if isinstance(align, dict) else None),
+        ("cellPalette", cellPalette),
+        ("textColor", textColor if isinstance(textColor, dict) else None),
+        ("fontStyle", fontStyle if isinstance(fontStyle, dict) else None),
+        ("columnWidths", columnWidths if isinstance(columnWidths, dict) else None),
+    ):
+        if mapping is not None:
+            unknown = [column for column in mapping if column not in data.columns]
+            if unknown:
+                raise ValueError(f"{name} has unknown column(s) {unknown}; data columns are {list(data.columns)}.")
+
     for c in cellPalette:
-        if c not in cols:
-            raise ValueError(f"cellPalette column {c!r} is not among the shown columns {cols}.")
-        if not data[c].dtype.is_numeric():
+        if c in cols and not data[c].dtype.is_numeric():
             raise ValueError(f"cellPalette column {c!r} must be numeric.")
 
     # Theme-derived defaults.
@@ -331,6 +459,14 @@ def mark_table(
 
     headerLabels = headerLabels or {}
     columnFormat = columnFormat or {}
+    for col, notation in columnFormat.items():
+        if not isinstance(notation, str):
+            raise ValueError(f"columnFormat[{col!r}] must be a named notation or a d3 format string.")
+        if notation not in ("scientific", "power", "e", "si"):
+            try:
+                _parse_d3_format(notation)
+            except ValueError as exc:
+                raise ValueError(f"columnFormat[{col!r}] is not a valid Vega/d3 format: {notation!r}.") from exc
 
     def _col_align(col: str, numeric: bool) -> str:
         # Explicit align wins (global string, or a per-column dict entry); otherwise the default is
@@ -366,34 +502,41 @@ def mark_table(
     plans: list[dict[str, Any]] = []
     for col in cols:
         numeric = data[col].dtype.is_numeric()
+        numeric_format = numeric or data[col].dtype == pl.Boolean
         values = data[col].to_list()
         notation = columnFormat.get(col)
         # render = (method, spec_or_expr, numeric_flag); method ∈ {calc, d3, raw}.
         render: tuple[str, Any, Any]
-        if notation in ("scientific", "power"):
+        if notation in ("scientific", "power") and numeric_format:
             disp = [
-                _fmt_scientific(v, sig_figs) if notation == "scientific" else _fmt_power(v, sig_figs)
-                for v in values
-                if v is not None
+                _fmt_scientific(v, sig_figs) if notation == "scientific" else _fmt_power(v, sig_figs) for v in values
             ]
-            disp += ["" for v in values if v is None]
             render = ("calc", _calc_expr(col, notation, sig_figs), None)
-        elif notation == "e":
+        elif notation == "e" and numeric_format:
             spec = f".{max(sig_figs - 1, 0)}e"
-            disp = [format(v, spec) if v is not None else "" for v in values]
+            disp = [format(v, spec) if not _is_missing(v) else "" for v in values]
             render = ("d3", spec, True)
-        elif notation == "si":
-            disp = [_fmt_si(v, sig_figs) if v is not None else "" for v in values]
-            render = ("d3", "~s", True)
-        elif notation is not None:  # explicit d3/printf spec
-            disp = [format(v, notation) if v is not None else "" for v in values]
-            render = ("d3", notation, numeric)
+        elif notation == "si" and numeric_format:
+            disp = [_fmt_si(v, sig_figs) if not _is_missing(v) else "" for v in values]
+            render = ("d3", f".{sig_figs}~s", True)
+        elif notation in ("scientific", "power", "e", "si"):
+            if any(not _is_missing(v) for v in values):
+                raise ValueError(f"columnFormat[{col!r}] requires numeric values for {notation!r} notation.")
+            # All-missing columns can have Null or String dtype; there is nothing to format.
+            disp = [""] * len(values)
+            render = ("raw", None, False)
+        elif notation is not None:  # explicit d3 spec
+            disp = [_d3_width_estimate(v, notation) for v in values]
+            # Vega-Lite ignores format on nominal text; apply d3 explicitly for string columns.
+            render = (
+                ("d3", notation, True) if numeric_format else ("calc", f"format(datum[{col!r}], {notation!r})", None)
+            )
         elif numeric:
             spec = f".{sig_figs}g"
-            disp = [format(v, spec) if v is not None else "" for v in values]
+            disp = [format(v, spec) if not _is_missing(v) else "" for v in values]
             render = ("d3", spec, True)
         else:
-            disp = [("" if v is None else str(v)) for v in values]
+            disp = [("" if _is_missing(v) else str(v)) for v in values]
             render = ("raw", None, False)
 
         label = str(headerLabels.get(col, col))
@@ -499,6 +642,7 @@ def mark_table(
             continue
         hexes = resolve_palette(cellPalette[col])
         series = data[col].drop_nulls()
+        series = series.filter(series.is_finite())
         lo = float(series.min()) if series.len() else 0.0
         hi = float(series.max()) if series.len() else 1.0
         if len(hexes) == 13:  # diverging → symmetric about 0
@@ -548,6 +692,10 @@ def mark_table(
     for i, p in enumerate(plans):
         col, a = p["col"], p["align"]
         base = _df_base()
+        # Vega's text formatter renders a null quantitative value as the literal string "null"
+        # (and a nominal null similarly). Filtering only this generated text layer leaves the row,
+        # its stripe, and the original user dataset intact while making every missing/non-finite cell blank.
+        base = base.transform_filter(f"isValid(datum[{col!r}])")
         render = p["render"]
         if render[0] == "calc":
             fmt_field = f"__fmt_{i}"
