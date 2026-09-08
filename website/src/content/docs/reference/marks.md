@@ -22,6 +22,7 @@ def mark_violin(
     boxplotColor: str = 'black',
     boxplotMedianColor: str = 'white',
     palette: str | list[str] | None = None,
+    fill: str | None = None,
     fillOpacity: float | None = None,
     stroke: str | bool | None = True,
     strokeWidth: float | None = None,
@@ -57,7 +58,8 @@ scale resolution never squishes the violin shape.
 - **`boxplotWidth`** (`int | None`) - Width of the boxplot box in pixels (``inner="box"`` only).
 - **`boxplotColor`** (`str`) - Fill color of the boxplot (``inner="box"`` only).
 - **`boxplotMedianColor`** (`str`) - Fill color of the boxplot median line (``inner="box"`` only). Defaults to ``"white"`` so it reads against the default black box; overrides the theme's ``markMedianFill``.
-- **`palette`** (`str | list[str] | None`) - Fill color of all violins. When ``None``, each group inherits its color from the theme's active category palette.
+- **`palette`** (`str | list[str] | None`) - Named dysonsphere palette or explicit list of category colors. When ``None``, each group inherits its color from the theme's active category palette. Cannot be combined with ``fill``.
+- **`fill`** (`str | None`) - Fixed literal fill color for the violin silhouette. Suppresses the category-color legend when set and does not affect the inner statistic marks. Cannot be combined with ``palette``.
 - **`fillOpacity`** (`float | None`) - Fill opacity of the violin. Inherits ``markFillOpacity`` from theme when ``None``.
 - **`stroke`** (`str | bool | None`) - Outline color of the violin. ``True`` (default) uses the theme's ``markStroke`` (black - kept black in dark mode too, outlining the light palette fills like ``mark_strip``'s points); ``False`` or ``None`` disables the outline; a string sets the color directly.
 - **`strokeWidth`** (`float | None`) - Width of the violin outline. Inherits ``markStrokeWidth`` from theme when ``None``.
@@ -94,7 +96,7 @@ scale resolution never squishes the violin shape.
         data, "group", "value", CATEGORIES,
         inner="box",
         boxplotWidth=10,
-        palette="#AAAAAA",
+        fill="#AAAAAA",
     )
 ```
 
@@ -108,7 +110,8 @@ def mark_strip(
     categories: list[str],
     *,
     scatter: str = 'jitter',
-    palette: list[str] | None = None,
+    palette: str | list[str] | None = None,
+    fill: str | None = None,
     markSize: int | None = None,
     markOpacity: float | None = None,
     spread: float | None = None,
@@ -138,6 +141,8 @@ layers (e.g. ``ds.stats.comparisons``).
 - **`y`** (`str`) - Column name for the value variable (y-axis).
 - **`categories`** (`list[str]`) - Ordered list of all x-axis categories.
 - **`scatter`** (`str`) - Point distribution method: ``'jitter'`` (faster, random Gaussian offset) or ``'beeswarm'`` (collision-avoidance, better for smaller n).
+- **`palette`** (`str | list[str] | None`) - Named dysonsphere palette or explicit list of category colors. When ``None``, colors inherit the active theme category palette. Cannot be combined with ``fill``.
+- **`fill`** (`str | None`) - Fixed literal fill color for the points. Suppresses the category-color legend when set and does not affect summary marks. Cannot be combined with ``palette``.
 - **`markSize`** (`int | None`) - Size of individual points. Inherits ``markSize`` from theme when ``None``.
 - **`markOpacity`** (`float | None`) - Opacity of individual points. Inherits ``markFillOpacity`` from theme when ``None``.
 - **`spread`** (`float | None`) - Controls point spread in pixels. For ``'jitter'``: standard deviation of the Gaussian offsets (~68% of points within ±spread). For ``'beeswarm'``: collision radius (points placed so no two centres are closer than 2·spread); total width grows with n.

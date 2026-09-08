@@ -4,6 +4,7 @@ import polars as pl
 import pytest
 
 from dysonsphere.marks import mark_strip, mark_violin
+from dysonsphere.palettes import colors
 from dysonsphere.theme import theme
 
 CATEGORIES = ["A", "B", "C"]
@@ -128,6 +129,156 @@ def _violin_rows(spec):
 
 def _median_area(spec):
     return next(lyr for lyr in spec["layer"] if _mark_type(lyr) == "area")
+
+
+class TestMarkColors:
+    @pytest.mark.parametrize("constructor", [mark_strip, mark_violin])
+    def test_fixed_fill_is_rendered_without_category_color_encoding(self, constructor, group_df):
+        import vl_convert as vlc
+
+        kwargs = {"fill": "#123456", "legend": True}
+        if constructor is mark_violin:
+            kwargs["inner"] = None
+        chart = constructor(group_df, "group", "value", CATEGORIES, **kwargs)
+        spec = chart.to_dict()
+        primary = next(layer for layer in spec["layer"] if _mark_type(layer) in ("circle", "line"))
+        assert primary["mark"]["fill"] == "#123456"
+        assert "color" not in primary["encoding"]
+        assert "#123456" in vlc.vegalite_to_svg(spec).lower()
+
+    @pytest.mark.parametrize("constructor", [mark_strip, mark_violin])
+    @pytest.mark.parametrize(
+        ("palette_value", "expected"),
+        [
+            (None, None),
+            (["#111111", "#222222", "#333333"], ["#111111", "#222222", "#333333"]),
+            ("blues", colors["blues"]),
+        ],
+    )
+    def test_default_list_and_named_palette_ranges(self, constructor, palette_value, expected, group_df):
+        kwargs = {"palette": palette_value}
+        if constructor is mark_violin:
+            kwargs["inner"] = None
+        spec = constructor(group_df, "group", "value", CATEGORIES, **kwargs).to_dict()
+        primary = next(layer for layer in spec["layer"] if _mark_type(layer) in ("circle", "line"))
+        color_scale = primary["encoding"]["color"]["scale"]
+        if expected is None:
+            assert "range" not in color_scale
+        else:
+            assert color_scale["range"] == expected
+
+    def test_fixed_violin_groups_paths_in_rendered_svg(self, group_df):
+        import vl_convert as vlc
+
+        chart = mark_violin(group_df, "group", "value", CATEGORIES, fill="#123456", inner=None, steps=20)
+        spec = chart.to_dict()
+        violin = next(layer for layer in spec["layer"] if _mark_type(layer) == "line")
+        assert violin["encoding"]["detail"]["field"] == "__group"
+        assert violin["encoding"]["order"]["field"] == "__order"
+        vega = vlc.vegalite_to_vega(spec)
+        path_group = next(mark for mark in vega["marks"] if mark.get("type") == "group")
+        assert path_group["from"]["facet"]["groupby"] == ["__group"]
+        svg = vlc.vegalite_to_svg(spec).lower()
+        assert svg.count("#123456") == len(CATEGORIES)
+
+    @pytest.mark.parametrize("constructor", [mark_strip, mark_violin])
+    def test_fill_and_palette_cannot_be_combined(self, constructor, group_df):
+        kwargs = {"fill": "red", "palette": ["#111111"]}
+        if constructor is mark_violin:
+            kwargs["inner"] = None
+        with pytest.raises(ValueError, match="fill and palette"):
+            constructor(group_df, "group", "value", CATEGORIES, **kwargs)
+
+    @pytest.mark.parametrize("constructor", [mark_strip, mark_violin])
+    @pytest.mark.parametrize("fill", ["", " ", 1, ["red"]])
+    def test_invalid_fill_rejected(self, constructor, fill, group_df):
+        kwargs = {"fill": fill}
+        if constructor is mark_violin:
+            kwargs["inner"] = None
+        with pytest.raises(ValueError, match="fill"):
+            constructor(group_df, "group", "value", CATEGORIES, **kwargs)
+
+    @pytest.mark.parametrize("constructor", [mark_strip, mark_violin])
+    @pytest.mark.parametrize("palette_value", ["not_a_palette", "#ff0000", [], ["red", ""], ["red", 1], 1])
+    def test_invalid_palette_rejected(self, constructor, palette_value, group_df):
+        kwargs = {"palette": palette_value}
+        if constructor is mark_violin:
+            kwargs["inner"] = None
+        with pytest.raises(ValueError, match="palette|fill"):
+            constructor(group_df, "group", "value", CATEGORIES, **kwargs)
+
+    def test_named_palette_can_come_from_project_config(self, group_df, monkeypatch, tmp_path):
+        import os
+
+        root = os.getcwd()
+        (tmp_path / "dysonsphere.toml").write_text('[palettes]\nlocal = ["#112233", "#445566"]\n')
+        monkeypatch.chdir(tmp_path)
+        try:
+            theme()
+            spec = mark_strip(group_df, "group", "value", CATEGORIES, palette="local").to_dict()
+            circle = next(layer for layer in spec["layer"] if _mark_type(layer) == "circle")
+            assert circle["encoding"]["color"]["scale"]["range"] == ["#112233", "#445566"]
+        finally:
+            monkeypatch.chdir(root)
+            theme()
+
+    def test_named_palette_receives_the_same_list_validation(self, group_df, monkeypatch):
+        monkeypatch.setitem(colors, "empty_test_palette", [])
+        with pytest.raises(ValueError, match="non-empty"):
+            mark_strip(group_df, "group", "value", CATEGORIES, palette="empty_test_palette")
+
+    def test_fixed_fill_does_not_mutate_theme_or_conflict_with_theme_palette(self, group_df):
+        theme(palette=["#111111", "#222222", "#333333"])
+        before = dict(alt.theme.options)
+        try:
+            mark_strip(group_df, "group", "value", CATEGORIES, fill="#abcdef")
+            assert alt.theme.options == before
+        finally:
+            theme()
+
+    def test_fixed_fill_preserves_neighbor_legend(self, group_df):
+        import vl_convert as vlc
+
+        fixed = mark_strip(group_df, "group", "value", CATEGORIES, fill="#abcdef", legend=True)
+        colored = mark_strip(group_df, "group", "value", CATEGORIES, legend=True)
+        assert not vlc.vegalite_to_vega(fixed.to_dict()).get("legends")
+        figure = alt.hconcat(fixed, colored)
+        vega = vlc.vegalite_to_vega(figure.to_dict())
+        assert len(vega["legends"]) == 1
+
+    def test_fixed_fill_does_not_style_summary_or_inner_marks(self, group_df):
+        strip_spec = mark_strip(group_df, "group", "value", CATEGORIES, fill="#abcdef").to_dict()
+        assert "fill" not in next(layer for layer in strip_spec["layer"] if _mark_type(layer) == "errorbar")["mark"]
+
+        violin_spec = mark_violin(
+            group_df,
+            "group",
+            "value",
+            CATEGORIES,
+            fill="#abcdef",
+            inner="quartiles",
+            innerColor="orange",
+        ).to_dict()
+        silhouette = next(layer for layer in violin_spec["layer"] if _mark_type(layer) == "line")
+        assert silhouette["mark"]["fill"] == "#abcdef"
+        assert _median_area(violin_spec)["mark"]["fill"] == "orange"
+        assert all(layer["mark"]["color"] == "orange" for layer in _rule_layers(violin_spec))
+
+    def test_fixed_fill_is_darkmode_invariant(self, group_df):
+        import vl_convert as vlc
+
+        try:
+            rendered = []
+            for darkmode in (False, True):
+                theme(darkmode=darkmode)
+                chart = mark_strip(group_df, "group", "value", CATEGORIES, fill="#123456")
+                spec = chart.to_dict()
+                circle = next(layer for layer in spec["layer"] if _mark_type(layer) == "circle")
+                assert circle["mark"]["fill"] == "#123456"
+                rendered.append(vlc.vegalite_to_svg(spec).lower().count("#123456"))
+            assert rendered == [len(group_df), len(group_df)]
+        finally:
+            theme()
 
 
 class TestViolinInner:

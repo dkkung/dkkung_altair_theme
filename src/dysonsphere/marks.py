@@ -7,6 +7,7 @@ import numpy as np
 import polars as pl
 
 from .display_labels import label_expr
+from .palettes import colors
 from .theme import _opt
 from .transforms import beeswarm, jitter
 from .utils import _internal_data, _nice_domain, band_geometry, ensure_polars
@@ -40,6 +41,7 @@ class _MarkScaffold:
     yCol: str
     categories: list[str]
     palette: str | list[str] | None = None
+    fill: str | None = None
     legend: bool = False
     xLabelAngle: float | None = None
     labelMap: Mapping[Any, str | list[str]] | None = None
@@ -48,6 +50,21 @@ class _MarkScaffold:
 
     def __post_init__(self) -> None:
         self.df = ensure_polars(self.df)
+        if self.fill is not None and (not isinstance(self.fill, str) or not self.fill.strip()):
+            raise ValueError("fill must be a non-empty color string or None")
+        if self.fill is not None and self.palette is not None:
+            raise ValueError("fill and palette cannot both be non-None")
+        if isinstance(self.palette, str):
+            if self.palette not in colors:
+                raise ValueError(f"unknown palette name {self.palette!r}; use fill=... for a fixed color")
+            self.palette = colors[self.palette]
+        if isinstance(self.palette, list):
+            if not self.palette:
+                raise ValueError("palette must be a non-empty list of color strings")
+            if any(not isinstance(color, str) or not color.strip() for color in self.palette):
+                raise ValueError("palette must be a non-empty list of non-empty color strings")
+        elif self.palette is not None:
+            raise ValueError("palette must be a palette name, a list of color strings, or None")
         if self.xLabelAngle is None:
             self.xLabelAngle = _opt("xLabelAngle")
         self.x_title: str | None = self.xCol if isinstance(self.xTitle, _UnsetType) else self.xTitle
@@ -98,7 +115,7 @@ class _MarkScaffold:
         # Pin the domain (a literal list) so the category->colour mapping survives a shared-scale
         # merge when marks are layered/concatenated - see x(). Without it, `sort=` alone is
         # re-sorted alphabetically through the merge and colours stop matching their categories.
-        range_kwargs: dict[str, Any] = {} if pal is None else {"range": pal if isinstance(pal, list) else [pal]}
+        range_kwargs: dict[str, Any] = {} if pal is None else {"range": pal}
         scale = alt.Scale(domain=self.categories, **range_kwargs)
         return alt.Color(
             field if field is not None else f"{self.xCol}:N",
@@ -121,6 +138,7 @@ def mark_violin(
     boxplotColor: str = "black",
     boxplotMedianColor: str = "white",
     palette: str | list[str] | None = None,
+    fill: str | None = None,
     fillOpacity: float | None = None,
     stroke: str | bool | None = True,
     strokeWidth: float | None = None,
@@ -176,8 +194,13 @@ def mark_violin(
         ``"white"`` so it reads against the default black box; overrides the
         theme's ``markMedianFill``.
     palette:
-        Fill color of all violins. When ``None``, each group inherits its
-        color from the theme's active category palette.
+        Named dysonsphere palette or explicit list of category colors. When ``None``, each
+        group inherits its color from the theme's active category palette. Cannot be combined
+        with ``fill``.
+    fill:
+        Fixed literal fill color for the violin silhouette. Suppresses the category-color
+        legend when set and does not affect the inner statistic marks. Cannot be combined with
+        ``palette``.
     fillOpacity:
         Fill opacity of the violin. Inherits ``markFillOpacity`` from theme
         when ``None``.
@@ -236,7 +259,7 @@ def mark_violin(
             data, "group", "value", CATEGORIES,
             inner="box",
             boxplotWidth=10,
-            palette="#AAAAAA",
+            fill="#AAAAAA",
         )
     """
     yCol = y
@@ -251,6 +274,7 @@ def mark_violin(
         yCol,
         categories,
         palette=palette,
+        fill=fill,
         legend=legend,
         xLabelAngle=xLabelAngle,
         labelMap=labelMap,
@@ -393,19 +417,22 @@ def mark_violin(
     }
     if stroke is not None:
         mark_kwargs["stroke"] = stroke
+    if s.fill is not None:
+        mark_kwargs["fill"] = s.fill
 
-    violin = (
-        alt.Chart(_internal_data(violin_df))
-        .mark_line(**mark_kwargs)
-        .encode(
-            # padding=0: the precomputed pixel coordinates assume the full [0, chartWidth]
-            # range - theme(viewPadding=...) must not compress this internal scale
-            x=alt.X("__x:Q", scale=alt.Scale(domain=[0, chart_width], padding=0), axis=None),
-            y=s.y("__y:Q"),
-            order=alt.Order("__order:Q"),
-            color=s.color(field="__group:N", title=None, symbolType="circle"),
-        )
-    )
+    violin_encoding: dict[str, Any] = {
+        # padding=0: the precomputed pixel coordinates assume the full [0, chartWidth]
+        # range - theme(viewPadding=...) must not compress this internal scale
+        "x": alt.X("__x:Q", scale=alt.Scale(domain=[0, chart_width], padding=0), axis=None),
+        "y": s.y("__y:Q"),
+        "order": alt.Order("__order:Q"),
+    }
+    if s.fill is None:
+        violin_encoding["color"] = s.color(field="__group:N", title=None, symbolType="circle")
+    else:
+        violin_encoding["detail"] = alt.Detail("__group:N")
+
+    violin = alt.Chart(_internal_data(violin_df)).mark_line(**mark_kwargs).encode(**violin_encoding)
 
     if inner == "box":
         boxplot = (
@@ -493,7 +520,8 @@ def mark_strip(
     categories: list[str],
     *,
     scatter: str = "jitter",
-    palette: list[str] | None = None,
+    palette: str | list[str] | None = None,
+    fill: str | None = None,
     markSize: int | None = None,
     markOpacity: float | None = None,
     spread: float | None = None,
@@ -528,6 +556,12 @@ def mark_strip(
     scatter:
         Point distribution method: ``'jitter'`` (faster, random Gaussian offset)
         or ``'beeswarm'`` (collision-avoidance, better for smaller n).
+    palette:
+        Named dysonsphere palette or explicit list of category colors. When ``None``, colors
+        inherit the active theme category palette. Cannot be combined with ``fill``.
+    fill:
+        Fixed literal fill color for the points. Suppresses the category-color legend when set
+        and does not affect summary marks. Cannot be combined with ``palette``.
     markSize:
         Size of individual points. Inherits ``markSize`` from theme when ``None``.
     markOpacity:
@@ -575,6 +609,7 @@ def mark_strip(
         y,
         categories,
         palette=palette,
+        fill=fill,
         legend=legend,
         xLabelAngle=xLabelAngle,
         labelMap=labelMap,
@@ -609,24 +644,30 @@ def mark_strip(
 
     x_encoding = s.x()
 
+    point_mark_kwargs: dict[str, Any] = {
+        "size": markSize,
+        "opacity": markOpacity,
+        "stroke": "black" if _opt("darkmode") else _opt("markStroke"),
+        "strokeWidth": _opt("markStrokeWidth"),
+        "strokeOpacity": _opt("markStrokeOpacity"),
+    }
+    point_encoding: dict[str, Any] = {
+        "x": x_encoding,
+        "y": s.y(),
+        "xOffset": alt.XOffset(f"{offset_col}:Q", scale=offset_scale),
+    }
+    if s.fill is None:
+        point_encoding["color"] = s.color()
+    else:
+        point_mark_kwargs["fill"] = s.fill
+
     points = (
         alt.Chart(data)
         # Stroke pinned here, NOT inherited: the theme's config.circle has stroke=None
         # (bare overlay dots are stroke-less), but strip/beeswarm points keep the house
         # outlined-dot look. Black in darkmode too (outlines light palette fills).
-        .mark_circle(
-            size=markSize,
-            opacity=markOpacity,
-            stroke="black" if _opt("darkmode") else _opt("markStroke"),
-            strokeWidth=_opt("markStrokeWidth"),
-            strokeOpacity=_opt("markStrokeOpacity"),
-        )
-        .encode(
-            x=x_encoding,
-            y=s.y(),
-            xOffset=alt.XOffset(f"{offset_col}:Q", scale=offset_scale),
-            color=s.color(),
-        )
+        .mark_circle(**point_mark_kwargs)
+        .encode(**point_encoding)
     )
 
     if not errorbars:
