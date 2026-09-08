@@ -28,14 +28,14 @@ def rule(
     label: str | list[str] | None = None,
     labelPosition: str | None = None,
     labelAlign: str | None = None,
-    labelOffsetX: int = 0,
-    labelOffsetY: int = 0,
+    labelOffsetX: float = 0,
+    labelOffsetY: float = 0,
     color: str | None = None,
     strokeWidth: float | None = None,
-    strokeDash: bool | list[int] | None = None,
+    strokeDash: bool | list[int | float] | None = None,
     opacity: float = 1.0,
     fontSize: float | None = None,
-    data: pl.DataFrame | Any | None = None,
+    data: pl.DataFrame | pd.DataFrame | None = None,
 ) -> alt.Chart | alt.LayerChart: ...
 ```
 
@@ -53,14 +53,14 @@ Returns a layer that the caller composes with ``+``.
 - **`label`** (`str | list[str] | None`) - Optional text label(s). One string per value.
 - **`labelAlign`** (`str | None`) - Where *along* the line the label is anchored. ``axis="y"``: ``"left"`` (default), ``"center"``, or ``"right"``. ``axis="x"``: ``"top"`` (default), ``"center"``, or ``"bottom"``.
 - **`labelPosition`** (`str | None`) - Which *side* of the line the label sits on. ``axis="y"``: ``"top"`` (default) or ``"bottom"``. ``axis="x"``: ``"right"`` (default) or ``"left"``.
-- **`labelOffsetX`** (`int`) - Additional horizontal pixel offset applied to the label. Default ``0``. Positive shifts right, negative shifts left.
-- **`labelOffsetY`** (`int`) - Additional vertical pixel offset applied to the label. Default ``0``. Positive shifts down, negative shifts up.
+- **`labelOffsetX`** (`float`) - Additional horizontal pixel offset applied to the label. Default ``0``. Positive shifts right, negative shifts left.
+- **`labelOffsetY`** (`float`) - Additional vertical pixel offset applied to the label. Default ``0``. Positive shifts down, negative shifts up.
 - **`color`** (`str | None`) - Line and label color. ``None`` inherits from the active theme.
 - **`strokeWidth`** (`float | None`) - Line width in pixels. ``None`` inherits from the active theme.
-- **`strokeDash`** (`bool | list[int] | None`) - ``None`` (default) inherits the theme's ``dashedRule`` setting. ``False`` forces a solid line. ``True`` uses the theme's ``dashedWidth`` pattern. A list (e.g. ``[4, 2]``) uses that pattern directly.
+- **`strokeDash`** (`bool | list[int | float] | None`) - ``None`` (default) inherits the theme's ``dashedRule`` setting. ``False`` forces a solid line. ``True`` uses the theme's ``dashedWidth`` pattern. A list (e.g. ``[4, 2]``) uses that pattern directly.
 - **`opacity`** (`float`) - Line opacity. Defaults to ``1.0``.
 - **`fontSize`** (`float | None`) - Label font size. ``None`` inherits from the active theme.
-- **`data`** (`pl.DataFrame | Any | None`) - Facet-safe (datum) mode. ``None`` (default) builds the rule from its own small internal dataset — the normal behavior, but **incompatible with faceting** (Altair requires every layer of a faceted chart to share one data variable). Pass the **same DataFrame you gave the base chart** to switch to datum mode: the rule then shares that data and is positioned by a constant ``alt.datum`` instead of a sidecar dataset, so ``(base + rule(..., data=df))`` can be faceted and the line repeats in every panel. Accepts a polars or pandas DataFrame.
+- **`data`** (`pl.DataFrame | pd.DataFrame | None`) - Facet-safe (datum) mode. ``None`` (default) builds the rule from its own small internal dataset — the normal behavior, but **incompatible with faceting** (Altair requires every layer of a faceted chart to share one data variable). Pass the **same DataFrame you gave the base chart** to switch to datum mode: the rule then shares that data and is positioned by a constant ``alt.datum`` instead of a sidecar dataset, so ``(base + rule(..., data=df))`` can be faceted and the line repeats in every panel. Accepts a polars or pandas DataFrame.
 
 **Examples**
 
@@ -114,8 +114,8 @@ def text(
     angle: float = 0,
     align: str | None = None,
     baseline: str | None = None,
-    offsetX: int = 0,
-    offsetY: int = 0,
+    offsetX: float = 0,
+    offsetY: float = 0,
     color: str | None = None,
     fontSize: float | None = None,
     fontWeight: str | None = None,
@@ -126,7 +126,7 @@ def text(
     fillOpacity: float = 1.0,
     stroke: str | bool = True,
     cornerRadius: float | bool = True,
-    data: pl.DataFrame | Any | None = None,
+    data: pl.DataFrame | pd.DataFrame | None = None,
 ) -> alt.Chart | alt.LayerChart: ...
 ```
 
@@ -143,8 +143,8 @@ Returns a layer that the caller composes with ``+``.
 - **`angle`** (`float`) - Rotation in degrees, clockwise. Vega-Lite requires values in [0, 360]; negative values are wrapped automatically. Defaults to ``0``.
 - **`align`** (`str | None`) - Horizontal text anchor: ``"left"`` (default), ``"center"``, or ``"right"``. Overrides the position value when both are set.
 - **`baseline`** (`str | None`) - Vertical text anchor: ``"top"``, ``"middle"`` (default), ``"bottom"``, or ``"alphabetic"``. ``"middle"`` centers the text body on the y coordinate — best for annotations near symbols or rules. ``"alphabetic"`` sits the reading baseline on y — best when text sits alongside other typeset text. Overrides the position value when both are set.
-- **`offsetX`** (`int`) - Horizontal pixel nudge applied after positioning. Positive shifts right. Useful for inset when using ``position``.
-- **`offsetY`** (`int`) - Vertical pixel nudge applied after positioning. Positive shifts down. Useful for inset when using ``position``.
+- **`offsetX`** (`float`) - Horizontal pixel nudge applied after positioning. Positive shifts right. Useful for inset when using ``position``.
+- **`offsetY`** (`float`) - Vertical pixel nudge applied after positioning. Positive shifts down. Useful for inset when using ``position``.
 - **`color`** (`str | None`) - Text color. ``None`` inherits from the active theme's ``mark_text`` config.
 - **`fontSize`** (`float | None`) - Font size in points. ``None`` inherits from the active theme.
 - **`fontWeight`** (`str | None`) - ``"normal"``, ``"bold"``, or a numeric CSS weight (``100``–``900``). ``None`` inherits from the active theme.
@@ -155,7 +155,7 @@ Returns a layer that the caller composes with ``+``.
 - **`fillOpacity`** (`float`) - Opacity of the background fill (``0``-``1``). Defaults to ``1.0``. Ignored when ``fill`` is off.
 - **`stroke`** (`str | bool`) - Border of the background chip. ``True`` (default) -> a darkmode-aware default (``"black"`` light / ``"white"`` dark); ``False`` -> no border; a string -> that color. Only takes effect when a chip is drawn (i.e. when ``fill`` is set) - it borders the fill, it does not create a chip on its own.
 - **`cornerRadius`** (`float | bool`) - Corner rounding of the background chip. ``True`` (default) -> ``fontSize * 0.25``; ``False`` -> ``0`` (square); an explicit float -> that radius in px. Ignored when no chip is drawn.
-- **`data`** (`pl.DataFrame | Any | None`) - Facet-safe (datum) mode. ``None`` (default) builds the annotation from its own internal dataset — the normal behavior, but **incompatible with faceting**. Pass the **same DataFrame you gave the base chart** to share its data and position the text by ``alt.datum`` (data coordinates) / ``alt.value`` (pixels), so ``(base + text(..., data=df))`` can be faceted and the text repeats in every panel. Accepts a polars or pandas DataFrame.
+- **`data`** (`pl.DataFrame | pd.DataFrame | None`) - Facet-safe (datum) mode. ``None`` (default) builds the annotation from its own internal dataset — the normal behavior, but **incompatible with faceting**. Pass the **same DataFrame you gave the base chart** to share its data and position the text by ``alt.datum`` (data coordinates) / ``alt.value`` (pixels), so ``(base + text(..., data=df))`` can be faceted and the text repeats in every panel. Accepts a polars or pandas DataFrame.
 
 **Examples**
 
@@ -193,7 +193,7 @@ Returns a layer that the caller composes with ``+``.
 
 ```python
 def labels(
-    data: pl.DataFrame | Any,
+    data: pl.DataFrame | pd.DataFrame,
     x: str,
     y: str,
     labels: str,
@@ -211,7 +211,7 @@ def labels(
     connector: bool = True,
     connectorColor: str | None = None,
     connectorOpacity: float | None = None,
-    connectorStrokeDash: bool | list[int] = False,
+    connectorStrokeDash: bool | list[int | float] = False,
     connectorGap: float | None = None,
     alwaysShowConnectors: bool = False,
 ) -> alt.LayerChart: ...
@@ -230,7 +230,7 @@ axes are left alone. Just compose ``base + ds.labels(data, ...)``.
 
 **Parameters**
 
-- **`data`** (`pl.DataFrame | Any`) - The plotted data (polars or pandas) - pass the same frame as the base chart.
+- **`data`** (`pl.DataFrame | pd.DataFrame`) - The plotted data (polars or pandas) - pass the same frame as the base chart.
 - **`x`** (`str`) - Quantitative coordinate columns (must match the base chart's x / y encodings).
 - **`y`** (`str`) - Quantitative coordinate columns (must match the base chart's x / y encodings).
 - **`labels`** (`str`) - Column holding the label text.
@@ -247,7 +247,7 @@ axes are left alone. Just compose ``base + ds.labels(data, ...)``.
 - **`connector`** (`bool`) - Whether to draw the line connecting each point to its label (default ``True``).
 - **`connectorColor`** (`str | None`) - Connector line color. ``None`` -> inherits the theme's ``mark_rule`` color (darkmode-aware). Connectors otherwise inherit the theme's rule style (rounded caps, ``axisWidth`` stroke, opaque).
 - **`connectorOpacity`** (`float | None`) - Connector line opacity, ``0``-``1``. ``None`` (default) -> inherits the theme's ``mark_rule`` opacity (opaque). Sets only the mark opacity, leaving the (darkmode-aware) color intact, so a faded leader - e.g. ``connectorOpacity=0.5`` to quiet the leaders relative to the labels - stays legible in both light and dark mode.
-- **`connectorStrokeDash`** (`bool | list[int]`) - Connector dash pattern. ``False`` (default) -> solid; ``True`` -> the theme's ``dashedWidth`` pattern; a list (e.g. ``[4, 2]``) -> that pattern directly.
+- **`connectorStrokeDash`** (`bool | list[int | float]`) - Connector dash pattern. ``False`` (default) -> solid; ``True`` -> the theme's ``dashedWidth`` pattern; a list (e.g. ``[4, 2]``) -> that pattern directly.
 - **`connectorGap`** (`float | None`) - Pixel gap left at the MARKER end of the connector so it points at the dot rather than piercing it. ``None`` (default) -> the theme's ``mark_point`` edge radius plus two connector stroke widths of whitespace (``sqrt(markSize/2/pi) + markStrokeWidth + 2*axisWidth``), which clears the default point mark (and the smaller ``mark_circle``) with a visible sliver of daylight at any theme scale; ``0`` -> no marker gap; a float -> that many pixels (set this for unusually large or heavily stroked markers, which the gap can't measure since the base chart isn't visible here). The TEXT end always keeps just the whitespace term (``2*axisWidth`` - there is no marker to clear there, so a symmetric gap would open a hole between line and label). Both gaps are uniform - they never shrink, so every drawn connector sits the same distance off its dot and its label; a connector too short to keep the full gaps is dropped instead (see ``alwaysShowConnectors``).
 - **`alwaysShowConnectors`** (`bool`) - By default (``False``) a connector is omitted when the full end gaps would leave less than four connector stroke widths of visible line (length < ``connectorGap + 6*axisWidth``, i.e. < 1 px of line at the default theme) - the stub is just noise and the adjacent label is unambiguous. This threshold is font-independent (tied to the marker gap), so changing the label font never drops real leaders. ``True`` draws every one (sub-threshold stubs shrink their gaps to fit).
 
@@ -256,7 +256,6 @@ axes are left alone. Just compose ``base + ds.labels(data, ...)``.
 ```python
 def shade(
     categories: list[str] | None = None,
-    xCol: str | None = None,
     *,
     positions: list[tuple[Any, ...]] | None = None,
     axis: str = 'x',
@@ -268,7 +267,7 @@ def shade(
     strokeWidth: float | None = None,
     strokeDash: list[float] | bool | None = None,
     flush: bool | None = None,
-    data: pl.DataFrame | Any | None = None,
+    data: pl.DataFrame | pd.DataFrame | None = None,
 ) -> alt.LayerChart: ...
 ```
 
@@ -303,7 +302,7 @@ a quantitative y-range).
 In both modes, compose behind the main chart with ``+``::
 
     # band mode
-    shade = ds.shade(CATEGORIES, "group")
+    shade = ds.shade(CATEGORIES)
     chart = shade + main_chart
 
     # positions mode — shade two category spans on x
@@ -327,7 +326,6 @@ In both modes, compose behind the main chart with ``+``::
 **Parameters**
 
 - **`categories`** (`list[str] | None`) - Ordered list of axis categories. Required for band mode. Also required in positions mode when any tuple values are strings.
-- **`xCol`** (`str | None`) - Column name for the x-axis grouping variable (band mode only; not used internally).
 - **`positions`** (`list[tuple[Any, ...]] | None`) - List of ``(start, end)`` tuples (single-axis) or ``((x_start, x_end), (y_start, y_end))`` tuples (``axis='both'``) defining explicit shade regions. Activates positions mode; ``repeat`` and ``flush`` are used only when tuple values are strings.
 - **`axis`** (`str`) - ``'x'`` (default), ``'y'``, or ``'both'``. Controls which axis the shading runs along. ``'both'`` draws intersection rects spanning an explicit x-range and y-range simultaneously. Ignored in band mode (always ``'x'``).
 - **`palette`** (`list[str] | None`) - List of hex color strings to cycle through in light mode. Defaults to ``"greys"`` when ``None``. In dark mode this parameter is always ignored — the darkest ``nShades`` stops of ``"greys"`` are used regardless. Resolved at call time; pass a callable to ``ds.save()`` for correct darkmode rendering.
@@ -338,4 +336,4 @@ In both modes, compose behind the main chart with ``+``::
 - **`strokeWidth`** (`float | None`) - Explicit border width in pixels. Overrides ``axisWidth`` when ``stroke=True``. Has no effect when ``stroke=False``.
 - **`strokeDash`** (`list[float] | bool | None`) - Dash pattern for the rect border. ``None`` (default) → solid. ``True`` → inherit ``dashedWidth`` from the active theme. A list (e.g. ``[4, 2]``) → use that pattern directly.
 - **`flush`** (`bool | None`) - Extend the outermost rects to the axis domain edge (band mode and string positions only). ``None`` inherits from the theme's ``closed`` setting.
-- **`data`** (`pl.DataFrame | Any | None`) - Facet-safe (datum) mode, **positions mode only**. ``None`` (default) builds each rect from its own internal dataset — the normal behavior, but **incompatible with faceting**. Pass the **same DataFrame you gave the base chart** to share its data and position numeric ranges by ``alt.datum`` (string/pixel ranges already use ``alt.value``), so ``(base + shade(positions=..., data=df))`` can be faceted and the shading repeats in every panel. Accepts polars or pandas. **Band mode** (``positions`` omitted) does not support ``data=`` and raises.
+- **`data`** (`pl.DataFrame | pd.DataFrame | None`) - Facet-safe (datum) mode, **positions mode only**. ``None`` (default) builds each rect from its own internal dataset — the normal behavior, but **incompatible with faceting**. Pass the **same DataFrame you gave the base chart** to share its data and position numeric ranges by ``alt.datum`` (string/pixel ranges already use ``alt.value``), so ``(base + shade(positions=..., data=df))`` can be faceted and the shading repeats in every panel. Accepts polars or pandas. **Band mode** (``positions`` omitted) does not support ``data=`` and raises.

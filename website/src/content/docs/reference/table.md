@@ -13,7 +13,7 @@ Render a DataFrame as a publication-styled table via a composite Altair mark.
 
 ```python
 def mark_table(
-    data: pl.DataFrame | Any,
+    data: pl.DataFrame | pd.DataFrame,
     columns: list[str] | None = None,
     *,
     header: bool = True,
@@ -71,7 +71,7 @@ may format a string column, while an all-missing column remains blank.
 
 **Parameters**
 
-- **`data`** (`pl.DataFrame | Any`) - The data to tabulate (Polars or Pandas). Never mutated.
+- **`data`** (`pl.DataFrame | pd.DataFrame`) - The data to tabulate (Polars or Pandas). Never mutated.
 - **`columns`** (`list[str] | None`) - Columns to show, in order. ``None`` (default) uses every column in ``data`` order.
 - **`header`** (`bool`) - Draw the header row of column labels. Default ``True``.
 - **`headerLabels`** (`dict[str, str] | None`) - ``{column: display label}`` to rename headers (unlisted columns keep their name). This is a permissive display map; unknown keys are ignored.

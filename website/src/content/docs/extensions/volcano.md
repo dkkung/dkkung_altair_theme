@@ -19,7 +19,7 @@ the ``dysonsphere.ext`` surface for such primitives.
 
 ```python
 def volcano(
-    data: pl.DataFrame | Any,
+    data: 'pl.DataFrame | pd.DataFrame',
     *,
     log2fc: str = 'log2fc',
     pvalue: str = 'pvalue',
@@ -32,9 +32,9 @@ def volcano(
     nonDifferentialColor: str | None = None,
     markOpacity: float = 0.85,
     legend: bool = True,
-    xTitle: str | None = _UNSET,
-    yTitle: str | None = _UNSET,
-) -> ext.AltairChart: ...
+    xTitle: str | list[str] | None = _UNSET,
+    yTitle: str | list[str] | None = _UNSET,
+) -> alt.LayerChart: ...
 ```
 
 Build a volcano plot (log2 fold change vs -log10 p) as a layered Altair chart.
@@ -51,7 +51,7 @@ correct light/dark export.
 
 **Parameters**
 
-- **`data`** (`pl.DataFrame | Any`) - A polars or pandas DataFrame with per-gene results.
+- **`data`** (`'pl.DataFrame | pd.DataFrame'`) - A polars or pandas DataFrame with per-gene results.
 - **`log2fc`** (`str`) - Column names for the effect size (x) and the p-value (y is ``-log10`` of it).
 - **`pvalue`** (`str`) - Column names for the effect size (x) and the p-value (y is ``-log10`` of it).
 - **`labels`** (`str | None`) - Column of gene names; required only when ``subset`` is set.
@@ -63,5 +63,5 @@ correct light/dark export.
 - **`nonDifferentialColor`** (`str | None`) - Color for the non-differential points. Defaults to a faint theme grey (darkmode-aware).
 - **`markOpacity`** (`float`) - Point opacity (default ``0.85``). All other point styling (fill, size, stroke) comes from the active theme's ``mark_point`` config.
 - **`legend`** (`bool`) - Show the significance color legend (default ``True``).
-- **`xTitle`** (`str | None`) - Axis titles. Omitted -> ``"log2 fold change"`` / ``"-log10 P"``; ``None`` -> no title.
-- **`yTitle`** (`str | None`) - Axis titles. Omitted -> ``"log2 fold change"`` / ``"-log10 P"``; ``None`` -> no title.
+- **`xTitle`** (`str | list[str] | None`) - Axis titles. Omitted -> ``"log2 fold change"`` / ``"-log10 P"``; ``None`` -> no title.
+- **`yTitle`** (`str | list[str] | None`) - Axis titles. Omitted -> ``"log2 fold change"`` / ``"-log10 P"``; ``None`` -> no title.

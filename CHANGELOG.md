@@ -4,6 +4,16 @@
 
 ### Changes
 
+- **Breaking:** deprecated `theme(bandPadding=...)`, `axisOffset=None`, `markMedianStroke`, shade
+  `xCol`, and multilabel `yPadding` are removed. Use the mark-specific padding options and current
+  signatures instead.
+- Dataframe boundaries now accept pandas/Polars DataFrames only; KDE and point-label coordinates
+  reject missing or non-finite observations without changing valid rows. Report readers/writers and
+  biology image loading accept `pathlib.Path` values.
+- KDE marks and quasirandom transforms now reject finite but numerically unusable estimates with
+  column/group context; quasirandom singleton, constant, and empty-input fallbacks are preserved.
+- Palette sampling requires `n` to be a nonnegative integer, including rejecting booleans and integral
+  floats; `n=0` and inclusive oversampling behavior are preserved.
 - `mark_strip()` and `mark_violin()` accept registered palette names and a separate `fill` for
   fixed colors. Fixed fill suppresses their category-color legend without changing summary marks.
 - **Breaking:** use `fill` instead of the violin's former literal-color `palette` shorthand.

@@ -33,7 +33,7 @@ saving each.  Call this to drop the pending queue.
 
 ```python
 def comparisons(
-    data: pl.DataFrame | Any,
+    data: pl.DataFrame | pd.DataFrame,
     x: str,
     y: str,
     pairs: list[tuple[str, str]] | str | None = None,
@@ -51,24 +51,24 @@ def comparisons(
     yStep: float | None = None,
     yPad: float | None = None,
     categories: list[Any] | None = None,
-    chartWidth: int | None = None,
+    chartWidth: float | None = None,
     bracketStyle: str | dict[tuple[str, str], Any] = 'bracket',
     labelStyle: str = 'p',
     tickHeight: float | None = None,
     strokeWidth: float | None = None,
-    fontSize: int | None = None,
+    fontSize: float | None = None,
     reverse: list[tuple[str, str]] | None = None,
     sigFigs: int | None = None,
     notation: str | dict[str | tuple[str, str], Any] | None = None,
     testLabelPosition: str | None = 'auto',
     testLabel: str | None = None,
     omnibusVerbose: bool = False,
-    testLabelOffsetX: int = 0,
-    testLabelOffsetY: int = 0,
+    testLabelOffsetX: float = 0,
+    testLabelOffsetY: float = 0,
     testLabelX = None,
     testLabelY = None,
     report: bool = False,
-    saveReport: bool | str = False,
+    saveReport: bool | str | Path = False,
 ) -> alt.LayerChart: ...
 ```
 
@@ -122,7 +122,7 @@ Combine with your chart using ``+``:  ``chart + ds.stats.comparisons(...)``.
 
 **Parameters**
 
-- **`data`** (`pl.DataFrame | Any`) - Polars DataFrame containing the data.
+- **`data`** (`pl.DataFrame | pd.DataFrame`) - Polars or pandas DataFrame containing the data.
 - **`x`** (`str`) - Column name for the grouping variable (x-axis).
 - **`y`** (`str`) - Column name for the value variable (y-axis). Used to run tests and to auto-place the first bracket.
 - **`pairs`** (`list[tuple[str, str]] | str | None`) - List of ``(group1, group2)`` tuples identifying the comparisons to annotate with brackets. Required for pairwise ``test`` values. Optional for omnibus tests — pass ``None`` for an omnibus-only corner label, or a list to also draw post-hoc brackets. ``"all"`` expands to every unique pair, in ``categories`` order (in grouped mode, every unique pair of ``xOffset`` levels). Besides being shorter, it keeps ``correction`` honest: the family size defaults to ``len(pairs)``, so hand-listing a subset of the comparisons you actually ran under-corrects them. Note the bracket count grows as ``n(n-1)/2`` — 6 brackets at 4 groups, 10 at 5, 15 at 6 — so beyond 4 or 5 groups prefer an omnibus ``test`` with ``pairs=None`` (which already reports every post-hoc comparison) and bracket only the few pairs worth showing.
@@ -139,24 +139,24 @@ Combine with your chart using ``+``:  ``chart + ds.stats.comparisons(...)``.
 - **`yStep`** (`float | None`) - Vertical distance (data units) between stacking levels, when placement is in data units. Setting it opts out of automatic pixel placement.
 - **`yPad`** (`float | None`) - Padding (data units) above the data maximum, when placement is in data units. Setting it opts out of the automatic pixel placement described above.
 - **`categories`** (`list[Any] | None`) - Ordered list of all x-axis categories. For data-backed comparisons, supplied values must match observed values exactly once; tuple/list order and numeric values are preserved. Inferred from ``data`` (sorted alphabetically) when not provided. Standalone reference annotations without data do not receive observed-coverage validation.
-- **`chartWidth`** (`int | None`) - Width of the chart in pixels, used to compute text x positions. Auto-detected from ``ds.theme()`` when not set.
+- **`chartWidth`** (`float | None`) - Width of the chart in pixels, used to compute text x positions. Auto-detected from ``ds.theme()`` when not set.
 - **`bracketStyle`** (`str | dict[tuple[str, str], Any]`) - ``'bracket'`` (default; bar + end ticks), ``'line'`` (horizontal bar only) or ``'drop'`` (end ticks reaching down toward each group's own data) applied to every bracket. Or a ``dict`` mapping a pair to its style for per-pair control, e.g. ``{("A", "B"): "line", ("A", "C"): "bracket"}`` — keys match either pair order; pairs absent from the dict fall back to ``'bracket'``.
 - **`labelStyle`** (`str`) - ``'p'`` (default) renders ``P = 0.012`` / ``P < 0.001``. ``'asterisks'`` renders ``*`` / ``**`` / ``***`` / ``ns``. ``'value'`` renders the bare value to save room - the same as ``'p'`` but without the ``P`` symbol and the redundant ``= `` (``0.012``), keeping a meaningful operator (``< 0.001`` when floored, ``≈ 10⁻⁵`` for ``notation='power'``). ``notation`` still applies.
 - **`tickHeight`** (`float | None`) - Height of bracket end ticks in data units, used when placement is in data units. Under automatic placement the ticks are a fixed 2 **pixels** on any y range. Always positive, so it works with reverse (negative-``yStep``) brackets without an explicit override. Only used when ``bracketStyle='bracket'``; raises with ``bracketStyle='drop'``, which computes a length per end.
 - **`strokeWidth`** (`float | None`) - Stroke width of bracket lines. Inherits ``axisWidth`` from ``ds.theme()`` when not set.
-- **`fontSize`** (`int | None`) - Font size of the p-value / corner labels. Defaults to the theme's primary ``fontSize`` (``7`` under the built-in defaults), matching the axis font.
+- **`fontSize`** (`float | None`) - Font size of the p-value / corner labels. Defaults to the theme's primary ``fontSize`` (``7`` under the built-in defaults), matching the axis font.
 - **`reverse`** (`list[tuple[str, str]] | None`) - List of ``(group1, group2)`` tuples identifying brackets to flip — text moves below the bar and ticks point upward, and the bracket hangs below its groups rather than above them. In grouped mode (``xOffset``) the tuples name ``xOffset`` levels, like ``pairs``, and apply in every category.
 - **`sigFigs`** (`int | None`) - Significant figures for p-value labels (and the correlation readout). Gives consistent visual precision across magnitudes — e.g. ``sigFigs=2`` renders both ``P = 4.3×10⁻¹⁴`` and ``P = 0.68`` at two figures. Trailing zeros are stripped. ``None`` (default) reads the theme's ``sigFigs`` (default ``3``). Plain notation floors at a fixed ``P < 0.001``; ``'power'`` is unaffected (integer exponent). Positive subnormal p-values are supported; a computed zero is shown as a bound in every notation using the minimum normal positive float stored in the report record.
 - **`notation`** (`str | dict[str | tuple[str, str], Any] | None`) - Format style for p-value labels when ``labelStyle='p'``. ``None`` (default) uses ``P = 0.012`` / ``P < 0.001`` style. ``'scientific'`` uses ``P = 1.23×10⁻²``. ``'e'`` uses ``P = 1.23e-02``. ``'power'`` rounds to the nearest power of 10 giving ``P ≈ 10⁻²`` — note that values within the same decade (e.g. 0.04 and 0.06) map to the same label; best for p-values spanning multiple orders of magnitude. A single value applies to every label; or pass a ``dict`` for per-pair notation, e.g. ``{("A", "B"): "scientific", "test": "power"}`` — tuple keys are pairs (matched either order, unlisted → plain), and the special ``"test"`` key sets the omnibus label's notation.
 - **`testLabelPosition`** (`str | None`) - Corner preset (a ``text`` position, e.g. ``'topLeft'``, ``'bottomRight'``) for the single test label. Its content adapts: the omnibus **result** (``ANOVA P = 0.003``) for an omnibus ``test``, or the pairwise **test name** (``Mann-Whitney U``) for a pairwise ``test``. Default ``'auto'`` → shown at ``'topLeft'`` for omnibus, hidden for pairwise (opt-in). A preset draws it there; ``None`` hides it (the result is still computed for the report/metadata).
 - **`testLabel`** (`str | None`) - Override string for the test label. ``None`` (default) builds it from the test result / name.
 - **`omnibusVerbose`** (`bool`) - Applies to the omnibus label content: ``False`` (default) → terse ``ANOVA P = 0.003``; ``True`` → ``ANOVA F(2, 57) = 6.34, P = 0.003, η² = 0.18`` (statistic, df, p, and effect size).
-- **`testLabelOffsetX`** (`int`) - Pixel nudges for the test label, forwarded to ``text``.
-- **`testLabelOffsetY`** (`int`) - Pixel nudges for the test label, forwarded to ``text``.
+- **`testLabelOffsetX`** (`float`) - Pixel nudges for the test label, forwarded to ``text``.
+- **`testLabelOffsetY`** (`float`) - Pixel nudges for the test label, forwarded to ``text``.
 - **`testLabelX`** - Explicit coordinates for the test label (data values, category names, or ``alt.value(px)``), forwarded to ``text`` where they override the preset. ``None`` (default) uses ``testLabelPosition``.
 - **`testLabelY`** - Explicit coordinates for the test label (data values, category names, or ``alt.value(px)``), forwarded to ``text`` where they override the preset. ``None`` (default) uses ``testLabelPosition``.
 - **`report`** (`bool`) - ``True`` prints the full descriptive + effect-size report (per-group n/mean/sd/median/IQR/range, the omnibus result, and the post-hoc comparisons) to stdout. Default ``False``. Without supplied ``pvalues``, an omnibus ``test`` lists **all** pairwise post-hoc comparisons - the full table, not just the pairs you bracket (and even when ``pairs=None``). With supplied values, it lists only the requested pairs and retains the omnibus result; supplied pairs have no test, correction, or effect size. A pairwise ``test`` lists exactly the requested ``pairs``. The report is queued for the export metadata regardless of this flag (when ``ds.save(..., saveMetadata=True)``); it lands in the next ``ds.save()``.
-- **`saveReport`** (`bool | str`) - ``True`` writes the report to ``dysonsphere_report_<timestamp>.txt`` in the current directory; a string writes it to that directory. Default ``False``.
+- **`saveReport`** (`bool | str | Path`) - ``True`` writes the report to ``dysonsphere_report_<timestamp>.txt`` in the current directory; a path writes it to that directory. Default ``False``.
 
 **Examples**
 
@@ -249,7 +249,7 @@ Reference mode - compare every dose against the control, a bare mark above each
 
 ```python
 def correlation(
-    data: pl.DataFrame | Any,
+    data: pl.DataFrame | pd.DataFrame,
     x: str,
     y: str,
     *,
@@ -262,9 +262,9 @@ def correlation(
     includePvalue: bool = False,
     includeEquation: bool = False,
     verbose: bool = False,
-    offsetX: int = 0,
-    offsetY: int = 0,
-    fontSize: int | None = None,
+    offsetX: float = 0,
+    offsetY: float = 0,
+    fontSize: float | None = None,
     sigFigs: int | None = None,
     notation: str | None = None,
     color: str | None = None,
@@ -277,7 +277,7 @@ def correlation(
     ciColor: str | None = None,
     ciOpacity: float = 0.15,
     report: bool = False,
-    saveReport: bool | str = False,
+    saveReport: bool | str | Path = False,
 ) -> alt.LayerChart: ...
 ```
 
@@ -292,7 +292,7 @@ Combine with your scatter using ``+``:  ``chart + ds.stats.correlation(...)``.
 
 **Parameters**
 
-- **`data`** (`pl.DataFrame | Any`) - DataFrame containing the data (polars or pandas).
+- **`data`** (`pl.DataFrame | pd.DataFrame`) - DataFrame containing the data (polars or pandas).
 - **`x`** (`str`) - Column names for the two **continuous** variables.
 - **`y`** (`str`) - Column names for the two **continuous** variables.
 - **`method`** (`str`) - ``'pearson'`` (default) — linear correlation ``r`` + ``r²`` + slope/intercept, with an OLS line. ``'spearman'`` — rank correlation ``ρ``. ``'kendall'`` — rank correlation ``τ``. The rank methods report the coefficient only (no ``r²``, no line — a straight line isn't their model). Matches pandas' ``DataFrame.corr``.
@@ -304,9 +304,9 @@ Combine with your scatter using ``+``:  ``chart + ds.stats.correlation(...)``.
 - **`includePvalue`** (`bool`) - Append the p-value to the readout. Default ``False``.
 - **`includeEquation`** (`bool`) - Pearson only — append the fit equation ``, y = 0.84x + 0.27``. Default ``False``.
 - **`verbose`** (`bool`) - Shortcut for the fullest readout: ``True`` is equivalent to ``coefficient="both", includePvalue=True, includeEquation=True`` (and overrides those three). Default ``False``. So the default readout is just ``r = 0.87`` (Pearson) / ``ρ = 0.81`` (rank); ``verbose=True`` gives ``r = 0.87, r² = 0.76, P < 0.001, y = 0.84x + 0.27``.
-- **`offsetX`** (`int`) - Pixel nudges for the readout, forwarded to ``text``.
-- **`offsetY`** (`int`) - Pixel nudges for the readout, forwarded to ``text``.
-- **`fontSize`** (`int | None`) - Font size of the readout. Defaults to the theme's primary ``fontSize`` (``7`` under the built-in defaults), matching the axis font.
+- **`offsetX`** (`float`) - Pixel nudges for the readout, forwarded to ``text``.
+- **`offsetY`** (`float`) - Pixel nudges for the readout, forwarded to ``text``.
+- **`fontSize`** (`float | None`) - Font size of the readout. Defaults to the theme's primary ``fontSize`` (``7`` under the built-in defaults), matching the axis font.
 - **`sigFigs`** (`int | None`) - Significant figures / number format for the readout (coefficient, r², p-value, and fit equation), as in ``comparisons``. ``sigFigs=None`` reads the theme.
 - **`notation`** (`int | None`) - Significant figures / number format for the readout (coefficient, r², p-value, and fit equation), as in ``comparisons``. ``sigFigs=None`` reads the theme.
 - **`color`** (`str | None`) - Curated style overrides for the fit line (same four knobs as ``rule``). Each defaults to ``None`` → the line inherits the theme's ``mark_line`` config; set one to override just that property.
@@ -319,7 +319,7 @@ Combine with your scatter using ``+``:  ``chart + ds.stats.correlation(...)``.
 - **`ciColor`** (`str | None`) - Fill colour of the band. ``None`` (default) inherits the effective fit-line color, including a ``lineStyle`` color, falling back to the theme's mark colour (black / white, darkmode-aware). Because the default resolves darkmode at build time, wrap chart construction in a callable passed to ``ds.save()`` for correct light/dark exports (as with ``shade``).
 - **`ciOpacity`** (`float`) - Fill opacity of the band. Default ``0.15``.
 - **`report`** (`bool`) - ``True`` prints the report (coefficient, r², p, fit, n) to stdout. Default ``False``. The record is queued for export metadata regardless.
-- **`saveReport`** (`bool | str`) - ``True`` writes the report to ``dysonsphere_report_<timestamp>.txt`` in the cwd; a string writes it to that directory.
+- **`saveReport`** (`bool | str | Path`) - ``True`` writes the report to ``dysonsphere_report_<timestamp>.txt`` in the cwd; a path writes it to that directory.
 
 **Examples**
 

@@ -3,7 +3,7 @@ import math
 import re
 import textwrap
 import xml.etree.ElementTree as ET
-from typing import Any
+from typing import Any, cast
 
 import altair as alt
 import polars as pl
@@ -302,7 +302,7 @@ class TestShow:
 
         obj = show(simple_chart)
         assert type(obj).__name__ == "HTML"  # IPython.display.HTML
-        assert obj.data.startswith("<svg")  # bare markup, no XML prolog to confuse the HTML parser
+        assert cast(str, obj.data).startswith("<svg")  # bare markup, no XML prolog to confuse the HTML parser
 
     def test_runs_full_pipeline_inward_ticks(self):
         # show()'s whole point: the preview matches save() output. With inwardTicks the preview
@@ -312,7 +312,7 @@ class TestShow:
         theme(inwardTicks=True)
         df = pl.DataFrame({"x": [1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0]})
         chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
-        svg = show(chart).data
+        svg = cast(str, show(chart).data)
         y2s = [float(m) for m in re.findall(r'y2="(-?[\d.]+)"', svg) if 0 < abs(float(m)) < 20]
         assert y2s and all(v < 0 for v in y2s)  # inward
 
@@ -321,7 +321,7 @@ class TestShow:
 
         df = pl.DataFrame({"x": [1.0, 2.0], "y": [1.0, 2.0]})
         obj = show(lambda: alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q"))
-        assert "<svg" in obj.data
+        assert "<svg" in cast(str, obj.data)
 
     def test_writes_no_file(self, simple_chart, tmp_path, monkeypatch):
         from dysonsphere.export import show
@@ -348,7 +348,7 @@ class TestShow:
         prev = alt.data_transformers.active
         alt.data_transformers.enable("vegafusion")
         try:
-            svg = show(simple_chart).data
+            svg = cast(str, show(simple_chart).data)
             assert "<svg" in svg
             assert alt.data_transformers.active == "vegafusion"  # restored
         finally:
@@ -367,7 +367,7 @@ class TestShow:
 
         df = pl.DataFrame({"x": [float(i) for i in range(20)], "y": [float(i) for i in range(20)]})
         chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
-        assert "<svg" in show(chart, maxRows=5, overrideMaxRows=True).data
+        assert "<svg" in cast(str, show(chart, maxRows=5, overrideMaxRows=True).data)
 
     def test_inherits_theme_transparent(self, simple_chart):
         # show() used to force transparent=True, so a darkmode theme previewed white-on-nothing
@@ -375,13 +375,13 @@ class TestShow:
         from dysonsphere.export import show
 
         theme(darkmode=True, transparent=False)
-        assert re.search(r'<rect width="\d+" height="\d+" fill="black"', show(simple_chart).data)
+        assert re.search(r'<rect width="\d+" height="\d+" fill="black"', cast(str, show(simple_chart).data))
 
     def test_theme_transparent_true_has_no_background(self, simple_chart):
         from dysonsphere.export import show
 
         theme(darkmode=True, transparent=True)
-        assert not re.search(r'<rect width="\d+" height="\d+" fill=', show(simple_chart).data)
+        assert not re.search(r'<rect width="\d+" height="\d+" fill=', cast(str, show(simple_chart).data))
 
     def test_does_not_mutate_theme_options(self, simple_chart):
         # show() renders straight at the theme's values - it must set nothing to restore

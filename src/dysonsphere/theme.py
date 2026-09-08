@@ -56,7 +56,6 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "markFill": colors["greys"][1],
     "markFillOpacity": 1.0,
     "markMedianFill": "black",
-    "markMedianStroke": "black",
     "markSize": None,
     "markStroke": "black",
     "markStrokeOpacity": 1,
@@ -95,29 +94,6 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "yLabels": True,
     "yTicks": True,
 }
-
-
-# DEPRECATED (remove at v4.0.0): old parameter names, silently mapped to their
-# replacements. A value maps to one or more new keys - `bandPadding` set both the
-# inner and outer band padding, so it expands to the two keys that now carry them.
-_DEPRECATED_ALIASES: dict[str, tuple[str, ...]] = {
-    "bandPadding": ("barPadding", "outerPadding"),  # split by mark type in v3.11
-}
-
-
-def _apply_deprecated_aliases(params: dict[str, Any]) -> dict[str, Any]:
-    """Map deprecated parameter names to their replacements.
-
-    Returns a new dict with old keys renamed. An explicitly-set new name wins over
-    the value inherited from the old one.
-    """
-    out = dict(params)
-    for old, new_keys in _DEPRECATED_ALIASES.items():
-        if old in out:
-            val = out.pop(old)
-            for new in new_keys:
-                out.setdefault(new, val)
-    return out
 
 
 def _find_project_config() -> Path | None:
@@ -174,7 +150,6 @@ def _load_style_overrides(style: str | None) -> dict[str, Any]:
 
         for section in ("default", style):
             if section and section in config:
-                config[section] = _apply_deprecated_aliases(config[section])
                 unknown = set(config[section]) - set(_BUILTIN_DEFAULTS)
                 if unknown:
                     raise ValueError(f"Unknown theme parameter(s) in [{section}] of {path}: {sorted(unknown)}")
@@ -223,20 +198,23 @@ def theme(style: str | None = None, **kwargs: Any) -> None:
     A TOML config file can provide persistent per-project or per-user
     overrides. See the README for the config file format and search path.
     Named styles in the config file are selected with ``style=``.
+
+    Raises
+    ------
+    TypeError
+        If an unknown theme parameter is supplied.
+    ValueError
+        If a configuration file contains an unknown parameter or invalid palette, if a requested
+        style is unavailable, or if ``axisOffset=None`` is supplied. Failed calls leave the active
+        theme state unchanged.
     """
     global _ACTIVE_ARGS
-    _ACTIVE_ARGS = {**kwargs, **({"style": style} if style is not None else {})}
-    kwargs = _apply_deprecated_aliases(kwargs)
     unknown = set(kwargs) - set(_BUILTIN_DEFAULTS)
     if unknown:
         raise TypeError(f"theme() got unexpected keyword argument(s): {sorted(unknown)}")
 
-    # Restore built-in palettes, then layer in any custom palettes from config files.
-    colors.clear()
-    colors.update(_ORIGINAL_COLORS)
-    colors.update(_load_custom_palettes())
-
     overrides = _load_style_overrides(style)
+    custom_palettes = _load_custom_palettes()
     p: dict[str, Any] = {**_BUILTIN_DEFAULTS, **overrides, **kwargs}
     _compute_derived(p)
 
@@ -245,9 +223,14 @@ def theme(style: str | None = None, **kwargs: Any) -> None:
     # passed through unchanged.
     for key in ("palette", "categoryPalette", "divergingPalette", "heatmapPalette", "ordinalPalette", "rampPalette"):
         val = p[key]
-        p[key] = colors[val] if isinstance(val, str) and val in colors else val
+        p[key] = custom_palettes.get(val, _ORIGINAL_COLORS.get(val, val)) if isinstance(val, str) else val
 
+    # Commit only after every input has been validated and all derived values have been computed.
+    colors.clear()
+    colors.update(_ORIGINAL_COLORS)
+    colors.update(custom_palettes)
     alt.theme.options = {**p, "tickWidth": p["axisWidth"]}
+    _ACTIVE_ARGS = {**kwargs, **({"style": style} if style is not None else {})}
 
 
 def _compute_derived(p: dict[str, Any]) -> None:
@@ -276,7 +259,9 @@ def _compute_derived(p: dict[str, Any]) -> None:
     # True restores the Prism-style detached axis at 1.5x tick length - a sentinel rather than a
     # literal 4.5 so it keeps tracking tickSize. Resolved once here so the axis config and
     # save()'s grid-span fix read one consistent value.
-    if p["axisOffset"] is True or p["axisOffset"] is None:  # DEPRECATED spelling of True
+    if p["axisOffset"] is None:
+        raise ValueError("axisOffset=None is not supported; use False, True, or a numeric offset.")
+    if p["axisOffset"] is True:
         p["axisOffset"] = p["tickSize"] * 1.5
     elif p["axisOffset"] is False:
         p["axisOffset"] = 0

@@ -11,10 +11,13 @@ from __future__ import annotations
 
 import math
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 import altair as alt
 import polars as pl
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 import dysonsphere as ds
 from dysonsphere import ext
@@ -42,7 +45,7 @@ _NONDIFF = "Non-differential"
 
 
 def volcano(
-    data: pl.DataFrame | Any,
+    data: "pl.DataFrame | pd.DataFrame",
     *,
     log2fc: str = "log2fc",
     pvalue: str = "pvalue",
@@ -55,9 +58,9 @@ def volcano(
     nonDifferentialColor: str | None = None,
     markOpacity: float = 0.85,
     legend: bool = True,
-    xTitle: str | None = _UNSET,
-    yTitle: str | None = _UNSET,
-) -> ext.AltairChart:
+    xTitle: str | list[str] | None = _UNSET,
+    yTitle: str | list[str] | None = _UNSET,
+) -> alt.LayerChart:
     """Build a volcano plot (log2 fold change vs -log10 p) as a layered Altair chart.
 
     Points are classified ``"Gained"`` / ``"Lost"`` / ``"Non-differential"`` by the fold-change
@@ -162,7 +165,7 @@ def volcano(
         # ds.labels returns a LayerChart; compose with + (it also self-pins the x/y scale).
         chart = chart + _label_layer(data, subset, log2fc, labels)
     # Tag the chart so ds.save() records dysonsphere-biology's version in the figure's provenance.
-    return ext.tag_extension(chart, "biology")
+    return cast(alt.LayerChart, ext.tag_extension(chart, "biology"))
 
 
 def _label_layer(data: pl.DataFrame, label: str | int | list[str], log2fcCol: str, geneCol: str | None):

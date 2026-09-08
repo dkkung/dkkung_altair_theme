@@ -2,9 +2,12 @@ import hashlib
 import json
 import math
 from collections.abc import Sequence
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import polars as pl
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 from .theme import _opt
 
@@ -145,7 +148,7 @@ def _nice_domain(lo: float, hi: float, count: int = 10) -> tuple[float, float]:
     return lo, hi
 
 
-def _count_n(data: pl.DataFrame, column: str, categories: list[str]) -> list[int]:
+def _count_n(data: "pl.DataFrame | pd.DataFrame", column: str, categories: list[str]) -> list[int]:
     """
     Count the number of rows in ``data`` belonging to each category.
 
@@ -214,13 +217,13 @@ def _validate_category_order(
     return values
 
 
-def _ensure_polars(data: pl.DataFrame) -> pl.DataFrame:
+def _ensure_polars(data: "pl.DataFrame | pd.DataFrame") -> pl.DataFrame:
     """
     Convert a pandas DataFrame to Polars, or pass a Polars DataFrame through unchanged.
 
     Accepts either a ``polars.DataFrame`` or a ``pandas.DataFrame`` without
-    requiring pandas as a hard dependency — the check is done via the module
-    name only.  If ``data`` is neither, a ``TypeError`` is raised.
+    requiring pandas as a hard dependency. Subclasses of either DataFrame are
+    accepted; Series, mappings, records, and URL-like values are not.
 
     Parameters
     ----------
@@ -243,7 +246,14 @@ def _ensure_polars(data: pl.DataFrame) -> pl.DataFrame:
     """
     if isinstance(data, pl.DataFrame):
         return data
-    if type(data).__module__.startswith("pandas"):
+    pandas_dataframe: type[Any] | None = None
+    try:
+        from pandas import DataFrame
+    except ImportError:
+        pass
+    else:
+        pandas_dataframe = DataFrame
+    if pandas_dataframe is not None and isinstance(data, pandas_dataframe):
         return pl.from_pandas(data)
     raise TypeError(f"Expected a polars.DataFrame or pandas.DataFrame, got {type(data).__name__}.")
 
@@ -329,7 +339,7 @@ def _hash_rows(rows: list[dict[str, Any]]) -> str:
     return _ROW_HASH_PREFIX + hashlib.sha256(json.dumps(digests, separators=(",", ":")).encode()).hexdigest()
 
 
-def _frame_checksum(data: "pl.DataFrame | Any") -> str:
+def _frame_checksum(data: "pl.DataFrame | pd.DataFrame") -> str:
     """Order-independent ``multiset-sha256:<hex>`` fingerprint of a dataframe's rows.
 
     Same algorithm as the provenance ``dataChecksum`` (via :func:`_hash_rows`), so identical

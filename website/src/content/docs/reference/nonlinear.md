@@ -78,7 +78,7 @@ Pass the return value directly to ``alt.Axis(labelExpr=...)``.
 ```python
 def add_log_ticks(
     chart: alt.Chart | alt.LayerChart,
-    data,
+    data: pl.DataFrame | pd.DataFrame,
     field: str | None = None,
     *,
     axis: str = 'y',
@@ -121,7 +121,7 @@ and ``vconcat`` layouts.
 **Parameters**
 
 - **`chart`** (`alt.Chart | alt.LayerChart`) - The chart to add minor ticks to.
-- **`data`** - DataFrame (Polars or Pandas) used for the main chart.
+- **`data`** (`pl.DataFrame | pd.DataFrame`) - DataFrame (Polars or Pandas) used for the main chart.
 - **`field`** (`str | None`) - Column name of the log-scale field. When ``axis`` is ``'x'`` or ``'y'`` and this is ``None``, it is inferred from the chart's matching encoding shorthand (``chart.encoding.x`` / ``.y``); pass it explicitly for a ``LayerChart`` (no top-level encoding) or an aggregate/expression encoding, where inference is not possible. Omit when ``axis='both'`` and use ``xField`` / ``yField`` instead.
 - **`axis`** (`str`) - ``'x'``, ``'y'`` (default), or ``'both'``. When ``'both'``, ``xField`` and ``yField`` must be provided.
 - **`base`** (`int`) - Logarithm base matching the axis scale. Defaults to ``10``. Use ``2`` for log2 axes (e.g. volcano plots, fold-change axes). Any integer ≥ 2 is accepted.
@@ -161,7 +161,7 @@ and ``vconcat`` layouts.
 ```python
 def add_pow_ticks(
     chart: alt.Chart | alt.LayerChart,
-    data,
+    data: pl.DataFrame | pd.DataFrame,
     field: str | None = None,
     *,
     axis: str = 'y',
@@ -211,7 +211,7 @@ and ``vconcat`` layouts.
 **Parameters**
 
 - **`chart`** (`alt.Chart | alt.LayerChart`) - The chart to add minor ticks to.
-- **`data`** - DataFrame (Polars or Pandas) used for the main chart.
+- **`data`** (`pl.DataFrame | pd.DataFrame`) - DataFrame (Polars or Pandas) used for the main chart.
 - **`field`** (`str | None`) - Column name of the power-scaled field. Required when ``axis`` is ``'x'`` or ``'y'``; omit when ``axis='both'`` and use ``xField`` / ``yField`` instead.
 - **`axis`** (`str`) - ``'x'``, ``'y'`` (default), or ``'both'``. When ``'both'``, ``xField``, ``yField``, ``xMajorValues``, and ``yMajorValues`` must all be provided.
 - **`exponent`** (`float`) - Power exponent matching the axis scale. Defaults to ``0.5`` (square root). Use ``2`` for a quadratic axis, etc. Must be non-zero.

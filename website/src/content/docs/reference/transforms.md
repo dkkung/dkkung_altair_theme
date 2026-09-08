@@ -11,11 +11,11 @@ sidebar:
 
 ```python
 def beeswarm(
-    data: pl.DataFrame | Any,
+    data: pl.DataFrame | pd.DataFrame,
     column: str,
     groupBy: list[str],
     *,
-    heightPx: int | None = None,
+    heightPx: float | None = None,
     spread: float | None = None,
     outCol: str = 'beeswarm_x',
 ) -> pl.DataFrame: ...
@@ -36,10 +36,10 @@ and grows with n.
 
 **Parameters**
 
-- **`data`** (`pl.DataFrame | Any`) - Input DataFrame.
+- **`data`** (`pl.DataFrame | pd.DataFrame`) - Polars or pandas DataFrame.
 - **`column`** (`str`) - Name of the column containing y values.
 - **`groupBy`** (`list[str]`) - Column name(s) that define each beeswarm group.
-- **`heightPx`** (`int | None`) - Chart height in pixels. Defaults to the theme's ``chartHeight``.
+- **`heightPx`** (`float | None`) - Chart height in pixels. Defaults to the theme's ``chartHeight``.
 - **`spread`** (`float | None`) - Collision radius in pixels. Defaults to ``sqrt(markSize / π)`` from the active theme, so points naturally match the rendered mark size.
 - **`outCol`** (`str`) - Name of the output offset column added to the DataFrame.
 
@@ -69,11 +69,11 @@ so a leaning swarm renders slightly off the tick (``mark_strip`` pins this domai
 
 ```python
 def quasirandom(
-    data: pl.DataFrame | Any,
+    data: pl.DataFrame | pd.DataFrame,
     column: str,
     groupBy: list[str],
     *,
-    heightPx: int | None = None,
+    heightPx: float | None = None,
     spread: float | None = None,
     outCol: str = 'quasirandom_x',
     width: float | None = None,
@@ -94,10 +94,10 @@ non-overlap matters.
 
 **Parameters**
 
-- **`data`** (`pl.DataFrame | Any`) - Input DataFrame.
+- **`data`** (`pl.DataFrame | pd.DataFrame`) - Polars or pandas DataFrame.
 - **`column`** (`str`) - Name of the column containing y values.
 - **`groupBy`** (`list[str]`) - Column name(s) that define each group.
-- **`heightPx`** (`int | None`) - Chart height in pixels. Defaults to the theme's ``chartHeight``.
+- **`heightPx`** (`float | None`) - Chart height in pixels. Defaults to the theme's ``chartHeight``.
 - **`spread`** (`float | None`) - Point radius in pixels - the unit the auto ``width`` is built from. Defaults to ``sqrt(markSize / π)`` from the active theme, matching :func:`beeswarm`.
 - **`outCol`** (`str`) - Name of the output offset column added to the DataFrame.
 - **`width`** (`float | None`) - Peak half-width of the swarm in pixels. ``None`` (default) auto-sizes it to the swarm's footprint (see :func:`_quasirandom_offsets`).
@@ -126,7 +126,7 @@ non-overlap matters.
 
 ```python
 def jitter(
-    data: pl.DataFrame | Any,
+    data: pl.DataFrame | pd.DataFrame,
     *,
     spread: float | None = None,
     outCol: str = 'jitter_x',
@@ -144,7 +144,7 @@ small n where overlap is undesirable.
 
 **Parameters**
 
-- **`data`** (`pl.DataFrame | Any`) - Input DataFrame.
+- **`data`** (`pl.DataFrame | pd.DataFrame`) - Polars or pandas DataFrame.
 - **`spread`** (`float | None`) - Standard deviation of the jitter in pixels. Defaults to ``min(chartWidth, chartHeight) / 50`` from the active theme (2.0 at the default 100×100 chart size).
 - **`outCol`** (`str`) - Name of the output offset column added to the DataFrame.
 - **`seed`** (`int | None`) - Optional random seed for reproducibility.

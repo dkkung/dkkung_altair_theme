@@ -84,6 +84,48 @@ def test_controls_are_keyword_only(path, primary):
         signature.bind_partial(*([None] * (len(primary) + 1)))
 
 
+def test_removed_annotation_parameters_are_rejected():
+    shade_signature = inspect.signature(ds.shade)
+    multilabel_signature = inspect.signature(ds.add_multilabel)
+    assert "xCol" not in shade_signature.parameters
+    assert "yPadding" not in multilabel_signature.parameters
+    with pytest.raises(TypeError, match="unexpected keyword"):
+        ds.shade(categories=["A"], xCol="group")  # ty: ignore[unknown-argument]
+    with pytest.raises(TypeError, match="unexpected keyword"):
+        ds.add_multilabel(alt.Chart().mark_point(), categories=["A"], yPadding=1)  # ty: ignore[unknown-argument]
+    with pytest.raises(TypeError, match="too many positional"):
+        shade_signature.bind_partial(["A"], "group")
+
+
+@pytest.mark.parametrize("path", ["create_config", "palettes.export_swatches"])
+def test_directory_parameters_accept_paths(path):
+    parameter = inspect.signature(_function(path)).parameters["directory"]
+    assert "str" in str(parameter.annotation) and "Path" in str(parameter.annotation)
+
+
+@pytest.mark.parametrize(
+    ("path", "parameter"),
+    [
+        ("metadata.verify", "data"),
+        ("transforms.jitter", "data"),
+        ("transforms.beeswarm", "data"),
+        ("transforms.quasirandom", "data"),
+        ("add_log_ticks", "data"),
+        ("add_pow_ticks", "data"),
+        ("biology.volcano", "data"),
+    ],
+)
+def test_dataframe_inputs_are_annotated(path, parameter):
+    annotation = str(inspect.signature(_function(path)).parameters[parameter].annotation)
+    assert "pl.DataFrame" in annotation and "pd.DataFrame" in annotation
+
+
+def test_volcano_titles_allow_multiple_lines():
+    signature = inspect.signature(_function("biology.volcano"))
+    assert "list[str]" in str(signature.parameters["xTitle"].annotation)
+    assert "list[str]" in str(signature.parameters["yTitle"].annotation)
+
+
 def test_labels_separates_content_from_selection():
     ds.theme()
     data = pl.DataFrame({"x": [1.0, 2.0, 3.0], "y": [2.0, 1.0, 4.0], "name": ["a", "b", "c"]})

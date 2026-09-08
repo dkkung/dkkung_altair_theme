@@ -86,7 +86,9 @@ def _validate_pvalue(value: Any, context: str = "p-value") -> float:
     return result
 
 
-def _validate_observations(values: Any, column: str, group: Any = None) -> np.ndarray:
+def _validate_observations(
+    values: Any, column: str, group: Any = None, *, kind: str = "statistical column"
+) -> np.ndarray:
     """Validate one used observation column and return a finite float array.
 
     Missing, non-numeric, and non-finite values are rejected; unused dataframe columns are not
@@ -101,21 +103,19 @@ def _validate_observations(values: Any, column: str, group: Any = None) -> np.nd
             or not isinstance(value, numbers.Number)
         ):
             raise ValueError(
-                f"statistical column {column!r} contains a missing or non-numeric observation{context} at row {index}."
+                f"{kind} {column!r} contains a missing or non-numeric observation{context} at row {index}."
             )
         try:
             converted = float(value)
         except (TypeError, ValueError, OverflowError):
             raise ValueError(
-                f"statistical column {column!r} contains a missing or non-numeric observation{context} at row {index}."
+                f"{kind} {column!r} contains a missing or non-numeric observation{context} at row {index}."
             ) from None
         if not math.isfinite(converted):
-            raise ValueError(
-                f"statistical column {column!r} contains a non-finite observation{context} at row {index}."
-            )
+            raise ValueError(f"{kind} {column!r} contains a non-finite observation{context} at row {index}.")
         out.append(converted)
     if not out:
-        raise ValueError(f"statistical column {column!r} has no observations{context}.")
+        raise ValueError(f"{kind} {column!r} has no observations{context}.")
     return np.asarray(out, dtype=float)
 
 

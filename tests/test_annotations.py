@@ -55,6 +55,19 @@ class TestLabels:
         # 1 text per label, no pin layer
         assert len(labels(df, "x", "y", "g", connector=False).to_dict()["layer"]) == 3
 
+    @pytest.mark.parametrize("coordinate", ["x", "y"])
+    @pytest.mark.parametrize("value", [float("nan"), None, float("inf"), float("-inf")])
+    def test_coordinates_are_validated_before_subset(self, coordinate, value):
+        values = {"x": [1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0]}
+        values[coordinate][2] = value
+        data = pl.DataFrame({**values, "g": ["a", "b", "c"], "unused": [float("inf")] * 3})
+        with pytest.raises(ValueError, match=f"label coordinate '{coordinate}'"):
+            labels(data, "x", "y", "g", subset=["a"])
+
+    def test_unused_columns_are_not_validated(self, df):
+        data = df.with_columns(pl.lit(float("inf")).alias("unused"))
+        assert isinstance(labels(data, "x", "y", "g", subset=["a"]), alt.LayerChart)
+
     @staticmethod
     def _text_marks(chart):
         return [lyr["mark"] for lyr in chart.to_dict()["layer"] if lyr["mark"]["type"] == "text"]
@@ -839,7 +852,7 @@ class TestShadeDatum:
 
     def test_band_mode_with_data_raises(self, df):
         with pytest.raises(ValueError, match="positions mode only"):
-            shade(["A", "B"], "g", data=df)
+            shade(["A", "B"], data=df)
 
     def test_default_not_facetable(self, df):
         base = alt.Chart(df).mark_point().encode(x="x:Q", y="value:Q")
@@ -876,7 +889,7 @@ class TestShadeCornerRadius:
 
         try:
             ds.theme(cornerRadius=8)
-            radii = self._rect_corner_radii(shade(["A", "B", "C"], "g"))
+            radii = self._rect_corner_radii(shade(["A", "B", "C"]))
         finally:
             ds.theme()
         assert radii and all(r == 0 for r in radii)

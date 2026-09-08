@@ -1,6 +1,11 @@
 import math
+from typing import TYPE_CHECKING
 
 import altair as alt
+import polars as pl
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 from .theme import _opt
 from .utils import _SUP, _ensure_polars
@@ -195,7 +200,7 @@ def _infer_field(chart, axis: str) -> str | None:
 
 def add_log_ticks(
     chart: alt.Chart | alt.LayerChart,
-    data,
+    data: "pl.DataFrame | pd.DataFrame",
     field: str | None = None,
     *,
     axis: str = "y",
@@ -368,7 +373,7 @@ def _pow_minor_layer(
 
 def add_pow_ticks(
     chart: alt.Chart | alt.LayerChart,
-    data,
+    data: "pl.DataFrame | pd.DataFrame",
     field: str | None = None,
     *,
     axis: str = "y",

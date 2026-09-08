@@ -9,10 +9,14 @@ registry and embedded into exports by ``save()`` via layer-name markers.
 
 import math
 import numbers
-from typing import Any, cast
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, cast
 
 import altair as alt
 import polars as pl
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 from ._statistics import (
     _clamp_p,
@@ -524,7 +528,7 @@ def _drop_tick_lengths(
     return out
 
 
-def _emit_report(record: dict[str, Any], report: bool, save: bool | str) -> str:
+def _emit_report(record: dict[str, Any], report: bool, save: bool | str | Path) -> str:
     """Register ``record`` for the export metadata and, if requested, print the rendered report
     and/or write it to a timestamped ``.txt``. Returns the marker name tagged onto the layer."""
     from datetime import datetime
@@ -538,7 +542,7 @@ def _emit_report(record: dict[str, Any], report: bool, save: bool | str) -> str:
         if report:
             print(report_text)
         if save:
-            directory = Path(save) if isinstance(save, str) else Path.cwd()
+            directory = Path(save) if not isinstance(save, bool) else Path.cwd()
             directory.mkdir(parents=True, exist_ok=True)
             ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
             (directory / f"dysonsphere_report_{ts}.txt").write_text(report_text + "\n", encoding="utf-8")
@@ -562,9 +566,9 @@ def _pvalue_layer(
     bracket_style: str = "bracket",
     label_style: str = "p",
     categories: list[Any] | None = None,
-    chartWidth: int | None = None,
+    chartWidth: float | None = None,
     strokeWidth: float | None = None,
-    fontSize: int | None = None,
+    fontSize: float | None = None,
     reverse: bool = False,
     sigFigs: int = 3,
     notation: str | None = None,
@@ -736,8 +740,8 @@ def _reference_label_layer(
     label: str,
     *,
     categories: list[Any],
-    chartWidth: int,
-    fontSize: int,
+    chartWidth: float,
+    fontSize: float,
     offset_px: float = 0.0,
 ) -> alt.Chart:
     """A bare p-value label centred over one group's band, anchored at data-coordinate ``y`` and
@@ -827,7 +831,7 @@ def _grouped_bracket_layer(
     categories: list[Any],
     level_order: list[str],
     strokeWidth: float,
-    fontSize: int,
+    fontSize: float,
     chartWidth: float,
     offset_px: float = 0.0,
     tick_px: float | tuple[float, float] | None = None,
@@ -912,7 +916,7 @@ def _grouped_reference_label_layer(
     label_style: str,
     categories: list[Any],
     level_order: list[str],
-    fontSize: int,
+    fontSize: float,
     offset_px: float = 0.0,
 ) -> alt.Chart:
     """A bare p-value label centred over one (category, level) sub-bar - the grouped reference-mode
@@ -982,20 +986,20 @@ def _add_grouped_comparisons(
     notation: Any,
     testLabelPosition: str | None,
     testLabel: str | None,
-    testLabelOffsetX: int,
-    testLabelOffsetY: int,
+    testLabelOffsetX: float,
+    testLabelOffsetY: float,
     testLabelX: Any,
     testLabelY: Any,
     sigFigs: int | None,
     tickHeight: float | None,
     strokeWidth: float | None,
-    fontSize: int | None,
+    fontSize: float | None,
     yPad: float | None,
     yStep: float | None,
     categories: list[Any] | None,
-    chartWidth: int | None,
+    chartWidth: float | None,
     report: bool,
-    save: bool | str,
+    save: bool | str | Path,
 ) -> alt.LayerChart:
     """Grouped (two-factor) comparisons: compare the xOffset levels within each x-category.
 
@@ -1494,7 +1498,7 @@ def _add_grouped_comparisons(
 
 
 def comparisons(
-    data: pl.DataFrame | Any,
+    data: "pl.DataFrame | pd.DataFrame",
     x: str,
     y: str,
     pairs: list[tuple[str, str]] | str | None = None,
@@ -1512,24 +1516,24 @@ def comparisons(
     yStep: float | None = None,
     yPad: float | None = None,
     categories: list[Any] | None = None,
-    chartWidth: int | None = None,
+    chartWidth: float | None = None,
     bracketStyle: str | dict[tuple[str, str], Any] = "bracket",
     labelStyle: str = "p",
     tickHeight: float | None = None,
     strokeWidth: float | None = None,
-    fontSize: int | None = None,
+    fontSize: float | None = None,
     reverse: list[tuple[str, str]] | None = None,
     sigFigs: int | None = None,
     notation: str | dict[str | tuple[str, str], Any] | None = None,
     testLabelPosition: str | None = "auto",
     testLabel: str | None = None,
     omnibusVerbose: bool = False,
-    testLabelOffsetX: int = 0,
-    testLabelOffsetY: int = 0,
+    testLabelOffsetX: float = 0,
+    testLabelOffsetY: float = 0,
     testLabelX=None,
     testLabelY=None,
     report: bool = False,
-    saveReport: bool | str = False,
+    saveReport: bool | str | Path = False,
 ) -> alt.LayerChart:
     """
     Build p-value annotation layers for one or more group comparisons.
@@ -1583,7 +1587,7 @@ def comparisons(
     Parameters
     ----------
     data:
-        Polars DataFrame containing the data.
+        Polars or pandas DataFrame containing the data.
     x:
         Column name for the grouping variable (x-axis).
     y:
@@ -1795,7 +1799,7 @@ def comparisons(
         ``ds.save(..., saveMetadata=True)``); it lands in the next ``ds.save()``.
     saveReport:
         ``True`` writes the report to ``dysonsphere_report_<timestamp>.txt`` in
-        the current directory; a string writes it to that directory. Default
+        the current directory; a path writes it to that directory. Default
         ``False``.
 
     Examples
@@ -2482,9 +2486,9 @@ def _add_grouped_correlation(
     coefficient: str,
     includePvalue: bool,
     includeEquation: bool,
-    offsetX: int,
-    offsetY: int,
-    fontSize: int | None,
+    offsetX: float,
+    offsetY: float,
+    fontSize: float | None,
     sigFigs: int | None,
     notation: str | None,
     color: str | None,
@@ -2497,7 +2501,7 @@ def _add_grouped_correlation(
     ciColor: str | None,
     ciOpacity: float,
     report: bool,
-    save: bool | str,
+    save: bool | str | Path,
 ) -> alt.LayerChart:
     """A fit + coefficient readout PER group of ``group_col`` (e.g. one line per cell line).
 
@@ -2684,7 +2688,7 @@ def _add_grouped_correlation(
 
 
 def correlation(
-    data: pl.DataFrame | Any,
+    data: "pl.DataFrame | pd.DataFrame",
     x: str,
     y: str,
     *,
@@ -2697,9 +2701,9 @@ def correlation(
     includePvalue: bool = False,
     includeEquation: bool = False,
     verbose: bool = False,
-    offsetX: int = 0,
-    offsetY: int = 0,
-    fontSize: int | None = None,
+    offsetX: float = 0,
+    offsetY: float = 0,
+    fontSize: float | None = None,
     sigFigs: int | None = None,
     notation: str | None = None,
     color: str | None = None,
@@ -2712,7 +2716,7 @@ def correlation(
     ciColor: str | None = None,
     ciOpacity: float = 0.15,
     report: bool = False,
-    saveReport: bool | str = False,
+    saveReport: bool | str | Path = False,
 ) -> alt.LayerChart:
     """
     Annotate a scatter with a correlation coefficient (and an OLS fit line for Pearson).
@@ -2812,7 +2816,7 @@ def correlation(
         ``False``. The record is queued for export metadata regardless.
     saveReport:
         ``True`` writes the report to ``dysonsphere_report_<timestamp>.txt`` in the cwd;
-        a string writes it to that directory.
+        a path writes it to that directory.
 
     Examples
     --------

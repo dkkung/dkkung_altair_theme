@@ -3,10 +3,13 @@
 import math
 import re
 from collections.abc import Sequence
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import altair as alt
 import polars as pl
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 from .theme import _opt
 from .utils import _SUP, _ensure_polars, _internal_data, resolve_palette, stripe_colors
@@ -224,7 +227,7 @@ def _contrast_expr(col: str, hexes: list[str], domain: tuple[float, float]) -> s
 
 
 def mark_table(
-    data: "pl.DataFrame | Any",
+    data: "pl.DataFrame | pd.DataFrame",
     columns: list[str] | None = None,
     *,
     header: bool = True,

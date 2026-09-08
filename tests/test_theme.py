@@ -668,9 +668,19 @@ class TestViewPadding:
         theme(closed=True, viewPadding=8)
         assert _dysonsphere_theme()["config"]["scale"]["continuousPadding"] == 8
 
-    def test_axis_offset_none_is_a_deprecated_alias_for_true(self):
-        theme(axisOffset=None)  # pre-3.14 spelling - remove with the alias at 4.0.0
-        assert alt.theme.options["axisOffset"] == 4.5
+    def test_axis_offset_none_is_rejected(self):
+        from dysonsphere.palettes import colors
+        from dysonsphere.theme import _active_args
+
+        theme(palette="reds")
+        before_options = dict(alt.theme.options)
+        before_args = _active_args()
+        before_colors = dict(colors)
+        with pytest.raises(ValueError, match="axisOffset=None"):
+            theme(axisOffset=None, palette="blues")
+        assert alt.theme.options == before_options
+        assert _active_args() == before_args
+        assert dict(colors) == before_colors
         theme(axisOffset=True)
         assert alt.theme.options["axisOffset"] == 4.5
         theme()
@@ -778,38 +788,32 @@ class TestBandPaddingByMark:
 
 
 class TestDeprecatedAliases:
-    # bandPadding was split by mark type in v3.11; the alias maps it silently and is
-    # removed at v4.0.0. It set BOTH the inner and outer band padding, so it expands to
-    # the two keys that now carry them.
+    # bandPadding was split by mark type in v3.11 and is removed at v4.0.0.
 
-    def test_kwarg_alias_maps_to_both_keys(self):
-        theme(bandPadding=0.25)
-        assert alt.theme.options["barPadding"] == 0.25
-        assert alt.theme.options["outerPadding"] == 0.25
+    def test_kwarg_alias_is_rejected(self):
+        with pytest.raises(TypeError, match="bandPadding"):
+            theme(bandPadding=0.25)
 
-    def test_explicit_new_key_wins_over_alias(self):
-        theme(bandPadding=0.25, barPadding=0.4)
-        assert alt.theme.options["barPadding"] == 0.4
-        assert alt.theme.options["outerPadding"] == 0.25
+    def test_mark_median_stroke_is_rejected(self):
+        with pytest.raises(TypeError, match="markMedianStroke"):
+            theme(markMedianStroke="black")
 
-    def test_alias_does_not_leak_into_options(self):
-        theme(bandPadding=0.25)
-        assert "bandPadding" not in alt.theme.options
+    def test_removed_aliases_do_not_change_theme_state(self):
+        theme(chartWidth=123)
+        before = dict(alt.theme.options)
+        with pytest.raises(TypeError, match="bandPadding"):
+            theme(bandPadding=0.25)
+        assert alt.theme.options == before
 
-    def test_toml_alias_accepted(self, tmp_path, monkeypatch):
+    def test_toml_alias_is_rejected(self, tmp_path, monkeypatch):
         (tmp_path / "dysonsphere.toml").write_text("[default]\nbandPadding = 0.3\n")
         monkeypatch.chdir(tmp_path)
-        theme()
-        assert alt.theme.options["barPadding"] == 0.3
-        assert alt.theme.options["outerPadding"] == 0.3
+        with pytest.raises(ValueError, match="bandPadding"):
+            theme()
 
-    def test_baked_theme_from_older_export_still_loads(self):
-        # every v1-v3 export bakes bandPadding into its theme block; ds.load(applyTheme=True)
-        # replays it through theme(**block), so the alias keeps those files readable
-        baked: dict[str, Any] = {"bandPadding": 0.1, "chartWidth": 120}
-        theme(**baked)
-        assert alt.theme.options["barPadding"] == 0.1
-        assert alt.theme.options["chartWidth"] == 120
+    def test_baked_theme_from_older_export_rejects_removed_alias(self):
+        with pytest.raises(TypeError, match="bandPadding"):
+            theme(bandPadding=0.1, chartWidth=120)
 
 
 class TestBoxplotOutliers:
