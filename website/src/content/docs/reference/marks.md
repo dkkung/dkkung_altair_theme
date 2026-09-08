@@ -11,14 +11,14 @@ sidebar:
 
 ```python
 def mark_violin(
-    data: pl.DataFrame | Any,
+    data: pl.DataFrame | pd.DataFrame,
     x: str,
     y: str,
     categories: list[Any],
     *,
     inner: str | None = 'quartiles',
     innerColor: str | None = None,
-    boxplotWidth: int | None = None,
+    boxplotWidth: float | None = None,
     boxplotColor: str = 'black',
     boxplotMedianColor: str = 'white',
     palette: str | list[str] | None = None,
@@ -32,8 +32,8 @@ def mark_violin(
     steps: int = 200,
     trim: bool = False,
     bandwidth: float | None = None,
-    yTitle: str | None | _UnsetType = _UNSET,
-    xTitle: str | None | _UnsetType = _UNSET,
+    yTitle: str | list[str] | None | _UnsetType = _UNSET,
+    xTitle: str | list[str] | None | _UnsetType = _UNSET,
 ) -> alt.LayerChart: ...
 ```
 
@@ -49,13 +49,13 @@ scale resolution never squishes the violin shape.
 
 **Parameters**
 
-- **`data`** (`pl.DataFrame | Any`) - Polars DataFrame containing the data.
+- **`data`** (`pl.DataFrame | pd.DataFrame`) - Polars or pandas DataFrame containing the data.
 - **`x`** (`str`) - Column name for the grouping variable (x-axis).
 - **`y`** (`str`) - Column name for the value variable (y-axis).
 - **`categories`** (`list[Any]`) - Ordered list of all x-axis categories, used for positioning and axis labels. It must contain each observed value exactly once and no unobserved values. Tuple/list order and numeric category values are supported; pass an ordered sequence, not a raw string.
 - **`inner`** (`str | None`) - Inner statistic display: ``"quartiles"`` (default) draws Prism-style horizontal lines - a solid median (at twice the outline ``strokeWidth``, clipped to the violin border) and dashed quartiles (at the outline ``strokeWidth``) - each spanning the violin's width at that value; ``"median"`` draws only the median line; ``"box"`` embeds a boxplot; ``None`` draws the violin outline only.
 - **`innerColor`** (`str | None`) - Color of the median/quartile lines (``"quartiles"``/``"median"``). ``None`` (default) means ``"black"`` in both light and dark mode - the lines sit inside the mark fill, not on the background, so they are deliberately not darkmode-sensitive.
-- **`boxplotWidth`** (`int | None`) - Width of the boxplot box in pixels (``inner="box"`` only).
+- **`boxplotWidth`** (`float | None`) - Width of the boxplot box in pixels (``inner="box"`` only).
 - **`boxplotColor`** (`str`) - Fill color of the boxplot (``inner="box"`` only).
 - **`boxplotMedianColor`** (`str`) - Fill color of the boxplot median line (``inner="box"`` only). Defaults to ``"white"`` so it reads against the default black box; overrides the theme's ``markMedianFill``.
 - **`palette`** (`str | list[str] | None`) - Named dysonsphere palette or explicit list of category colors. When ``None``, each group inherits its color from the theme's active category palette. Cannot be combined with ``fill``.
@@ -68,8 +68,8 @@ scale resolution never squishes the violin shape.
 - **`steps`** (`int`) - Number of y grid points used for KDE estimation (per group).
 - **`trim`** (`bool`) - When ``True``, evaluate the KDE only on the group's data range so the violin ends sharply at the observed min/max. When ``False`` (default), the tails extend 2 KDE bandwidths beyond the data extremes.
 - **`bandwidth`** (`float | None`) - KDE bandwidth (``scipy.stats.gaussian_kde`` ``bw_method``). ``None`` (default) uses Scott's rule; smaller values give a tighter, less smoothed outline.
-- **`yTitle`** (`str | None | _UnsetType`) - Y-axis title. Defaults to ``y``. Pass ``None`` to suppress.
-- **`xTitle`** (`str | None | _UnsetType`) - X-axis title. Defaults to ``x``. Pass ``None`` to suppress.
+- **`yTitle`** (`str | list[str] | None | _UnsetType`) - Y-axis title. Defaults to ``y``. Pass ``None`` to suppress.
+- **`xTitle`** (`str | list[str] | None | _UnsetType`) - X-axis title. Defaults to ``x``. Pass ``None`` to suppress.
 
 **Examples**
 
@@ -104,7 +104,7 @@ scale resolution never squishes the violin shape.
 
 ```python
 def mark_strip(
-    data: pl.DataFrame | Any,
+    data: pl.DataFrame | pd.DataFrame,
     x: str,
     y: str,
     categories: list[Any],
@@ -112,7 +112,7 @@ def mark_strip(
     scatter: str = 'jitter',
     palette: str | list[str] | None = None,
     fill: str | None = None,
-    markSize: int | None = None,
+    markSize: float | None = None,
     markOpacity: float | None = None,
     spread: float | None = None,
     legend: bool = False,
@@ -120,8 +120,8 @@ def mark_strip(
     labelMap: Mapping[Any, str | list[str]] | None = None,
     errorbars: bool = True,
     errorbarExtent: str = 'sem',
-    yTitle: str | None | _UnsetType = _UNSET,
-    xTitle: str | None | _UnsetType = _UNSET,
+    yTitle: str | list[str] | None | _UnsetType = _UNSET,
+    xTitle: str | list[str] | None | _UnsetType = _UNSET,
 ) -> alt.LayerChart: ...
 ```
 
@@ -136,22 +136,22 @@ layers (e.g. ``ds.stats.comparisons``).
 
 **Parameters**
 
-- **`data`** (`pl.DataFrame | Any`) - Polars DataFrame containing the data.
+- **`data`** (`pl.DataFrame | pd.DataFrame`) - Polars or pandas DataFrame containing the data.
 - **`x`** (`str`) - Column name for the grouping variable (x-axis).
 - **`y`** (`str`) - Column name for the value variable (y-axis).
 - **`categories`** (`list[Any]`) - Ordered list of all x-axis categories. It must contain each observed value exactly once and no unobserved values; tuple/list order and numeric category values are supported, but a raw string is rejected.
 - **`scatter`** (`str`) - Point distribution method: ``'jitter'`` (faster, random Gaussian offset) or ``'beeswarm'`` (collision-avoidance, better for smaller n).
 - **`palette`** (`str | list[str] | None`) - Named dysonsphere palette or explicit list of category colors. When ``None``, colors inherit the active theme category palette. Cannot be combined with ``fill``.
 - **`fill`** (`str | None`) - Fixed literal fill color for the points. Suppresses the category-color legend when set and does not affect summary marks. Cannot be combined with ``palette``.
-- **`markSize`** (`int | None`) - Size of individual points. Inherits ``markSize`` from theme when ``None``.
+- **`markSize`** (`float | None`) - Size of individual points. Inherits ``markSize`` from theme when ``None``.
 - **`markOpacity`** (`float | None`) - Opacity of individual points. Inherits ``markFillOpacity`` from theme when ``None``.
 - **`spread`** (`float | None`) - Controls point spread in pixels. For ``'jitter'``: standard deviation of the Gaussian offsets (~68% of points within ±spread). For ``'beeswarm'``: collision radius (points placed so no two centres are closer than 2·spread); total width grows with n.
 - **`xLabelAngle`** (`float | None`) - X-axis label rotation in degrees. Negative tilts left (e.g. ``-45``), positive tilts right; ``labelAlign`` is derived automatically from the sign. ``None`` inherits from ``theme(xLabelAngle)``.
 - **`labelMap`** (`Mapping[Any, str | list[str]] | None`) - ``{raw_value: label}`` mapping applied to the x-axis tick labels at render time via :func:`label_expr` - the data keeps the raw values. A label may be a list of strings for a multi-line label. Unmapped values show as-is.
 - **`errorbars`** (`bool`) - Whether to show error bars around the group mean. When ``True``, the mean is shown as a tick with error bars. When ``False``, the median is shown instead.
 - **`errorbarExtent`** (`str`) - Statistic to use for error bars: ``'sem'`` (standard error of the mean, default) or ``'sd'`` (standard deviation).
-- **`yTitle`** (`str | None | _UnsetType`) - Y-axis title. Defaults to ``y``. Pass ``None`` to suppress.
-- **`xTitle`** (`str | None | _UnsetType`) - X-axis title. Defaults to ``x``. Pass ``None`` to suppress.
+- **`yTitle`** (`str | list[str] | None | _UnsetType`) - Y-axis title. Defaults to ``y``. Pass ``None`` to suppress.
+- **`xTitle`** (`str | list[str] | None | _UnsetType`) - X-axis title. Defaults to ``x``. Pass ``None`` to suppress.
 
 **Examples**
 

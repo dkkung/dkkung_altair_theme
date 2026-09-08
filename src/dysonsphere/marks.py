@@ -1,15 +1,20 @@
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Final, cast
+from typing import TYPE_CHECKING, Any, Final, cast
 
 import altair as alt
 import numpy as np
 import polars as pl
 
+if TYPE_CHECKING:
+    import pandas as pd
+
+from ._statistics import _validate_observations
 from .display_labels import label_expr
 from .palettes import colors
 from .theme import _opt
-from .transforms import beeswarm, jitter
+from .transforms import _fit_kde, _normalised_kde_density, beeswarm, jitter
 from .utils import _band_geometry, _ensure_polars, _internal_data, _nice_domain, _validate_category_order
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
@@ -36,7 +41,7 @@ class _MarkScaffold:
     hold only the per-mark geometry and layers.
     """
 
-    df: pl.DataFrame
+    df: "pl.DataFrame | pd.DataFrame"
     xCol: str
     yCol: str
     categories: list[Any]
@@ -45,8 +50,8 @@ class _MarkScaffold:
     legend: bool = False
     xLabelAngle: float | None = None
     labelMap: Mapping[Any, str | list[str]] | None = None
-    xTitle: str | None | _UnsetType = _UNSET
-    yTitle: str | None | _UnsetType = _UNSET
+    xTitle: str | list[str] | None | _UnsetType = _UNSET
+    yTitle: str | list[str] | None | _UnsetType = _UNSET
 
     def __post_init__(self) -> None:
         self.df = _ensure_polars(self.df)
@@ -71,8 +76,8 @@ class _MarkScaffold:
             raise ValueError("palette must be a palette name, a list of color strings, or None")
         if self.xLabelAngle is None:
             self.xLabelAngle = _opt("xLabelAngle")
-        self.x_title: str | None = self.xCol if isinstance(self.xTitle, _UnsetType) else self.xTitle
-        self.y_title: str | None = self.yCol if isinstance(self.yTitle, _UnsetType) else self.yTitle
+        self.x_title: str | list[str] | None = self.xCol if isinstance(self.xTitle, _UnsetType) else self.xTitle
+        self.y_title: str | list[str] | None = self.yCol if isinstance(self.yTitle, _UnsetType) else self.yTitle
 
     def x_axis(self) -> alt.Axis:
         """The x-axis: label rotation (align derived from the angle's sign) + label mapping."""
@@ -131,14 +136,14 @@ class _MarkScaffold:
 
 
 def mark_violin(
-    data: pl.DataFrame | Any,
+    data: "pl.DataFrame | pd.DataFrame",
     x: str,
     y: str,
     categories: list[Any],
     *,
     inner: str | None = "quartiles",
     innerColor: str | None = None,
-    boxplotWidth: int | None = None,
+    boxplotWidth: float | None = None,
     boxplotColor: str = "black",
     boxplotMedianColor: str = "white",
     palette: str | list[str] | None = None,
@@ -152,8 +157,8 @@ def mark_violin(
     steps: int = 200,
     trim: bool = False,
     bandwidth: float | None = None,
-    yTitle: str | None | _UnsetType = _UNSET,
-    xTitle: str | None | _UnsetType = _UNSET,
+    yTitle: str | list[str] | None | _UnsetType = _UNSET,
+    xTitle: str | list[str] | None | _UnsetType = _UNSET,
 ) -> alt.LayerChart:
     """
     Build an Altair layer combining a violin plot with an inner statistic display.
@@ -169,7 +174,7 @@ def mark_violin(
     Parameters
     ----------
     data:
-        Polars DataFrame containing the data.
+        Polars or pandas DataFrame containing the data.
     x:
         Column name for the grouping variable (x-axis).
     y:
@@ -240,6 +245,14 @@ def mark_violin(
     xTitle:
         X-axis title. Defaults to ``x``. Pass ``None`` to suppress.
 
+    Raises
+    ------
+    TypeError
+        If ``data`` is not a Polars or pandas DataFrame.
+    ValueError
+        If a required column is missing, an observed group has no finite numeric values, or a
+        group has fewer than two distinct observations or cannot produce a finite KDE.
+
     Examples
     --------
     ::
@@ -268,8 +281,6 @@ def mark_violin(
         )
     """
     yCol = y
-    from scipy.stats import gaussian_kde
-
     if inner not in ("box", "quartiles", "median", None):
         raise ValueError(f"inner must be 'box', 'quartiles', 'median', or None, got {inner!r}")
 
@@ -287,6 +298,17 @@ def mark_violin(
         yTitle=yTitle,
     )
     data = s.df
+    group_values: list[tuple[Any, np.ndarray]] = []
+    for group in categories:
+        group_data = data.filter(pl.col(x) == group)
+        if group_data.is_empty():
+            raise ValueError(f"violin KDE column {yCol!r} has no observations in group {group!r}.")
+        values = _validate_observations(group_data[yCol].to_list(), yCol, group, kind="violin KDE column")
+        if values.size < 2 or np.all(values == values[0]):
+            raise ValueError(f"violin KDE column {yCol!r} has an unusable group {group!r}.")
+        if not math.isfinite(float(values.max()) - float(values.min())):
+            raise ValueError(f"violin KDE column {yCol!r} has an unrepresentable range in group {group!r}.")
+        group_values.append((group, values))
     if fillOpacity is None:
         fillOpacity = _opt("markFillOpacity")
     if strokeWidth is None:
@@ -314,13 +336,17 @@ def mark_violin(
     # chart that also uses xOffset (e.g. mark_strip).
     violin_rows = []
     group_kde = []
-    for i, group in enumerate(categories):
+    for i, (group, vals) in enumerate(group_values):
         x_center = geo.centers[i]
-        vals = data.filter(pl.col(x) == group)[yCol].to_numpy()
-        kde = gaussian_kde(vals, bw_method=bandwidth)
+        kde, bw = _fit_kde(
+            vals,
+            bandwidth=bandwidth,
+            column=yCol,
+            group=group,
+            kind="violin KDE column",
+        )
         # KDE bandwidth in data units - the tail extension scales with it so the
         # untrimmed overshoot is proportionate on any data scale.
-        bw = float(np.sqrt(kde.covariance[0, 0]))
         if trim:
             y_min = float(vals.min())
             y_max = float(vals.max())
@@ -328,8 +354,15 @@ def mark_violin(
             y_min = float(vals.min()) - 2 * bw
             y_max = float(vals.max()) + 2 * bw
         y_grid = np.linspace(y_min, y_max, steps)
-        density = kde(y_grid)
-        density_norm = density / density.max()
+        if not np.all(np.isfinite(y_grid)):
+            raise ValueError(f"violin KDE column {yCol!r} produced a non-finite grid in group {group!r}.")
+        density_norm = _normalised_kde_density(
+            kde,
+            y_grid,
+            column=yCol,
+            group=group,
+            kind="violin KDE column",
+        )
         group_kde.append((group, x_center, vals, y_grid, density_norm))
 
         for order, (y, d) in enumerate(zip(y_grid, density_norm)):
@@ -519,7 +552,7 @@ def mark_violin(
 
 
 def mark_strip(
-    data: pl.DataFrame | Any,
+    data: "pl.DataFrame | pd.DataFrame",
     x: str,
     y: str,
     categories: list[Any],
@@ -527,7 +560,7 @@ def mark_strip(
     scatter: str = "jitter",
     palette: str | list[str] | None = None,
     fill: str | None = None,
-    markSize: int | None = None,
+    markSize: float | None = None,
     markOpacity: float | None = None,
     spread: float | None = None,
     legend: bool = False,
@@ -535,8 +568,8 @@ def mark_strip(
     labelMap: Mapping[Any, str | list[str]] | None = None,
     errorbars: bool = True,
     errorbarExtent: str = "sem",
-    yTitle: str | None | _UnsetType = _UNSET,
-    xTitle: str | None | _UnsetType = _UNSET,
+    yTitle: str | list[str] | None | _UnsetType = _UNSET,
+    xTitle: str | list[str] | None | _UnsetType = _UNSET,
 ) -> alt.LayerChart:
     """
     Build an Altair layer combining jittered or beeswarm points with a centre statistic.
@@ -551,7 +584,7 @@ def mark_strip(
     Parameters
     ----------
     data:
-        Polars DataFrame containing the data.
+        Polars or pandas DataFrame containing the data.
     x:
         Column name for the grouping variable (x-axis).
     y:

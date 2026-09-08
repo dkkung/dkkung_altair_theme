@@ -32,6 +32,39 @@ class TestMarkViolin:
         result = mark_violin(group_df, x="group", y="value", categories=CATEGORIES)
         assert isinstance(result, alt.LayerChart)
 
+    @pytest.mark.parametrize("value", [float("nan"), None, float("inf"), float("-inf")])
+    def test_kde_rejects_missing_or_nonfinite_observations(self, value):
+        data = pl.DataFrame({"group": ["A", "A", "B", "B"], "value": [1.0, value, 3.0, 4.0]})
+        with pytest.raises(ValueError, match="violin KDE column 'value'"):
+            mark_violin(data, "group", "value", ["A", "B"])
+
+    def test_kde_rejects_singleton_group(self):
+        data = pl.DataFrame({"group": ["A", "B", "B"], "value": [1.0, 3.0, 4.0]})
+        with pytest.raises(ValueError, match="violin KDE column 'value'.*group 'A'"):
+            mark_violin(data, "group", "value", ["A", "B"])
+
+    def test_kde_rejects_unusable_group(self):
+        data = pl.DataFrame({"group": ["A", "A", "B", "B"], "value": [1.0, 1.0, 3.0, 4.0]})
+        with pytest.raises(ValueError, match="unusable group 'A'"):
+            mark_violin(data, "group", "value", ["A", "B"])
+
+    @pytest.mark.parametrize("values", [[1e308, -1e308], [1e-320, 2e-320, 3e-320]])
+    def test_kde_rejects_finite_but_numerically_unusable_values(self, values):
+        data = pl.DataFrame({"group": ["A"] * len(values), "value": values})
+        with pytest.raises(ValueError, match="violin KDE column 'value'.*group 'A'"):
+            mark_violin(data, "group", "value", ["A"])
+
+    def test_kde_ignores_invalid_unused_columns(self):
+        data = pl.DataFrame(
+            {"group": ["A", "A", "B", "B"], "value": [1.0, 2.0, 3.0, 4.0], "unused": [float("inf")] * 4}
+        )
+        assert isinstance(mark_violin(data, "group", "value", ["A", "B"]), alt.LayerChart)
+
+    def test_fractional_mark_sizes_are_preserved(self, group_df):
+        spec = mark_violin(group_df, "group", "value", CATEGORIES, inner="box", boxplotWidth=4.5).to_dict()
+        box = next(layer for layer in spec["layer"] if _mark_type(layer) == "boxplot")
+        assert box["mark"]["size"] == 4.5
+
     @pytest.mark.parametrize("categories", [["A", "B"], ["A", "B", "D"], ["A", "B", "B"]])
     @pytest.mark.parametrize("constructor", [mark_strip, mark_violin])
     def test_categories_must_match_observed_values_once(self, group_df, categories, constructor):
@@ -73,6 +106,24 @@ class TestMarkViolin:
         for layer in spec.get("layer", []):
             y_enc = layer.get("encoding", {}).get("y", {})
             assert y_enc.get("title") is None or "title" not in y_enc
+
+    def test_multiline_axis_titles_are_preserved(self, group_df):
+        spec = mark_violin(
+            group_df,
+            x="group",
+            y="value",
+            categories=CATEGORIES,
+            xTitle=["Treatment", "group"],
+            yTitle=["Response", "units"],
+        ).to_dict()
+        titles = [
+            enc.get("title")
+            for layer in spec["layer"]
+            for enc in layer.get("encoding", {}).values()
+            if isinstance(enc, dict) and "title" in enc
+        ]
+        assert ["Treatment", "group"] in titles
+        assert ["Response", "units"] in titles
 
     def test_violin_x_uses_absolute_quantitative(self, group_df):
         # Violin line mark encodes x:Q with axis=None - absolute pixel coordinates,

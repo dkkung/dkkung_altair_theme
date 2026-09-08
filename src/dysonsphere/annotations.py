@@ -9,11 +9,15 @@ engine lives in ``_placement.py``). Statistical annotations (``comparisons``,
 
 import math
 from collections.abc import Callable
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import altair as alt
 import polars as pl
 
+if TYPE_CHECKING:
+    import pandas as pd
+
+from ._statistics import _validate_observations
 from .theme import _opt
 from .utils import _SHADE_PREFIX, _band_geometry, _empty_layer, _ensure_polars, _internal_data, _resolve_dash
 
@@ -27,7 +31,7 @@ __all__ = ["rule", "text", "shade", "labels"]
 def _rule_mark_kwargs(
     color: str | None,
     strokeWidth: float | None,
-    strokeDash: bool | list[int] | None,
+    strokeDash: bool | list[int | float] | None,
     opacity: float,
 ) -> dict[str, Any]:
     kwargs: dict[str, Any] = {"opacity": opacity}
@@ -127,8 +131,8 @@ def _rule_label_geometry(
     axis: str,
     labelAlign: str | None,
     labelPosition: str | None,
-    labelOffsetX: int,
-    labelOffsetY: int,
+    labelOffsetX: float,
+    labelOffsetY: float,
     fontSize: float,
     color: str | None,
     span_triple: tuple[str, float, float] | None = None,
@@ -255,14 +259,14 @@ def rule(
     label: str | list[str] | None = None,
     labelPosition: str | None = None,
     labelAlign: str | None = None,
-    labelOffsetX: int = 0,
-    labelOffsetY: int = 0,
+    labelOffsetX: float = 0,
+    labelOffsetY: float = 0,
     color: str | None = None,
     strokeWidth: float | None = None,
-    strokeDash: bool | list[int] | None = None,
+    strokeDash: bool | list[int | float] | None = None,
     opacity: float = 1.0,
     fontSize: float | None = None,
-    data: "pl.DataFrame | Any | None" = None,
+    data: "pl.DataFrame | pd.DataFrame | None" = None,
 ) -> alt.Chart | alt.LayerChart:
     """
     Add one or more horizontal or vertical reference lines to a chart.
@@ -569,8 +573,8 @@ def text(
     angle: float = 0,
     align: str | None = None,
     baseline: str | None = None,
-    offsetX: int = 0,
-    offsetY: int = 0,
+    offsetX: float = 0,
+    offsetY: float = 0,
     color: str | None = None,
     fontSize: float | None = None,
     fontWeight: str | None = None,
@@ -581,7 +585,7 @@ def text(
     fillOpacity: float = 1.0,
     stroke: str | bool = True,
     cornerRadius: float | bool = True,
-    data: "pl.DataFrame | Any | None" = None,
+    data: "pl.DataFrame | pd.DataFrame | None" = None,
 ) -> alt.Chart | alt.LayerChart:
     """
     Add one or more text annotations to a chart.
@@ -841,7 +845,7 @@ def _bool_mask(labels: Any, n_rows: int) -> "list[bool] | None":
 
 
 def labels(
-    data: "pl.DataFrame | Any",
+    data: "pl.DataFrame | pd.DataFrame",
     x: str,
     y: str,
     labels: str,
@@ -859,7 +863,7 @@ def labels(
     connector: bool = True,
     connectorColor: str | None = None,
     connectorOpacity: float | None = None,
-    connectorStrokeDash: bool | list[int] = False,
+    connectorStrokeDash: bool | list[int | float] = False,
     connectorGap: float | None = None,
     alwaysShowConnectors: bool = False,
 ) -> alt.LayerChart:
@@ -954,20 +958,35 @@ def labels(
         is unambiguous. This threshold is font-independent (tied to the marker gap), so changing
         the label font never drops real leaders. ``True`` draws every one (sub-threshold stubs
         shrink their gaps to fit).
+
+    Raises
+    ------
+    TypeError
+        If ``data`` is not a Polars or pandas DataFrame.
+    ValueError
+        If a required column is missing, ``subset`` is invalid, or any row in either coordinate
+        column contains a missing, non-numeric, or non-finite value. Coordinate validation covers
+        rows outside the selected subset because they still define the plot domain and obstacles.
     """
     df, xCol, yCol = data, x, y
     from ._placement import _repel_labels, _sample_spread
     from .utils import _ensure_polars, _nice_domain
 
     data = _ensure_polars(df)
+    missing = [column for column in (xCol, yCol, labels) if column not in data.columns]
+    if missing:
+        raise ValueError(f"labels data column(s) not found: {missing}.")
     # Domain and obstacles both span the FULL data (so labeling a subset via subset= never clips the
     # axes AND the labels dodge every plotted point, not just the labelled ones); the label positions
     # come from the selected rows. subset=None labels every row; an int auto-selects that many evenly
     # spread across the plot (unbiased, no cherry-picking); a BOOLEAN MASK selects rows positionally -
     # decoupling selection from the display column, so a non-unique labels column selects exactly the
     # intended rows; any other list selects the rows whose labels-column value is in it.
-    all_x = [float(v) for v in data[xCol].to_list()]
-    all_y = [float(v) for v in data[yCol].to_list()]
+    if data.height:
+        all_x = _validate_observations(data[xCol].to_list(), xCol, kind="label coordinate").tolist()
+        all_y = _validate_observations(data[yCol].to_list(), yCol, kind="label coordinate").tolist()
+    else:
+        all_x, all_y = [], []
     if isinstance(subset, bool):  # bool is an int subclass - reject before the int branch
         raise ValueError("subset must be None, an int, a boolean mask, or a list of values - not a bool")
     if isinstance(subset, int):
@@ -1158,7 +1177,6 @@ def _tag_shade(chart: alt.Chart) -> alt.Chart:
 
 def shade(
     categories: list[str] | None = None,
-    xCol: str | None = None,
     *,
     positions: list[tuple[Any, ...]] | None = None,
     axis: str = "x",
@@ -1170,7 +1188,7 @@ def shade(
     strokeWidth: float | None = None,
     strokeDash: list[float] | bool | None = None,
     flush: bool | None = None,
-    data: "pl.DataFrame | Any | None" = None,
+    data: "pl.DataFrame | pd.DataFrame | None" = None,
 ) -> alt.LayerChart:
     """
     Build a background shading layer as filled ``mark_rect`` bands.
@@ -1204,7 +1222,7 @@ def shade(
     In both modes, compose behind the main chart with ``+``::
 
         # band mode
-        shade = ds.shade(CATEGORIES, "group")
+        shade = ds.shade(CATEGORIES)
         chart = shade + main_chart
 
         # positions mode — shade two category spans on x
@@ -1230,9 +1248,6 @@ def shade(
     categories:
         Ordered list of axis categories. Required for band mode. Also
         required in positions mode when any tuple values are strings.
-    xCol:
-        Column name for the x-axis grouping variable (band mode only;
-        not used internally).
     positions:
         List of ``(start, end)`` tuples (single-axis) or
         ``((x_start, x_end), (y_start, y_end))`` tuples (``axis='both'``)
@@ -1282,6 +1297,13 @@ def shade(
         ``(base + shade(positions=..., data=df))`` can be faceted and the shading repeats in
         every panel. Accepts polars or pandas. **Band mode** (``positions`` omitted) does not
         support ``data=`` and raises.
+
+    Raises
+    ------
+    TypeError
+        If facet-safe ``data`` is not a Polars or pandas DataFrame.
+    ValueError
+        If the requested mode, axis, categories, positions, or palette is invalid.
     """
     from .palettes import colors as _colors
 

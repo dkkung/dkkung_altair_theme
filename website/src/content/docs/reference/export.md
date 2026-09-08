@@ -12,7 +12,7 @@ sidebar:
 ```python
 def save(
     chart: _AltairChart | Callable[[], _AltairChart],
-    filename: str,
+    filename: str | Path,
     *,
     ppi: int = 1200,
     description: str | None = None,
@@ -51,7 +51,7 @@ Unicode super/subscript characters.
 **Parameters**
 
 - **`chart`** (`_AltairChart | Callable[[], _AltairChart]`) - The Altair chart to save, or a zero-argument callable that returns one. Accepts any Altair compound chart type: ``Chart``, ``LayerChart``, ``FacetChart``, ``VConcatChart``, ``HConcatChart``, or ``ConcatChart``. When a callable is provided it is called fresh for each variant — after ``darkmode`` has been toggled — so any marks whose colours depend on ``ds.theme()`` (e.g. ``add_multilabel``) are rebuilt with the correct palette each time.
-- **`filename`** (`str`) - Extensionless path for the output files (e.g. ``"myplot"`` or ``"plots/myplot"``). A bare name saves to the current working directory, matching Altair's default behaviour.
+- **`filename`** (`str | Path`) - Extensionless path for the output files (e.g. ``"myplot"`` or ``"plots/myplot"``). A bare name saves to the current working directory, matching Altair's default behaviour.
 - **`ppi`** (`int`) - Pixel density for PNG output.
 - **`description`** (`str | None`) - Optional, purely your own text. Stored verbatim (nothing appended) in the Vega-Lite JSON spec's ``description`` field, the SVG ``<desc>`` element, and the PNG ``iTXt Description`` chunk. Independent of ``saveMetadata``.
 - **`format`** (`str | list[str] | None`) - Which file format(s) to write: any of ``"svg"``, ``"png"``, ``"json"`` (the raw Vega-Lite spec), or ``"html"`` (a self-contained interactive page, Vega JS bundled in), as a single string or a list. ``None`` (default) uses the theme option ``saveFormat`` (``["svg", "json"]``). An empty list or unknown value raises. ``"html"`` is the **interactive** tier: it renders live in the browser via Vega, so it is fully themed, carries the metadata block, and gets exact tick positions (that fix lives in the theme config), but it does NOT get dysonsphere's static SVG post-processors (superscript typesetting, Illustrator-friendly flattening). In particular ``inwardTicks`` is deliberately **not** applied to HTML: the only way to make Vega draw ticks inward is a negative ``tickSize``, and while that works in vl-convert's Vega (the static SVG/PNG path), the browser bundles a different Vega build that lays out axis labels wrong with a negative ``tickSize`` (mangled label spacing), so it renders inconsistently and is left off. Use ``"svg"``/``"png"`` for the publication-accurate static figure.
@@ -88,7 +88,7 @@ def show(
     *,
     maxRows: int = 5000,
     overrideMaxRows: bool = False,
-): ...
+) -> 'HTML': ...
 ```
 
 Render *chart* through the full ``ds.save()`` pipeline and return it for accurate
@@ -118,11 +118,15 @@ Accepts the same chart types as :func:`save`, including a zero-argument callable
 once). Requires IPython (present in any notebook); otherwise raises ``ImportError`` - use
 :func:`save` to write a file instead.
 
+**Returns**
+
+- `IPython.display.HTML` - The corrected SVG wrapped for inline notebook display.
+
 ## `load`
 
 ```python
 def load(
-    path: str,
+    path: str | Path,
     *,
     raw: bool = False,
     applyTheme: bool = True,

@@ -56,6 +56,38 @@ class TestEnsurePolars:
         with pytest.raises(TypeError):
             _ensure_polars({"group": ["A", "B"]})  # ty: ignore[invalid-argument-type]
 
+    def test_pandas_subclass_is_accepted_without_changing_rows(self):
+        import pandas as pd
+
+        class Frame(pd.DataFrame):
+            @property
+            def _constructor(self):
+                return Frame
+
+        frame = Frame({"group": ["A", "B"], "value": [1.0, None]})
+        result = _ensure_polars(frame)
+        assert result.height == 2
+        assert result.columns == ["group", "value"]
+        assert result.to_dict(as_series=False) == {"group": ["A", "B"], "value": [1.0, None]}
+
+    def test_polars_subclass_is_passed_through(self, simple_df):
+        class Frame(pl.DataFrame):
+            pass
+
+        frame = Frame(simple_df)
+        assert _ensure_polars(frame) is frame
+
+    def test_pandas_series_is_rejected(self):
+        import pandas as pd
+
+        with pytest.raises(TypeError, match="Expected a polars.DataFrame or pandas.DataFrame"):
+            _ensure_polars(pd.Series([1, 2]))  # ty: ignore[invalid-argument-type]
+
+    @pytest.mark.parametrize("value", [[{"group": "A"}], pl.Series([1, 2]), "data.csv"])
+    def test_non_dataframe_inputs_are_rejected(self, value):
+        with pytest.raises(TypeError, match="Expected a polars.DataFrame or pandas.DataFrame"):
+            _ensure_polars(value)
+
 
 class TestCountN:
     def test_basic_counts(self, simple_df):

@@ -8,9 +8,12 @@ import uuid
 import xml.etree.ElementTree as ET
 from contextlib import ExitStack
 from pathlib import Path
-from typing import Any, Callable, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, Union, cast
 
 import altair as alt
+
+if TYPE_CHECKING:
+    from IPython.display import HTML
 
 from . import discovery, metadata
 from .theme import _opt
@@ -99,7 +102,7 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
 
 def save(
     chart: _AltairChart | Callable[[], _AltairChart],
-    filename: str,
+    filename: str | Path,
     *,
     ppi: int = 1200,
     description: str | None = None,
@@ -382,7 +385,9 @@ def save(
         alt.theme.options["transparent"] = original_transparent
 
 
-def show(chart: _AltairChart | Callable[[], _AltairChart], *, maxRows: int = 5000, overrideMaxRows: bool = False):
+def show(
+    chart: _AltairChart | Callable[[], _AltairChart], *, maxRows: int = 5000, overrideMaxRows: bool = False
+) -> "HTML":
     """Render *chart* through the full ``ds.save()`` pipeline and return it for accurate
     inline display in a notebook.
 
@@ -409,6 +414,11 @@ def show(chart: _AltairChart | Callable[[], _AltairChart], *, maxRows: int = 500
     Accepts the same chart types as :func:`save`, including a zero-argument callable (called
     once). Requires IPython (present in any notebook); otherwise raises ``ImportError`` - use
     :func:`save` to write a file instead.
+
+    Returns
+    -------
+    IPython.display.HTML
+        The corrected SVG wrapped for inline notebook display.
     """
     try:
         from IPython.display import HTML
@@ -437,7 +447,7 @@ def show(chart: _AltairChart | Callable[[], _AltairChart], *, maxRows: int = 500
     return HTML(svg[svg.index("<svg") :])
 
 
-def load(path: str, *, raw: bool = False, applyTheme: bool = True) -> "_AltairChart | dict[str, Any]":
+def load(path: str | Path, *, raw: bool = False, applyTheme: bool = True) -> "_AltairChart | dict[str, Any]":
     """Rebuild the chart from a dysonsphere-exported Vega-Lite JSON (the ``.json`` spec).
 
     JSON only — the PNG/SVG carry the metadata block but not the full spec.

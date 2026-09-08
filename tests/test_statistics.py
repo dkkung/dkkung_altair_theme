@@ -1164,10 +1164,24 @@ class TestAddComparisonsOmnibus:
         comparisons(multi_df, "group", "value", test="anova", categories=MULTI, report=True)
         assert "Group descriptives:" in capsys.readouterr().out
 
-    def test_save_writes_file(self, multi_df, tmp_path):
-        comparisons(multi_df, "group", "value", test="anova", categories=MULTI, saveReport=str(tmp_path))
-        files = list(tmp_path.glob("dysonsphere_report_*.txt"))
+    @pytest.mark.parametrize("as_path", [False, True])
+    def test_save_writes_file(self, multi_df, tmp_path, as_path):
+        outdir = tmp_path / "reports"
+        target = outdir if as_path else str(outdir)
+        comparisons(multi_df, "group", "value", test="anova", categories=MULTI, saveReport=target)
+        files = list(outdir.glob("dysonsphere_report_*.txt"))
         assert len(files) == 1 and "ANOVA" in files[0].read_text()
+
+    def test_save_true_uses_cwd_and_false_writes_nothing(self, multi_df, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        comparisons(multi_df, "group", "value", test="anova", categories=MULTI, saveReport=True)
+        assert len(list(tmp_path.glob("dysonsphere_report_*.txt"))) == 1
+
+        clean = tmp_path / "no_report"
+        clean.mkdir()
+        monkeypatch.chdir(clean)
+        comparisons(multi_df, "group", "value", test="anova", categories=MULTI, saveReport=False)
+        assert list(clean.iterdir()) == []
 
     def test_pairwise_requires_pairs(self, multi_df):
         with pytest.raises(ValueError, match="pairs is required"):
@@ -1428,6 +1442,14 @@ class TestAddCorrelation:
         correlation(scatter_df, "x", "y", report=True)
         assert "Correlation | Pearson" in capsys.readouterr().out
 
+    @pytest.mark.parametrize("as_path", [False, True])
+    def test_save_writes_file(self, scatter_df, tmp_path, as_path):
+        outdir = tmp_path / "reports"
+        target = outdir if as_path else str(outdir)
+        correlation(scatter_df, "x", "y", saveReport=target)
+        files = list(outdir.glob("dysonsphere_report_*.txt"))
+        assert len(files) == 1 and "Correlation" in files[0].read_text()
+
 
 class TestGroupedComparisons:
     """comparisons(xOffset=...) - compare xOffset subgroups within each x-category."""
@@ -1620,6 +1642,13 @@ class TestGroupedCorrelation:
     def test_ci_band_per_group(self, grouped_df):
         spec = correlation(grouped_df, "x", "y", groupBy="line", ci=True).to_dict()
         assert sum(1 for lyr in spec["layer"] if lyr["mark"].get("type") == "area") == 3
+
+    @pytest.mark.parametrize("as_path", [False, True])
+    def test_grouped_save_report_uses_shared_dispatch(self, grouped_df, tmp_path, as_path):
+        outdir = tmp_path / "reports"
+        target = outdir if as_path else str(outdir)
+        correlation(grouped_df, "x", "y", groupBy="line", saveReport=target)
+        assert len(list(outdir.glob("dysonsphere_report_*.txt"))) == 3
 
 
 class TestStackLevels:

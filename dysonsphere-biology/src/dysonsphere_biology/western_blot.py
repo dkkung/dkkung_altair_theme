@@ -15,7 +15,8 @@ from __future__ import annotations
 
 import base64
 import io
-from typing import Any
+from pathlib import Path
+from typing import Any, cast
 
 import altair as alt
 
@@ -40,8 +41,8 @@ def _load_image(image: Any) -> tuple[str, int, int]:
         _, b64 = image.split(",", 1)
         im = Image.open(io.BytesIO(base64.b64decode(b64)))
         return image, im.width, im.height
-    if isinstance(image, str):
-        raw = open(image, "rb").read()
+    if isinstance(image, (str, Path)):
+        raw = Path(image).read_bytes()
         im = Image.open(io.BytesIO(raw))
         mime = Image.MIME.get(im.format or "", "image/png")
         return f"data:{mime};base64," + base64.b64encode(raw).decode(), im.width, im.height
@@ -60,7 +61,7 @@ def western_blot(
     stroke: bool | float = True,
     stripSpacing: float = 0.0,
     **kwargs: Any,
-) -> ext.AltairChart:
+) -> alt.VConcatChart:
     """Compose western blot strip image(s) with a dysonsphere condition table.
 
     Each image is scaled to the theme's ``chartWidth`` (aspect preserved), the strips are stacked
@@ -116,7 +117,7 @@ def western_blot(
         )
         ds.save(fig, "blot")
     """
-    image_list = [images] if isinstance(images, str) or hasattr(images, "save") else list(images)
+    image_list = [images] if isinstance(images, (str, Path)) or hasattr(images, "save") else list(images)
     if not image_list:
         raise ValueError("western_blot() needs at least one image.")
 
@@ -140,4 +141,4 @@ def western_blot(
 
     stack = strips[0] if len(strips) == 1 else alt.vconcat(*strips, spacing=stripSpacing)
     result = ds.add_multilabel(stack, groups, categories, **kwargs)
-    return ext.tag_extension(result, "biology")
+    return cast(alt.VConcatChart, ext.tag_extension(result, "biology"))

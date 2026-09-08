@@ -18,9 +18,13 @@ import zlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import altair as alt
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
 
 from .utils import _frame_checksum as frame_checksum
 
@@ -473,7 +477,7 @@ def _read_png_text(png_bytes: bytes, keyword: str) -> str | None:
     return next((t for kw, t in _iter_png_itxt(png_bytes) if kw == keyword), None)
 
 
-def _read_dysonsphere_block(path: str) -> dict[str, Any]:
+def _read_dysonsphere_block(path: str | Path) -> dict[str, Any]:
     """Read the embedded ``usermeta.dysonsphere`` block from a dysonsphere-exported PNG,
     SVG, or Vega-Lite JSON (detected by extension), as the unified
     ``{provenance, statistics, theme, report}`` dict.  For SVG/PNG the ``report`` container
@@ -535,7 +539,7 @@ def _rows_as(rows: list[Any], output: str) -> Any:
     return duckdb.from_arrow(df.to_arrow())  # a queryable DuckDBPyRelation (pyarrow via polars)
 
 
-def _read_data(path: str, output: str, dataset: str | None) -> Any:
+def _read_data(path: str | Path, output: str, dataset: str | None) -> Any:
     """Rebuild the user's data from a Vega-Lite JSON (the ``.json`` spec).
 
     Altair inlines the whole ``alt.Chart(df)`` frame — **every column, even unused ones** —
@@ -574,10 +578,10 @@ def _read_data(path: str, output: str, dataset: str | None) -> Any:
 
 
 def read(
-    path: str,
+    path: str | Path,
     *,
     what: str = "report",
-    saveReport: bool | str = False,
+    saveReport: bool | str | Path = False,
     output: str = "polars",
     dataset: str | None = None,
 ) -> Any:
@@ -603,12 +607,17 @@ def read(
           data). The form is chosen by ``output``.
     saveReport:
         Only for ``what='report'``: ``True`` writes the report to a ``.txt`` in the cwd;
-        a string writes to that directory.
+        a path writes to that directory.
     output:
         Only for ``what='data'`` — the form to return the data in: ``'polars'`` (default) →
         ``pl.DataFrame``; ``'pandas'`` → ``pd.DataFrame``; ``'duckdb'`` → a ``DuckDBPyRelation``;
         ``'records'`` → the raw ``list[dict]`` (no dataframe library needed). ``pandas`` and
         ``duckdb`` are imported lazily and are not package dependencies.
+
+    Returns
+    -------
+    str, list[dict[str, Any]], dict[str, Any], or dataframe-like object
+        The result selected by ``what`` and, for ``what='data'``, by ``output`` and ``dataset``.
     """
     if what == "data":
         return _read_data(path, output, dataset)
@@ -628,7 +637,7 @@ def read(
         text = "\n\n".join(_render_report(r) for r in block.get("statistics", []))
     print(text)
     if saveReport:
-        directory = Path(saveReport) if isinstance(saveReport, str) else Path.cwd()
+        directory = Path(saveReport) if not isinstance(saveReport, bool) else Path.cwd()
         directory.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         (directory / f"dysonsphere_report_{ts}.txt").write_text(text + "\n", encoding="utf-8")
@@ -717,7 +726,16 @@ def _group_by_identity(labels: list[str], values: list[str | None]) -> dict[str,
     return {label: numbering.setdefault(cast(str, value), len(numbering)) for label, value in zip(labels, values)}
 
 
-def verify(figure: Any, data: Any = None, *, what: str | tuple[str, ...] | list[str] = _COMPARE_KEYS) -> VerifyResult:
+def verify(
+    figure: Any,
+    data: pl.DataFrame
+    | pd.DataFrame
+    | list[pl.DataFrame | pd.DataFrame]
+    | tuple[pl.DataFrame | pd.DataFrame, ...]
+    | None = None,
+    *,
+    what: str | tuple[str, ...] | list[str] = _COMPARE_KEYS,
+) -> VerifyResult:
     """Check a saved figure against its own embedded checksums, and optionally against its data.
 
     Two independent questions, neither of which needs the original script:
@@ -835,7 +853,7 @@ def verify(figure: Any, data: Any = None, *, what: str | tuple[str, ...] | list[
     data_matches: bool | None = None
     if data is not None:
         frames = data if isinstance(data, (list, tuple)) else [data]
-        computed = sorted(frame_checksum(f) for f in frames)
+        computed = sorted(frame_checksum(cast("pl.DataFrame | pd.DataFrame", f)) for f in frames)
         data_matches = computed == stored
 
     return VerifyResult(

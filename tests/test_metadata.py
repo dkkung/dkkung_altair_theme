@@ -334,11 +334,13 @@ class TestReadLoad:
         ds.save(chart, str(tmp_path / "t"), background=["light"])
         return tmp_path
 
-    def test_read_report_from_each_format(self, saved):
+    @pytest.mark.parametrize("as_path", [False, True])
+    def test_read_report_from_each_format(self, saved, as_path):
         import dysonsphere as ds
 
         for name in ("t.json", "t.svg", "t.png"):
-            r = ds.metadata.read(str(saved / name))  # what="report" default
+            path = saved / name if as_path else str(saved / name)
+            r = ds.metadata.read(path)  # what="report" default
             assert isinstance(r, str) and r.startswith("Statistics")
 
     def test_read_statistics_exact_floats(self, saved):
@@ -582,13 +584,30 @@ class TestReadLoad:
         one = ds.metadata.read(multi_frame_json, what="data", dataset=names[0])
         assert isinstance(one, pl.DataFrame)
 
-    def test_read_report_save_writes_txt(self, saved, tmp_path):
+    @pytest.mark.parametrize("as_path", [False, True])
+    def test_read_report_save_writes_txt(self, saved, tmp_path, as_path):
         import dysonsphere as ds
 
         outdir = tmp_path / "reports"
-        ds.metadata.read(str(saved / "t.png"), saveReport=str(outdir))
+        target = outdir if as_path else str(outdir)
+        ds.metadata.read(saved / "t.png", saveReport=target)
         txts = list(outdir.glob("dysonsphere_report_*.txt"))
         assert len(txts) == 1 and txts[0].read_text(encoding="utf-8").startswith("Statistics")
+
+    def test_read_report_true_uses_cwd_and_false_writes_nothing(self, saved, tmp_path, monkeypatch):
+        cwd = tmp_path / "cwd"
+        cwd.mkdir()
+        monkeypatch.chdir(cwd)
+        import dysonsphere as ds
+
+        ds.metadata.read(saved / "t.png", saveReport=True)
+        assert len(list(cwd.glob("dysonsphere_report_*.txt"))) == 1
+
+        clean = tmp_path / "no_report"
+        clean.mkdir()
+        monkeypatch.chdir(clean)
+        ds.metadata.read(saved / "t.png", saveReport=False)
+        assert list(clean.iterdir()) == []
 
     def test_load_rejects_removed_theme_key(self, tmp_path):
         # v2.x files bake the old `transparentBackground` key into their theme block. The v3.0

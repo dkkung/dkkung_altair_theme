@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import struct
+from numbers import Integral
 from pathlib import Path
 
 # The public ds.palettes API; palette is also explicitly exported at the root.
@@ -180,6 +181,13 @@ def palette(
     reverse:
         If True, reverse the returned list.
 
+    Raises
+    ------
+    ValueError
+        If ``n`` is negative, boolean, or not an integer.
+    KeyError
+        If the requested palette name is unknown.
+
     Examples
     --------
     All colors in the palette:
@@ -208,6 +216,11 @@ def palette(
         end = total - 1
 
     if n is not None:
+        if isinstance(n, bool) or not isinstance(n, Integral):
+            raise ValueError(f"n must be a nonnegative integer, got {n!r}")
+        n = int(n)
+        if n < 0:
+            raise ValueError(f"n must be a nonnegative integer, got {n!r}")
         if n == 1:
             indices = [start]
         else:

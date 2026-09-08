@@ -1,10 +1,15 @@
+import math
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import polars as pl
 from scipy.stats import gaussian_kde
 
+if TYPE_CHECKING:
+    import pandas as pd
+
+from ._statistics import _validate_observations
 from .theme import _opt
 from .utils import _ensure_polars
 
@@ -12,9 +17,60 @@ from .utils import _ensure_polars
 __all__ = ["jitter", "beeswarm", "quasirandom"]
 
 
+def _fit_kde(
+    values: np.ndarray,
+    *,
+    bandwidth: float | None,
+    column: str,
+    group: Any,
+    kind: str,
+) -> tuple[Any, float]:
+    """Fit a one-dimensional KDE and return it with its finite positive bandwidth."""
+    try:
+        kde = gaussian_kde(values, bw_method=bandwidth)
+    except (np.linalg.LinAlgError, ValueError, FloatingPointError, OverflowError) as exc:
+        raise ValueError(f"{kind} {column!r} could not be computed for group {group!r}: {exc}") from exc
+
+    try:
+        covariance = np.asarray(kde.covariance, dtype=float)
+        variance = float(covariance[0, 0])
+        kde_bandwidth = float(np.sqrt(variance))
+    except (IndexError, TypeError, ValueError, FloatingPointError, OverflowError) as exc:
+        raise ValueError(f"{kind} {column!r} returned an invalid bandwidth for group {group!r}: {exc}") from exc
+    if not math.isfinite(variance) or variance <= 0 or not math.isfinite(kde_bandwidth) or kde_bandwidth <= 0:
+        raise ValueError(f"{kind} {column!r} returned an invalid bandwidth for group {group!r}.")
+    return kde, kde_bandwidth
+
+
+def _normalised_kde_density(
+    kde: Any,
+    values: np.ndarray,
+    *,
+    column: str,
+    group: Any,
+    kind: str,
+) -> np.ndarray:
+    """Evaluate a KDE and normalise it only when the result is numerically usable."""
+    try:
+        density = np.asarray(kde(values), dtype=float)
+    except (np.linalg.LinAlgError, ValueError, FloatingPointError, OverflowError) as exc:
+        raise ValueError(f"{kind} {column!r} could not be evaluated for group {group!r}: {exc}") from exc
+    if density.shape != values.shape or density.size == 0 or not np.all(np.isfinite(density)):
+        raise ValueError(f"{kind} {column!r} returned non-finite density for group {group!r}.")
+    if np.any(density < 0):
+        raise ValueError(f"{kind} {column!r} returned a negative density for group {group!r}.")
+    normalizer = float(np.max(density))
+    if not math.isfinite(normalizer) or normalizer <= 0:
+        raise ValueError(f"{kind} {column!r} returned an invalid density normalizer for group {group!r}.")
+    normalized = density / normalizer
+    if not np.all(np.isfinite(normalized)):
+        raise ValueError(f"{kind} {column!r} returned non-finite normalized density for group {group!r}.")
+    return normalized
+
+
 def _beeswarm_offsets(
     yVals,
-    heightPx: int | None = None,
+    heightPx: float | None = None,
     spread: float | None = None,
 ) -> np.ndarray:
     """
@@ -149,10 +205,13 @@ def _van_der_corput(n: int, base: int = 2) -> np.ndarray:
 
 def _quasirandom_offsets(
     yVals,
-    heightPx: int | None = None,
+    heightPx: float | None = None,
     spread: float | None = None,
     width: float | None = None,
     bandwidth: float | None = None,
+    *,
+    column: str = "value",
+    group: Any = None,
 ) -> np.ndarray:
     """
     Compute x offsets (pixels) for a quasirandom beeswarm (the vipor ``geom_quasirandom`` method).
@@ -211,15 +270,34 @@ def _quasirandom_offsets(
         return np.array([0.0])
 
     y_min, y_max = y.min(), y.max()
-    y_px = (y - y_min) / max(y_max - y_min, 1e-9) * heightPx
+    value_span = float(y_max) - float(y_min)
+    if not math.isfinite(float(value_span)):
+        raise ValueError(
+            f"quasirandom KDE column {column!r} has a range that cannot be represented finitely in group {group!r}."
+        )
+    y_px = (y - y_min) / max(value_span, 1e-9) * heightPx
+    if not np.all(np.isfinite(y_px)):
+        raise ValueError(f"quasirandom KDE column {column!r} produced non-finite plot coordinates in group {group!r}.")
 
-    # Relative local density (the lens width). A degenerate (zero-variance) group has no KDE, so
-    # treat it as uniform - every point at the same y spreads across the full width.
-    if y_max - y_min < 1e-9:
+    # Relative local density (the lens width). A zero or numerically tiny-range group uses the
+    # historical uniform fallback instead of a KDE.
+    if value_span < 1e-9:
         dens = np.ones(n)
     else:
-        dens = gaussian_kde(y, bw_method=bandwidth)(y)
-    dens = dens / dens.max()
+        kde, _ = _fit_kde(
+            y,
+            bandwidth=bandwidth,
+            column=column,
+            group=group,
+            kind="quasirandom KDE column",
+        )
+        dens = _normalised_kde_density(
+            kde,
+            y,
+            column=column,
+            group=group,
+            kind="quasirandom KDE column",
+        )
 
     # Auto width: match the swarm's footprint. peak = the most points within one 2*spread-tall
     # window (a swarm "row"); at that density the van der Corput fills +/- spread*peak, giving
@@ -238,7 +316,10 @@ def _quasirandom_offsets(
     offsets = offsets * dens * width
     # Centre on the midrange: a rigid, overlap-safe shift that seats the swarm's left/right extremes
     # equidistant from the tick (symmetric outline) and lifts small even-count groups off centre.
-    return offsets - (offsets.max() + offsets.min()) / 2
+    result = offsets - (offsets.max() + offsets.min()) / 2
+    if not np.all(np.isfinite(result)):
+        raise ValueError(f"quasirandom KDE column {column!r} produced non-finite offsets in group {group!r}.")
+    return result
 
 
 def _grouped_offsets(
@@ -246,7 +327,7 @@ def _grouped_offsets(
     yCol: str,
     groupBy: list[str],
     outCol: str,
-    offset_fn: "Callable[[np.ndarray], np.ndarray]",
+    offset_fn: "Callable[[np.ndarray, Any], np.ndarray]",
 ) -> pl.DataFrame:
     """Apply a per-group offset function over ``yCol`` and attach the result as ``outCol``.
 
@@ -256,18 +337,28 @@ def _grouped_offsets(
     return (
         df.with_row_index("__offset_idx")
         .group_by(groupBy)
-        .map_groups(lambda g: g.with_columns(pl.Series(outCol, offset_fn(g[yCol].to_numpy()))))
+        .map_groups(
+            lambda g: g.with_columns(
+                pl.Series(
+                    outCol,
+                    offset_fn(
+                        g[yCol].to_numpy(),
+                        g[groupBy[0]][0] if len(groupBy) == 1 else tuple(g[name][0] for name in groupBy),
+                    ),
+                )
+            )
+        )
         .sort("__offset_idx")
         .drop("__offset_idx")
     )
 
 
 def beeswarm(
-    data: pl.DataFrame | Any,
+    data: "pl.DataFrame | pd.DataFrame",
     column: str,
     groupBy: list[str],
     *,
-    heightPx: int | None = None,
+    heightPx: float | None = None,
     spread: float | None = None,
     outCol: str = "beeswarm_x",
 ) -> pl.DataFrame:
@@ -288,7 +379,7 @@ def beeswarm(
     Parameters
     ----------
     data:
-        Input DataFrame.
+        Polars or pandas DataFrame.
     column:
         Name of the column containing y values.
     groupBy:
@@ -324,16 +415,16 @@ def beeswarm(
     """
     data = _ensure_polars(data)
     return _grouped_offsets(
-        data, column, groupBy, outCol, lambda y: _beeswarm_offsets(y, heightPx=heightPx, spread=spread)
+        data, column, groupBy, outCol, lambda y, _group: _beeswarm_offsets(y, heightPx=heightPx, spread=spread)
     )
 
 
 def quasirandom(
-    data: pl.DataFrame | Any,
+    data: "pl.DataFrame | pd.DataFrame",
     column: str,
     groupBy: list[str],
     *,
-    heightPx: int | None = None,
+    heightPx: float | None = None,
     spread: float | None = None,
     outCol: str = "quasirandom_x",
     width: float | None = None,
@@ -354,7 +445,7 @@ def quasirandom(
     Parameters
     ----------
     data:
-        Input DataFrame.
+        Polars or pandas DataFrame.
     column:
         Name of the column containing y values.
     groupBy:
@@ -377,6 +468,18 @@ def quasirandom(
     polars.DataFrame
         Original DataFrame with an additional ``outCol`` column.
 
+    Raises
+    ------
+    TypeError
+        If ``data`` is not a Polars or pandas DataFrame.
+    ValueError
+        If ``column`` or a grouping column is missing, an observation is missing/non-numeric or
+        non-finite, or a non-degenerate group's KDE cannot be computed numerically. Singleton and
+        constant groups retain their supported offset behavior.
+    polars.exceptions.ComputeError
+        If ``data`` is empty. This preserves Polars' existing inability to apply the grouped offset
+        function to an empty DataFrame.
+
     Examples
     --------
     ::
@@ -391,17 +494,40 @@ def quasirandom(
         )
     """
     data = _ensure_polars(data)
-    return _grouped_offsets(
-        data,
-        column,
-        groupBy,
-        outCol,
-        lambda y: _quasirandom_offsets(y, heightPx=heightPx, spread=spread, width=width, bandwidth=bandwidth),
-    )
+    missing = [name for name in [column, *groupBy] if name not in data.columns]
+    if missing:
+        raise ValueError(f"quasirandom data column(s) not found: {missing}.")
+    for group_key, group_data in data.group_by(groupBy, maintain_order=True):
+        group = group_key[0] if len(groupBy) == 1 else group_key
+        _validate_observations(group_data[column].to_list(), column, group, kind="quasirandom KDE column")
+    try:
+        return _grouped_offsets(
+            data,
+            column,
+            groupBy,
+            outCol,
+            lambda y, group: _quasirandom_offsets(
+                y,
+                heightPx=heightPx,
+                spread=spread,
+                width=width,
+                bandwidth=bandwidth,
+                column=column,
+                group=group,
+            ),
+        )
+    except pl.exceptions.ComputeError as exc:
+        # Polars wraps exceptions raised inside map_groups. Unwrap only our own numerical guard;
+        # unrelated UDF failures must retain their original ComputeError.
+        prefix = "UDF failed: "
+        message = str(exc)
+        if message.startswith(prefix + "quasirandom KDE column"):
+            raise ValueError(message.removeprefix(prefix)) from exc
+        raise
 
 
 def jitter(
-    data: pl.DataFrame | Any,
+    data: "pl.DataFrame | pd.DataFrame",
     *,
     spread: float | None = None,
     outCol: str = "jitter_x",
@@ -419,7 +545,7 @@ def jitter(
     Parameters
     ----------
     data:
-        Input DataFrame.
+        Polars or pandas DataFrame.
     spread:
         Standard deviation of the jitter in pixels. Defaults to
         ``min(chartWidth, chartHeight) / 50`` from the active theme (2.0 at

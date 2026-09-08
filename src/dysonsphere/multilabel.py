@@ -1,8 +1,11 @@
 import math
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import altair as alt
 import polars as pl
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 from .theme import _opt
 from .utils import _band_geometry, _count_n, _internal_data
@@ -20,23 +23,22 @@ def _multilabel_layer(
     style: str = "plusminus",
     rowStyles: dict[str, str] | list[str] | None = None,
     labelAlign: str = "left",
-    labelPadding: int = 0,
+    labelPadding: float = 0,
     symbol: str = "circle",
-    symbolSize: int | None = None,
+    symbolSize: float | None = None,
     palette: list[str] | None = None,
     strokeWidth: float | None = None,
     connectingLine: bool = True,
     orientation: str = "vertical",
-    yPadding: float | None = None,
-    chartWidth: int | None = None,
-    fontSize: int | None = None,
+    chartWidth: float | None = None,
+    fontSize: float | None = None,
     rowHeight: int | float | dict[str, int | float] | list[int | float] | None = None,
     rowValueAngle: int | float | dict[str, Any] | list[Any] | None = None,
     categoryLabel: bool = False,
     categoryLabelPosition: str = "bottom",
     labelMap: dict[str, Any] | None = None,
-    categoryLabelAngle: int = -45,
-    categoryLabelHeight: int | None = None,
+    categoryLabelAngle: float = -45,
+    categoryLabelHeight: float | None = None,
     span: dict[str | None, list[str]] | list[dict[str | None, list[str]]] | None = None,
     spanBracketStyle: str = "line",
     spanLabelPosition: str = "bottom",
@@ -642,9 +644,9 @@ def add_multilabel(
     groups: dict[str, list[Any]] | None = None,
     categories: list[str] | None = None,
     *,
-    spacing: int = 0,
+    spacing: float = 0,
     showSampleSize: bool = False,
-    data=None,
+    data: "pl.DataFrame | pd.DataFrame | None" = None,
     x: str | None = None,
     sampleSizeIndex: int = 0,
     sampleSizeLabel: str = "n =",
@@ -652,23 +654,22 @@ def add_multilabel(
     style: str = "plusminus",
     rowStyles: dict[str, str] | list[str] | None = None,
     labelPosition: str = "left",
-    labelPadding: int = 0,
+    labelPadding: float = 0,
     symbol: str = "circle",
-    symbolSize: int | None = None,
+    symbolSize: float | None = None,
     palette: list[str] | None = None,
     strokeWidth: float | None = None,
     connectingLine: bool = True,
     lineOrientation: str = "vertical",
-    yPadding: float | None = None,
-    chartWidth: int | None = None,
-    fontSize: int | None = None,
+    chartWidth: float | None = None,
+    fontSize: float | None = None,
     rowHeight: int | float | dict[str, int | float] | list[int | float] | None = None,
     rowValueAngle: int | float | dict[str, Any] | list[Any] | None = None,
     categoryLabel: bool = False,
     categoryLabelPosition: str = "bottom",
     labelMap: dict[str, Any] | None = None,
-    categoryLabelAngle: int = -45,
-    categoryLabelHeight: int | None = None,
+    categoryLabelAngle: float = -45,
+    categoryLabelHeight: float | None = None,
     span: dict[str | None, list[str]] | list[dict[str | None, list[str]]] | None = None,
     spanBracketStyle: str = "line",
     spanLabelPosition: str = "bottom",
@@ -774,9 +775,6 @@ def add_multilabel(
         Direction of the connecting rule. ``"vertical"`` (default) draws a rule
         down each column spanning consecutive ``True`` rows. ``"horizontal"``
         draws a rule across each row spanning consecutive ``True`` columns.
-    yPadding:
-        Accepted but inert. Rows are positioned in pixel space, so there is no band
-        step to pad; use ``rowHeight`` to space rows apart.
     chartWidth:
         Width of the annotation chart in pixels. Inherits ``chartWidth`` from
         ``ds.theme()`` when not set.
@@ -963,7 +961,6 @@ def add_multilabel(
         strokeWidth=strokeWidth,
         connectingLine=connectingLine,
         orientation=lineOrientation,
-        yPadding=yPadding,
         chartWidth=chartWidth,
         fontSize=fontSize,
         rowHeight=rowHeight,

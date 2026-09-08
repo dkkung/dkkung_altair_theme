@@ -6,6 +6,7 @@ padding controls, multi-strip stacking, and that the generated image sidecar is 
 
 import base64
 import io
+from pathlib import Path
 
 import altair as alt
 import dysonsphere_biology as dsbio
@@ -100,6 +101,12 @@ def test_accepts_data_uri():
     _img().save(buf, "PNG")
     uri = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
     assert len(_image_units(ds.biology.western_blot(uri, categories=["x", "y"]).to_dict())) == 1
+
+
+def test_accepts_pathlib_image(tmp_path):
+    path = Path(tmp_path) / "blot.png"
+    _img().save(path)
+    assert len(_image_units(ds.biology.western_blot(path, categories=["x", "y"]).to_dict())) == 1
 
 
 def test_image_sidecar_tagged_internal():

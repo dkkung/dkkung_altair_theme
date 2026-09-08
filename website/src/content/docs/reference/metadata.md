@@ -14,7 +14,7 @@ Access these helpers through `ds.metadata`.
 Call as `ds.metadata.frame_checksum(...)`.
 
 ```python
-def frame_checksum(data: pl.DataFrame | Any) -> str: ...
+def frame_checksum(data: pl.DataFrame | pd.DataFrame) -> str: ...
 ```
 
 Order-independent ``multiset-sha256:<hex>`` fingerprint of a dataframe's rows.
@@ -30,10 +30,10 @@ Call as `ds.metadata.read(...)`.
 
 ```python
 def read(
-    path: str,
+    path: str | Path,
     *,
     what: str = 'report',
-    saveReport: bool | str = False,
+    saveReport: bool | str | Path = False,
     output: str = 'polars',
     dataset: str | None = None,
 ) -> Any: ...
@@ -43,10 +43,14 @@ Read back the metadata (or data) embedded by :func:`save` from a PNG, SVG, or JS
 
 **Parameters**
 
-- **`path`** (`str`) - A dysonsphere-exported ``.png``, ``.svg``, or ``.json`` file.
+- **`path`** (`str | Path`) - A dysonsphere-exported ``.png``, ``.svg``, or ``.json`` file.
 - **`what`** (`str`) - Which artifact to return: - ``'report'`` (default) — the human-readable report **table** as a ``str``; it is printed to stdout and returned. Joins every section of the ``report`` container (``statistics`` + ``provenance``). Falls back to re-rendering the statistics from the embedded records if the prose wasn't saved (``embedReport=False``). - ``'statistics'`` — the structured **records** (list of dicts, exact floats). - ``'metadata'`` — the whole ``{provenance, statistics, theme, report}`` dict, where ``report`` is the ``{section: text}`` container. - ``'data'`` — the **original data** Altair inlined into the spec (the whole frame, including columns the chart never plotted). **JSON only** (PNG/SVG don't carry the data). The form is chosen by ``output``.
-- **`saveReport`** (`bool | str`) - Only for ``what='report'``: ``True`` writes the report to a ``.txt`` in the cwd; a string writes to that directory.
+- **`saveReport`** (`bool | str | Path`) - Only for ``what='report'``: ``True`` writes the report to a ``.txt`` in the cwd; a path writes to that directory.
 - **`output`** (`str`) - Only for ``what='data'`` — the form to return the data in: ``'polars'`` (default) → ``pl.DataFrame``; ``'pandas'`` → ``pd.DataFrame``; ``'duckdb'`` → a ``DuckDBPyRelation``; ``'records'`` → the raw ``list[dict]`` (no dataframe library needed). ``pandas`` and ``duckdb`` are imported lazily and are not package dependencies.
+
+**Returns**
+
+- `str, list[dict[str, Any]], dict[str, Any], or dataframe-like object` - The result selected by ``what`` and, for ``what='data'``, by ``output`` and ``dataset``.
 
 ## `verify`
 
@@ -55,7 +59,7 @@ Call as `ds.metadata.verify(...)`.
 ```python
 def verify(
     figure: Any,
-    data: Any = None,
+    data: pl.DataFrame | pd.DataFrame | list[pl.DataFrame | pd.DataFrame] | tuple[pl.DataFrame | pd.DataFrame, ...] | None = None,
     *,
     what: str | tuple[str, ...] | list[str] = _COMPARE_KEYS,
 ) -> VerifyResult: ...
@@ -98,7 +102,7 @@ on its own is what detects an edit; the two questions are deliberately separate.
 **Parameters**
 
 - **`figure`** (`Any`) - A dysonsphere-exported ``.png``, ``.svg``, or ``.json`` to check - or a list of figures to compare, each a path or an Altair chart.
-- **`data`** (`Any`) - Optional dataframe, or list of dataframes, that the figure should have been built from. Polars or pandas. Omit to check only the spec.
+- **`data`** (`pl.DataFrame | pd.DataFrame | list[pl.DataFrame | pd.DataFrame] | tuple[pl.DataFrame | pd.DataFrame, ...] | None`) - Optional dataframe, or list of dataframes, that the figure should have been built from. Polars or pandas. Omit to check only the spec.
 - **`what`** (`str | tuple[str, ...] | list[str]`) - Which questions to ask when comparing a list: any of ``"spec"``, ``"data"``, ``"save"``. Defaults to all three. Ignored when checking a single figure.
 
 **Returns**

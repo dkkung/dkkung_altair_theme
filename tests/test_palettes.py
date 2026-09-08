@@ -77,6 +77,23 @@ def test_palette_n_one():
     assert result == [colors["blues"][0]]
 
 
+def test_palette_n_zero_is_empty():
+    assert palette("blues", n=0) == []
+
+
+def test_palette_n_oversampling_keeps_inclusive_endpoints():
+    result = palette("blues", n=20, start=2, end=5, step=99)
+    assert len(result) == 20
+    assert result[0] == colors["blues"][2]
+    assert result[-1] == colors["blues"][5]
+
+
+@pytest.mark.parametrize("n", [-1, 1.0, True, "4"])
+def test_palette_n_requires_a_nonnegative_integer(n):
+    with pytest.raises(ValueError, match="nonnegative integer"):
+        palette("blues", n=n)
+
+
 def test_palette_reverse():
     result = palette("blues", reverse=True)
     assert result == list(reversed(colors["blues"]))
