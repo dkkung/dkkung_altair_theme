@@ -656,6 +656,23 @@ class TestRowValidation:
         assert isinstance(_multilabel_layer(self.GROUPS, self.C, order=["b", "a"]), alt.LayerChart)
         assert isinstance(_multilabel_layer(self.GROUPS, self.C, order=[]), alt.LayerChart)
 
+    def test_order_rejects_duplicate_rows(self):
+        with pytest.raises(ValueError, match="duplicate row label"):
+            _multilabel_layer(self.GROUPS, self.C, order=["a", "a"])
+
+    def test_styling_maps_validate_full_rows_not_displayed_subset(self):
+        chart = _multilabel_layer(
+            self.GROUPS,
+            self.C,
+            order=["a"],
+            rowStyles={"b": "symbol"},
+            rowHeight={"b": 20},
+            rowValueAngle={"b": -90},
+        )
+        assert isinstance(chart, alt.LayerChart)
+        with pytest.raises(ValueError, match="rowStyles has unknown row label"):
+            _multilabel_layer(self.GROUPS, self.C, order=["a"], rowStyles={"zz": "symbol"})
+
     def test_sample_size_label_colliding_with_a_row_raises(self):
         # One row silently replaced the other, and which one won depended on `order`.
         groups = {"n =": ["x", "y", "z"], "b": [True, False, True]}

@@ -156,7 +156,9 @@ def count_n(data: pl.DataFrame, column: str, categories: list[str]) -> list[int]
         Column name used for grouping (the x-axis column).
     categories:
         Ordered list of category labels; the returned counts follow this order.
-        Categories with no matching rows return 0.
+        Categories with no matching rows return 0. Subsets and repeated category entries are
+        allowed; repeated entries produce repeated counts, and rows outside the supplied list are
+        ignored.
 
     Returns
     -------
@@ -172,6 +174,43 @@ def count_n(data: pl.DataFrame, column: str, categories: list[str]) -> list[int]
     """
     data = ensure_polars(data)
     return [len(data.filter(pl.col(column) == cat)) for cat in categories]
+
+
+def _validate_category_order(
+    data: pl.DataFrame,
+    column: str,
+    categories: Sequence[Any],
+    *,
+    name: str = "categories",
+    tail: str | None = None,
+) -> list[Any]:
+    """Require an explicit data-driven category order to cover observations exactly once.
+
+    This is intentionally separate from :func:`count_n`: count tables are useful for subsets,
+    duplicate category names, and zero-count categories, while plot scales must describe the
+    observed domain exactly.
+    """
+    if isinstance(categories, (str, bytes)):
+        raise ValueError(f"{name} must be an ordered sequence of category values, not a string.")
+    values = list(categories)
+    observed = data[column].unique(maintain_order=True).to_list()
+
+    duplicates: list[Any] = []
+    for index, value in enumerate(values):
+        if value in values[:index] and value not in duplicates:
+            duplicates.append(value)
+    if duplicates:
+        raise ValueError(f"{name} contains duplicate values: {duplicates}.")
+
+    missing = [value for value in observed if value not in values]
+    if missing:
+        suffix = f" {tail}" if tail else ""
+        raise ValueError(f"{name} is missing {column!r} values present in the data: {missing}.{suffix}")
+
+    extra = [value for value in values if value not in observed]
+    if extra:
+        raise ValueError(f"{name} contains values not present in {column!r}: {extra}.")
+    return values
 
 
 def ensure_polars(data: pl.DataFrame) -> pl.DataFrame:

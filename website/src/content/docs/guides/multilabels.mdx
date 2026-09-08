@@ -9,6 +9,10 @@ import Example from '../../../components/Example.astro';
 text aligned to each x category, with optional sample-size and category-label rows and grouped
 spans.
 
+`order=` may select a subset of rows, but listed labels must be known and unique. `rowStyles=`,
+`rowHeight=`, and `rowValueAngle=` mappings validate keys against all supplied groups, including
+groups omitted from `order`.
+
 <Example name="multilabel" alt="Strip plot with a plus/minus multilabel table below" />
 
 `showSampleSize=True` injects a per-category count row, and `categoryLabel=True` renders the

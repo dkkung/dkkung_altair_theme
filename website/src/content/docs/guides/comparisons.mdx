@@ -162,7 +162,8 @@ For a grouped bar chart - a subgroup on `xOffset` within each x-category, like a
 panel - pass `xOffset` to compare the subgroup **levels within each group**. `pairs` names the
 levels (defaulted for two); one bracket is drawn per x-category, each with a real per-category test,
 sitting above its own group's bars. Set `categories` and `xOffsetSort` to match your chart's `x` /
-`xOffset` sort (it raises if they don't cover the data):
+`xOffset` sort. Explicit orders must match observed values exactly once; sequence order, including
+numeric categories, is preserved:
 
 <Example name="qpcr" alt="Grouped qPCR bars with a within-gene significance bracket per gene" />
 

@@ -32,6 +32,20 @@ class TestMarkViolin:
         result = mark_violin(group_df, x="group", y="value", categories=CATEGORIES)
         assert isinstance(result, alt.LayerChart)
 
+    @pytest.mark.parametrize("categories", [["A", "B"], ["A", "B", "D"], ["A", "B", "B"]])
+    @pytest.mark.parametrize("constructor", [mark_strip, mark_violin])
+    def test_categories_must_match_observed_values_once(self, group_df, categories, constructor):
+        with pytest.raises(ValueError, match="categories"):
+            constructor(group_df, "group", "value", categories)
+
+    def test_numeric_categories_remain_valid(self):
+        data = pl.DataFrame({"group": [2, 1] * 8, "value": np.arange(16, dtype=float)})
+        assert isinstance(mark_strip(data, "group", "value", [2, 1]), alt.LayerChart)
+
+    def test_category_string_is_not_split_into_characters(self, group_df):
+        with pytest.raises(ValueError, match="not a string"):
+            mark_strip(group_df, "group", "value", "ABC")  # ty: ignore[invalid-argument-type]
+
     def test_custom_palette_list(self, group_df):
         result = mark_violin(
             group_df,

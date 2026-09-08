@@ -73,7 +73,7 @@ Count the number of rows in ``data`` belonging to each category.
 
 - **`data`** (`pl.DataFrame`) - A ``polars.DataFrame`` or ``pandas.DataFrame``.
 - **`column`** (`str`) - Column name used for grouping (the x-axis column).
-- **`categories`** (`list[str]`) - Ordered list of category labels; the returned counts follow this order. Categories with no matching rows return 0.
+- **`categories`** (`list[str]`) - Ordered list of category labels; the returned counts follow this order. Categories with no matching rows return 0. Subsets and repeated category entries are allowed; repeated entries produce repeated counts, and rows outside the supplied list are ignored.
 
 **Returns**
 

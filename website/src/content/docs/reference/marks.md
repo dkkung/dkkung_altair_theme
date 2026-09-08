@@ -14,7 +14,7 @@ def mark_violin(
     data: pl.DataFrame | Any,
     x: str,
     y: str,
-    categories: list[str],
+    categories: list[Any],
     *,
     inner: str | None = 'quartiles',
     innerColor: str | None = None,
@@ -52,7 +52,7 @@ scale resolution never squishes the violin shape.
 - **`data`** (`pl.DataFrame | Any`) - Polars DataFrame containing the data.
 - **`x`** (`str`) - Column name for the grouping variable (x-axis).
 - **`y`** (`str`) - Column name for the value variable (y-axis).
-- **`categories`** (`list[str]`) - Ordered list of all x-axis categories, used for positioning and axis labels.
+- **`categories`** (`list[Any]`) - Ordered list of all x-axis categories, used for positioning and axis labels. It must contain each observed value exactly once and no unobserved values. Tuple/list order and numeric category values are supported; pass an ordered sequence, not a raw string.
 - **`inner`** (`str | None`) - Inner statistic display: ``"quartiles"`` (default) draws Prism-style horizontal lines - a solid median (at twice the outline ``strokeWidth``, clipped to the violin border) and dashed quartiles (at the outline ``strokeWidth``) - each spanning the violin's width at that value; ``"median"`` draws only the median line; ``"box"`` embeds a boxplot; ``None`` draws the violin outline only.
 - **`innerColor`** (`str | None`) - Color of the median/quartile lines (``"quartiles"``/``"median"``). ``None`` (default) means ``"black"`` in both light and dark mode - the lines sit inside the mark fill, not on the background, so they are deliberately not darkmode-sensitive.
 - **`boxplotWidth`** (`int | None`) - Width of the boxplot box in pixels (``inner="box"`` only).
@@ -107,7 +107,7 @@ def mark_strip(
     data: pl.DataFrame | Any,
     x: str,
     y: str,
-    categories: list[str],
+    categories: list[Any],
     *,
     scatter: str = 'jitter',
     palette: str | list[str] | None = None,
@@ -139,7 +139,7 @@ layers (e.g. ``ds.stats.comparisons``).
 - **`data`** (`pl.DataFrame | Any`) - Polars DataFrame containing the data.
 - **`x`** (`str`) - Column name for the grouping variable (x-axis).
 - **`y`** (`str`) - Column name for the value variable (y-axis).
-- **`categories`** (`list[str]`) - Ordered list of all x-axis categories.
+- **`categories`** (`list[Any]`) - Ordered list of all x-axis categories. It must contain each observed value exactly once and no unobserved values; tuple/list order and numeric category values are supported, but a raw string is rejected.
 - **`scatter`** (`str`) - Point distribution method: ``'jitter'`` (faster, random Gaussian offset) or ``'beeswarm'`` (collision-avoidance, better for smaller n).
 - **`palette`** (`str | list[str] | None`) - Named dysonsphere palette or explicit list of category colors. When ``None``, colors inherit the active theme category palette. Cannot be combined with ``fill``.
 - **`fill`** (`str | None`) - Fixed literal fill color for the points. Suppresses the category-color legend when set and does not affect summary marks. Cannot be combined with ``palette``.

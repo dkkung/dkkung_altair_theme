@@ -64,20 +64,25 @@ rebuilt per background::
 
     ds.save(lambda: ds.mark_table(data, ...), "table", background=["light", "dark"])
 
+Missing and non-finite values serialize as ``null`` and render as blank cells. They do not
+remove their rows, and the recovered user dataframe is unchanged; zero remains a displayed
+zero. Named numeric formats raise on non-missing string values. An explicit valid d3 format
+may format a string column, while an all-missing column remains blank.
+
 **Parameters**
 
 - **`data`** (`pl.DataFrame | Any`) - The data to tabulate (Polars or Pandas). Never mutated.
 - **`columns`** (`list[str] | None`) - Columns to show, in order. ``None`` (default) uses every column in ``data`` order.
 - **`header`** (`bool`) - Draw the header row of column labels. Default ``True``.
-- **`headerLabels`** (`dict[str, str] | None`) - ``{column: display label}`` to rename headers (unlisted columns keep their name).
-- **`columnFormat`** (`dict[str, str] | None`) - ``{column: format}`` for numeric columns. Each value is either a **notation keyword** - ``"scientific"`` (``1.23×10⁻⁵``), ``"power"`` (``10⁻⁵``, nearest power of ten), ``"e"`` (``1.2e-5``), ``"si"`` (``12k``) - honouring ``sigFigs``, or any **d3/printf format spec** (``".2g"``, ``".1f"``, ``","`` …). The two superscript notations reuse the SVG typesetting the rest of dysonsphere applies, so exponents render aligned and any leading statistical symbol is italicised. Unlisted numeric columns default to ``sigFigs`` significant figures; string columns render verbatim.
+- **`headerLabels`** (`dict[str, str] | None`) - ``{column: display label}`` to rename headers (unlisted columns keep their name). This is a permissive display map; unknown keys are ignored.
+- **`columnFormat`** (`dict[str, str] | None`) - ``{column: format}`` for numeric columns. Each value is either a **notation keyword** - ``"scientific"`` (``1.23×10⁻⁵``), ``"power"`` (``10⁻⁵``, nearest power of ten), ``"e"`` (``1.2e-5``), ``"si"`` (``12k``) - honouring ``sigFigs``, or any **Vega/d3 format spec** (``".2g"``, ``".1f"``, ``","`` …). The two superscript notations reuse the SVG typesetting the rest of dysonsphere applies, so exponents render aligned and any leading statistical symbol is italicised. Unlisted numeric columns default to ``sigFigs`` significant figures; string columns render verbatim. ``"power"`` uses the nearest power of ten and ignores ``sigFigs``. An explicit d3 format uses Vega's format expression and supplies its own precision; it can also format string columns. Boolean columns support numeric formatting. Named numeric notations raise for non-missing string values, while an all-missing column remains blank.
 - **`sigFigs`** (`int | None`) - Significant figures for the notation keywords and the numeric default. ``None`` (default) reads ``theme(sigFigs=…)``.
 - **`align`** (`dict[str, str] | str | None`) - Text alignment. ``None`` (default) is **type-aware**: numeric columns are right-aligned (so decimals and units line up) and everything else is left-aligned. A single ``"left"``/``"center"``/``"right"`` forces all columns; a ``{column: side}`` dict overrides per column (unlisted columns keep the type-aware default).
 - **`strokes`** (`Sequence[str] | str`) - Which rules to draw, as any combination of ``"outer"`` (the border), ``"header"`` (the header/body separator), ``"rows"`` (between data rows), ``"cols"`` (between columns), ``"grid"`` (= ``rows`` + ``cols``, the interior grid), and ``"all"`` (every rule - ``outer`` + ``header`` + ``rows`` + ``cols``). A single string is accepted. Default ``("outer", "header")``.
 - **`stripePalette`** (`str | list[str]`) - Palette (name or hex list) for row striping. Default ``"greys"``. The lightest ``nStripes`` stops are used in light mode, the darkest in dark mode.
 - **`striping`** (`bool`) - Shade alternating rows. Default ``True``.
 - **`nStripes`** (`int`) - Number of stripe colours to alternate through. Default ``2``.
-- **`cellPalette`** (`dict[str, str] | None`) - ``{column: palette}`` to shade cells by value (a heatmap column). The column's values map across the palette (a 13-stop diverging palette is centred on 0; otherwise the domain is the column's ``[min, max]``), and each cell's text switches to black or white for contrast. Overrides striping within that column.
+- **`cellPalette`** (`dict[str, str] | None`) - ``{column: palette}`` to shade cells by value (a heatmap column). The column's values map across the palette (a 13-stop diverging palette is centred on 0; otherwise the domain is the column's ``[min, max]``), and each cell's text switches to black or white for contrast. Overrides striping within that column. Mapping keys must be input column names; a known column need not be in ``columns``.
 - **`textColor`** (`str | dict[str, str] | None`) - Body cell text colour. ``None`` (default) inherits the theme's darkmode-aware text colour. A single string colours every body cell; a ``{column: colour}`` dict colours per column (unlisted columns inherit). A ``cellPalette`` (value-shaded) column keeps its automatic black/white contrast unless you give it an explicit **dict** entry here (a per-column colour is taken as deliberate; a global string does not override the heatmap's contrast).
 - **`fontStyle`** (`str | dict[str, str] | None`) - Body cell font style (``"italic"`` / ``"normal"``; bold is a weight, not a style). ``None`` (default) inherits. A single string styles every body cell; a ``{column: style}`` dict styles per column (unlisted columns inherit) - e.g. ``{"gene": "italic"}`` for italic gene names.
 - **`fontSize`** (`float | None`) - Cell font size. ``None`` (default) reads ``theme(fontSize=…)``.
@@ -87,7 +92,7 @@ rebuilt per background::
 - **`headerFill`** (`str | bool`) - Background band behind the header row, following the ``bool | str`` pattern: ``False`` (default) → none; ``True`` → a darkmode-aware default grey band; a string → that colour.
 - **`cellPadding`** (`float | None`) - Horizontal padding inside a cell, in px. ``None`` (default) → ``fontSize * 0.6``.
 - **`rowHeight`** (`float | None`) - Row height in px. ``None`` (default) → ``round(fontSize * 2)``. The header row uses the same height.
-- **`columnWidths`** (`list[float] | dict[str, float] | None`) - Override the estimated widths: a list in ``columns`` order, or a ``{column: width}`` dict (unlisted columns keep their estimate).
+- **`columnWidths`** (`list[float] | dict[str, float] | None`) - Override the estimated widths: a list in ``columns`` order, or a ``{column: width}`` dict (unlisted shown columns keep their estimate). Mapping keys must be input column names. The same known-input-column rule applies to ``columnFormat``, dict ``align``, ``cellPalette``, dict ``textColor``, and dict ``fontStyle``; known columns may be omitted from ``columns``. ``headerLabels`` is the permissive exception.
 - **`strokeColor`** (`str | None`) - Rule colour. ``None`` (default) → darkmode-aware black/white.
 - **`strokeWidth`** (`float | None`) - Rule width in px. ``None`` (default) → the theme's ``axisWidth``.
 

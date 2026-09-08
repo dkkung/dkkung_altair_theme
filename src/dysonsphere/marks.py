@@ -10,7 +10,7 @@ from .display_labels import label_expr
 from .palettes import colors
 from .theme import _opt
 from .transforms import beeswarm, jitter
-from .utils import _internal_data, _nice_domain, band_geometry, ensure_polars
+from .utils import _internal_data, _nice_domain, _validate_category_order, band_geometry, ensure_polars
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
@@ -39,7 +39,7 @@ class _MarkScaffold:
     df: pl.DataFrame
     xCol: str
     yCol: str
-    categories: list[str]
+    categories: list[Any]
     palette: str | list[str] | None = None
     fill: str | None = None
     legend: bool = False
@@ -50,6 +50,10 @@ class _MarkScaffold:
 
     def __post_init__(self) -> None:
         self.df = ensure_polars(self.df)
+        for column in (self.xCol, self.yCol):
+            if column not in self.df.columns:
+                raise ValueError(f"mark data column {column!r} is not present in the data.")
+        self.categories = _validate_category_order(self.df, self.xCol, self.categories)
         if self.fill is not None and (not isinstance(self.fill, str) or not self.fill.strip()):
             raise ValueError("fill must be a non-empty color string or None")
         if self.fill is not None and self.palette is not None:
@@ -130,7 +134,7 @@ def mark_violin(
     data: pl.DataFrame | Any,
     x: str,
     y: str,
-    categories: list[str],
+    categories: list[Any],
     *,
     inner: str | None = "quartiles",
     innerColor: str | None = None,
@@ -171,8 +175,9 @@ def mark_violin(
     y:
         Column name for the value variable (y-axis).
     categories:
-        Ordered list of all x-axis categories, used for positioning and
-        axis labels.
+        Ordered list of all x-axis categories, used for positioning and axis labels. It must
+        contain each observed value exactly once and no unobserved values. Tuple/list order and
+        numeric category values are supported; pass an ordered sequence, not a raw string.
     inner:
         Inner statistic display: ``"quartiles"`` (default) draws Prism-style
         horizontal lines - a solid median (at twice the outline ``strokeWidth``,
@@ -517,7 +522,7 @@ def mark_strip(
     data: pl.DataFrame | Any,
     x: str,
     y: str,
-    categories: list[str],
+    categories: list[Any],
     *,
     scatter: str = "jitter",
     palette: str | list[str] | None = None,
@@ -552,7 +557,9 @@ def mark_strip(
     y:
         Column name for the value variable (y-axis).
     categories:
-        Ordered list of all x-axis categories.
+        Ordered list of all x-axis categories. It must contain each observed value exactly once
+        and no unobserved values; tuple/list order and numeric category values are supported, but
+        a raw string is rejected.
     scatter:
         Point distribution method: ``'jitter'`` (faster, random Gaussian offset)
         or ``'beeswarm'`` (collision-avoidance, better for smaller n).
