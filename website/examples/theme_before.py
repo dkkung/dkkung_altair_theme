@@ -3,7 +3,7 @@ from vega_datasets import data
 
 import dysonsphere as ds
 
-cars = ds.utils.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon", "Horsepower"])
+cars = data.cars().dropna(subset=["Miles_per_Gallon", "Horsepower"])
 
 chart = (
     alt.Chart(cars)

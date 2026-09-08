@@ -3,7 +3,7 @@ import math
 import altair as alt
 
 from .theme import _opt
-from .utils import _SUP, ensure_polars
+from .utils import _SUP, _ensure_polars
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
@@ -302,7 +302,7 @@ def add_log_ticks(
     if minorTickSize is None:
         minorTickSize = _opt("tickSize") / 2
 
-    data = ensure_polars(data)
+    data = _ensure_polars(data)
 
     if axis == "both":
         if xField is None or yField is None:
@@ -494,7 +494,7 @@ def add_pow_ticks(
     if minorTickSize is None:
         minorTickSize = _opt("tickSize") / 2
 
-    data = ensure_polars(data)
+    data = _ensure_polars(data)
 
     if axis == "both":
         if xField is None or yField is None:

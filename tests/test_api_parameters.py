@@ -23,8 +23,6 @@ _RENAMES = {
     "transforms.jitter": {"df": "data"},
     "transforms.beeswarm": {"df": "data", "yCol": "column"},
     "transforms.quasirandom": {"df": "data", "yCol": "column"},
-    "utils.ensure_polars": {"df": "data"},
-    "utils.count_n": {"df": "data", "xCol": "column"},
     "metadata.frame_checksum": {"df": "data"},
     "metadata.verify": {"df": "data"},
     "metadata.read": {"save": "saveReport"},

@@ -7,7 +7,7 @@ import dysonsphere as ds
 # it also defaults the frame to closed.
 ds.theme(inwardTicks=True)
 
-cars = ds.utils.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon", "Horsepower"])
+cars = data.cars().dropna(subset=["Miles_per_Gallon", "Horsepower"])
 
 chart = (
     alt.Chart(cars)

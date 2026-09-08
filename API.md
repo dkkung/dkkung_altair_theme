@@ -16,8 +16,9 @@ notes are local working material, not dependencies of this framework or part of 
 - Use selective namespaces for coherent specialized toolsets, not one namespace per implementation
   module. Specialized tools may return charts too.
 - Use `ds.stats` for statistical annotations, `ds.transforms` for data transforms, `ds.metadata`
-  for inspection and verification, `ds.utils` for supported shared utilities, and domain namespaces
-  such as `ds.biology` for optional extensions.
+  for inspection and verification, and domain namespaces such as `ds.biology` for optional
+  extensions. Shared implementation helpers in `utils.py` are private and are not a supported
+  public namespace.
 - Keep `ds.theme()` and top-level `ds.create_config()`. A one-function config namespace adds little.
 - Keep `ds.palette()` as the common selector; categorical construction, the color registry, and
   swatch export belong under `ds.palettes`. Palette selection returns colors without changing
@@ -58,7 +59,7 @@ notes are local working material, not dependencies of this framework or part of 
 - Use channel names for plot mappings: xOffset for grouped comparison positions, and x for
   multilabel sample-size categories. Use groupBy for per-group calculations (including correlation).
 - Use column for axis-independent dataframe operations, including beeswarm/quasirandom input
-  values and count_n. Keep outCol for the column a transform creates or replaces. A consistent
+  values. Keep outCol for the column a transform creates or replaces. A consistent
   name does not widen accepted cardinality: correlation groupBy still identifies one column,
   while grouped transforms retain their existing grouping-column contract.
 
@@ -159,8 +160,9 @@ notes are local working material, not dependencies of this framework or part of 
   category values exactly: reject missing observed values, extra unobserved values, and duplicates.
   Callers filter data explicitly before requesting a subset. Do not infer empty plot slots from
   extra category names. This concerns category values within a column, not dataframe column names.
-  Do not impose these restrictions on count_n, where subsets, duplicates, and absent-category
-  zeros are useful, or pretend annotations without source data can validate observed coverage.
+  Sample-size counting retains subset, duplicate-request, and absent-category zero semantics;
+  these are separate from strict data-driven plot category validation. An annotation without
+  source data cannot validate observed coverage.
 - Comparison identity is unordered for lookup; explicit caller order can still govern list inputs
   and presentation. Conflicting reversed duplicates and self-pairs need clear validation.
 - Boolean masks identify rows, not label values. Validate mask length before value matching.

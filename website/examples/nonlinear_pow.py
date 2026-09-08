@@ -5,7 +5,7 @@ import dysonsphere as ds
 
 ds.theme()
 
-cars = ds.utils.ensure_polars(data.cars()).drop_nulls(["Horsepower", "Weight_in_lbs"])
+cars = data.cars().dropna(subset=["Horsepower", "Weight_in_lbs"])
 
 majors = [0, 1000, 2000, 3000, 4000, 5000]
 line = (

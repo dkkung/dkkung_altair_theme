@@ -5,7 +5,7 @@ import dysonsphere as ds
 
 ds.theme()
 
-cars = ds.utils.ensure_polars(data.cars()).drop_nulls(["Acceleration"])
+cars = pl.from_pandas(data.cars()).drop_nulls(["Acceleration"])
 # Subsample to 50 cars per origin so the swarm fits its band.
 cars = cars.filter(pl.int_range(pl.len()).shuffle(seed=7).over("Origin") < 50)
 origins = ["USA", "Europe", "Japan"]

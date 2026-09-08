@@ -766,7 +766,7 @@ class TestRuleDatum:
         assert '"datum"' in spec  # positioned by a constant datum
 
     def test_datum_pandas_accepted(self, df):
-        rule(2.0, data=df.to_pandas()).to_dict()  # ensure_polars handles pandas
+        rule(2.0, data=df.to_pandas()).to_dict()  # dataframe normalization handles pandas
 
     def test_datum_faceting_succeeds(self, df):
         base = alt.Chart(df).mark_point().encode(x="x:Q", y="value:Q")

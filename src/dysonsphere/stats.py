@@ -27,13 +27,13 @@ from .annotations import text as _text
 from .theme import _opt
 from .utils import (
     _SUP,
+    _band_geometry,
     _empty_layer,
     _internal_data,
     _nested_band_centers,
     _nice_domain,
     _resolve_dash,
     _validate_category_order,
-    band_geometry,
 )
 
 # The public ds.stats API; its contents are not star-imported into the root namespace.
@@ -682,7 +682,7 @@ def _pvalue_layer(
     _y_enc = alt.Y("y:Q") if domain_max is None else alt.Y("y:Q", scale=alt.Scale(domainMax=domain_max))
     # Pixels, not x:N - an encoding contributes a scale that cannot merge when the base
     # resolves x independently (mark_violin), stranding it as its own axis.
-    geo = band_geometry(len(categories), chartWidth)
+    geo = _band_geometry(len(categories), chartWidth)
     x1_px, x2_px = geo.centers[g1_idx], geo.centers[g2_idx]
     x_mid_px = (x1_px + x2_px) / 2
     bar = (
@@ -744,7 +744,7 @@ def _reference_label_layer(
     lifted ``offset_px`` pixels - the reference-mode annotation (no bracket; the comparison to the
     reference is implicit). A lone label has nothing to collide with, so a constant pixel offset is
     already exact - no scale expression needed, unlike the stacked brackets."""
-    x_px = band_geometry(len(categories), chartWidth).centers[categories.index(group)]
+    x_px = _band_geometry(len(categories), chartWidth).centers[categories.index(group)]
     return (
         alt.Chart(_internal_data([{"y": y, "label": label}]))
         .mark_text(align="center", baseline="bottom", fontSize=fontSize, dy=-4 - offset_px)
@@ -1321,7 +1321,7 @@ def _add_grouped_comparisons(
                 _clevel_px = [_cat_px(cast(float, c.max() or 0.0)) for c in _lvl_col]
                 _clevel_lo = [_cat_px(cast(float, c.min() or 0.0)) for c in _lvl_col] if any(rev_flags) else _clevel_px
                 # Every label in a category centres on the same band, and the sub-bar pixel
-                # positions are Vega's, not band_geometry's - so a label is treated as covering
+                # positions are Vega's, not _band_geometry's - so a label is treated as covering
                 # the whole category. Conservative: it can only shorten a tick, never overlap one.
                 _cfs = float(fontSize or _opt("fontSize"))
                 _clabels = [
@@ -1893,9 +1893,9 @@ def comparisons(
         _pair_effect,
         _run_omnibus,
     )
-    from .utils import _frame_checksum, ensure_polars
+    from .utils import _ensure_polars, _frame_checksum
 
-    data = ensure_polars(data)
+    data = _ensure_polars(data)
 
     _validate_comparison_syntax(
         test=test,
@@ -2227,7 +2227,7 @@ def comparisons(
             cols = [data.filter(pl.col(x) == c)[yCol].cast(pl.Float64) for c in categories]
             hi_px = [to_px_fn(cast(float, s.max() or 0.0)) for s in cols]
             lo_px = [to_px_fn(cast(float, s.min() or 0.0)) for s in cols] if any_rev else hi_px
-            centers = list(band_geometry(len(categories), chartWidth).centers)
+            centers = list(_band_geometry(len(categories), chartWidth).centers)
             fs = float(fontSize or _opt("fontSize"))
             edges: list[tuple[float, float, float]] = []
             for i, (lo, hi) in enumerate(idx_span):
@@ -2828,7 +2828,7 @@ def correlation(
     """
     xCol, yCol = x, y
     from ._statistics import _make_correlation_record, _ols_band, _run_correlation
-    from .utils import _frame_checksum, ensure_polars
+    from .utils import _ensure_polars, _frame_checksum
 
     if verbose:  # shortcut for the fullest readout; overrides the individual toggles
         coefficient, includePvalue, includeEquation = "both", True, True
@@ -2850,7 +2850,7 @@ def correlation(
         if not isinstance(position, str) or position not in _TEXT_PRESETS:
             raise ValueError(f"position must be one of {sorted(_TEXT_PRESETS)} or None, got {position!r}")
 
-    data = ensure_polars(data)
+    data = _ensure_polars(data)
     if groupBy is not None:
         _validate_statistical_data(data, xCol, yCol, groupBy, numeric_x=True)
     else:

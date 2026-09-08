@@ -19,10 +19,13 @@
 - Optional controls for transforms, palette helpers, save/show, and verification are keyword-only.
   Former parameter names are not accepted. Defaults, calculations, rendered output, and stored
   record fields are unchanged by this signature migration.
-- **Breaking:** export inspection and checksums now live under `ds.metadata`; dataframe and
-  band-geometry helpers live under `ds.utils`; palette data, categorical construction, and swatch
-  export live under `ds.palettes`. Their old root names are removed. `ds.palette()`, `ds.save()`,
-  `ds.show()`, and `ds.load()` remain at the top level; behavior and stored metadata are unchanged.
+- **Breaking:** export inspection and checksums now live under `ds.metadata`; palette data,
+  categorical construction, and swatch export live under `ds.palettes`. Their old root names are
+  removed. `ds.palette()`, `ds.save()`, `ds.show()`, and `ds.load()` remain at the top level;
+  behavior and stored metadata are unchanged.
+- **Breaking:** the shared dataframe, count, and band-geometry helpers are private implementation
+  details in `utils.py`; `ds.utils` is no longer a supported public namespace and its former public
+  helper names are removed. Core behavior and stored metadata are unchanged.
 - **Breaking:** annotation constructors are now `ds.rule()`, `ds.text()`, `ds.shade()`, and
   `ds.labels()`. Offset transforms are `ds.transforms.jitter()`, `ds.transforms.beeswarm()`, and
   `ds.transforms.quasirandom()`. Former `add_*` spellings are removed without aliases;

@@ -132,9 +132,8 @@ def _load_table(name, text, format):
 def _load_dataset(name):
     # Bundle a vega_datasets classic into the FS as <name>.csv, so the emitted
     # pl.read_csv("<name>.csv") line runs exactly as shown.
-    import dysonsphere as ds
     from vega_datasets import data
-    df = ds.utils.ensure_polars(getattr(data, name)())
+    df = pl.from_pandas(getattr(data, name)())
     df.write_csv(f"{name}.csv")
     _studio_tables[f"{name}.csv"] = df
     return _schema_json(df)

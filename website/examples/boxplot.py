@@ -7,7 +7,7 @@ import dysonsphere as ds
 # rounded whisker caps. boxplotOutliers=False hides outlier points.
 ds.theme()
 
-cars = ds.utils.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon"])
+cars = data.cars().dropna(subset=["Miles_per_Gallon"])
 
 chart = (
     alt.Chart(cars)

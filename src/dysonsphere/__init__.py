@@ -1,6 +1,6 @@
 # Support modules are namespaced surfaces; their contents are deliberately NOT star-imported
 # into the top namespace.
-from . import ext, metadata, palettes, stats, transforms, utils  # noqa: F401
+from . import ext, metadata, palettes, stats, transforms  # noqa: F401
 from .annotations import *  # noqa: F403
 from .assembly import *  # noqa: F403
 from .discovery import *  # noqa: F403
@@ -43,7 +43,6 @@ __all__ = [
     "text",
     "theme",
     "transforms",
-    "utils",
 ]
 
 

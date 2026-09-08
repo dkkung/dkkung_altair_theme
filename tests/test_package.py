@@ -44,13 +44,12 @@ class TestPackageNamespace:
         # __init__.__all__ is written out explicitly (self-documenting); this keeps it in
         # sync with star-imported modules plus namespaces, not their functions.
         union = {name for mod in _MODULES for name in mod.__all__}
-        assert sorted(ds.__all__) == sorted(union | {"stats", "transforms", "metadata", "utils", "palettes", "palette"})
+        assert sorted(ds.__all__) == sorted(union | {"stats", "transforms", "metadata", "palettes", "palette"})
 
     @pytest.mark.parametrize(
         ("namespace", "names"),
         [
             ("metadata", ("read", "verify", "VerifyResult", "frame_checksum")),
-            ("utils", ("band_geometry", "count_n", "ensure_polars", "BandGeometry")),
             ("palettes", ("colors", "categorical", "export_swatches")),
         ],
     )
@@ -68,16 +67,18 @@ class TestPackageNamespace:
         palette = ds.palette
         colors = ds.palettes.colors
         assert callable(palette)
-        for name in ("palettes", "theme", "marks", "metadata", "utils"):
+        for name in ("palettes", "theme", "marks", "metadata"):
             importlib.import_module(f"dysonsphere.{name}")
             assert ds.palette is palette is ds.palettes.palette
             assert ds.palettes.colors is colors
         assert ds.palettes is importlib.import_module("dysonsphere.palettes")
 
     def test_public_checksum_reexports_private_helper(self):
-        assert ds.metadata.frame_checksum is ds.utils._frame_checksum
-        assert "frame_checksum" not in ds.utils.__all__
-        assert not hasattr(ds.utils, "frame_checksum")
+        utils = importlib.import_module("dysonsphere.utils")
+
+        assert ds.metadata.frame_checksum is utils._frame_checksum
+        assert "frame_checksum" not in utils.__all__
+        assert not hasattr(utils, "frame_checksum")
 
     def test_stats_surface_is_namespaced_only(self):
         assert isinstance(ds.stats, ModuleType)
@@ -97,8 +98,23 @@ class TestPackageNamespace:
             assert name not in ds.__all__
 
     def test_every_module_defines_all(self):
-        for mod in [*_MODULES, ds.stats, ds.transforms, ds.metadata, ds.utils, ds.palettes, ds.ext]:
+        for mod in [*_MODULES, ds.stats, ds.transforms, ds.metadata, ds.palettes, ds.ext]:
             assert hasattr(mod, "__all__"), f"{mod.__name__} lacks __all__ (would leak its imports)"
+
+    def test_internal_utils_are_not_advertised(self):
+        utils = importlib.import_module("dysonsphere.utils")
+        assert utils.__all__ == []
+        for old_name, private_name in (
+            ("band_geometry", "_band_geometry"),
+            ("count_n", "_count_n"),
+            ("ensure_polars", "_ensure_polars"),
+            ("BandGeometry", "_BandGeometry"),
+        ):
+            assert not hasattr(utils, old_name)
+            assert hasattr(utils, private_name)
+            assert old_name not in ds.__all__
+            assert not hasattr(ds, old_name)
+        assert "utils" not in ds.__all__
 
     def test_transforms_surface_is_namespaced_only(self):
         assert isinstance(ds.transforms, ModuleType)

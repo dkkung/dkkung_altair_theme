@@ -6,7 +6,7 @@ import polars as pl
 from scipy.stats import gaussian_kde
 
 from .theme import _opt
-from .utils import ensure_polars
+from .utils import _ensure_polars
 
 # Public data transforms, exposed through ds.transforms rather than the root namespace.
 __all__ = ["jitter", "beeswarm", "quasirandom"]
@@ -322,7 +322,7 @@ def beeswarm(
     Without the symmetric ``domain``, Vega-Lite centres the tick on the offset range's midpoint,
     so a leaning swarm renders slightly off the tick (``mark_strip`` pins this domain for you).
     """
-    data = ensure_polars(data)
+    data = _ensure_polars(data)
     return _grouped_offsets(
         data, column, groupBy, outCol, lambda y: _beeswarm_offsets(y, heightPx=heightPx, spread=spread)
     )
@@ -390,7 +390,7 @@ def quasirandom(
             xOffset=alt.XOffset("quasirandom_x:Q", scale=alt.Scale(domain=[-m, m])),
         )
     """
-    data = ensure_polars(data)
+    data = _ensure_polars(data)
     return _grouped_offsets(
         data,
         column,
@@ -446,7 +446,7 @@ def jitter(
             xOffset=alt.XOffset("jitter_x:Q"),
         )
     """
-    data = ensure_polars(data)
+    data = _ensure_polars(data)
     if spread is None:
         w = _opt("chartWidth")
         h = _opt("chartHeight")
