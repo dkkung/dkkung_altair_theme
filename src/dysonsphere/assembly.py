@@ -3,7 +3,7 @@ from typing import Any
 import altair as alt
 
 from .export import _AltairChart
-from .theme import _active_args, _opt, theme
+from .theme import _opt, _temporary_theme
 from .utils import _internal_data
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
@@ -145,12 +145,10 @@ def _build(member: _Member, style: dict[str, Any]) -> _AltairChart:
             raise ValueError("a size cannot be applied to an already-built chart - pass a builder instead")
         chart = source
     elif overrides:
-        prev = _active_args()  # explicit args, so derived options re-derive at the new size
-        theme(**{**prev, **overrides})
-        try:
+        # Re-run theme() so derived geometry follows the member size, but retain save()'s
+        # temporary render mode and restore the exact caller state even if the builder fails.
+        with _temporary_theme(overrides):
             chart = source()
-        finally:
-            theme(**prev)
         chart = chart.properties(**size)
     else:
         chart = source()
