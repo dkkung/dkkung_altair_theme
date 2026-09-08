@@ -194,6 +194,13 @@ notes are local working material, not dependencies of this framework or part of 
   metadata distinguish computed omnibus results from supplied comparisons and must not attribute
   supplied values to an unrun test. Require finite numeric probabilities in [0,1], excluding bools;
   apply a consistent zero-underflow policy before both display formatting and record creation.
+- Statistical annotations reject missing or non-finite values in used columns and required results;
+  unused columns are ignored. `nComparisons` is a positive, non-bool integer and, when adjustment
+  applies, cannot be smaller than the computed family; larger values are valid. Grouped comparison
+  notation mappings, y-position lists, and `postHoc` are unsupported.
+- Correlation grouped labels prefix custom text with each group. `lineStyle` takes precedence over
+  curated line options in both modes, and `ciColor` controls the band fill before the effective line
+  color fallback; rank-method `ci` syntax is still validated when its band is inactive.
 - Distinguish report printing, standalone report writing (`saveReport`), and embedding reports.
 - Statistical prose reports use a fixed three significant figures, independent of plot `sigFigs`
   and notation. Structured numerical records retain calculation values rather than display-rounded

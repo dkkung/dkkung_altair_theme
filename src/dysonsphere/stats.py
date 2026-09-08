@@ -8,11 +8,20 @@ registry and embedded into exports by ``save()`` via layer-name markers.
 """
 
 import math
+import numbers
 from typing import Any, cast
 
 import altair as alt
 import polars as pl
 
+from ._statistics import (
+    _clamp_p,
+    _validate_computed_pvalue,
+    _validate_family_size,
+    _validate_group_ids,
+    _validate_observations,
+    _validate_pvalue,
+)
 from ._statistics import clear_stats as clear_stats
 from .annotations import text as _text
 from .theme import _opt
@@ -43,14 +52,34 @@ def _superscript(n: int) -> str:
     return sign + "".join(_SUP[int(d)] for d in str(abs(n)))
 
 
+def _scientific_parts(value: float, sigFigs: int) -> tuple[str, int]:
+    """Return a rounded mantissa/exponent without arithmetic that underflows subnormal values."""
+    text = format(value, f".{max(sigFigs - 1, 0)}e")
+    mantissa, exponent = text.split("e")
+    return f"{float(mantissa):.{sigFigs}g}", int(exponent)
+
+
 def _format_pvalue(p: float, sigFigs: int = 3, notation: str | None = None, symbol: bool = True) -> str:
     # `sigFigs` sets the significant-figure precision; `%g` gives that and strips trailing
     # zeros. Plain notation floors at a fixed 0.001 convention (`P < 0.001`); scientific/e/
     # power never floor (they represent any magnitude at `sigFigs` figures). `symbol=False`
     # (labelStyle="value") drops the "P" symbol AND the redundant "= ", but keeps a MEANINGFUL
     # operator - "< " (the flooring convention) and "≈ " (power's nearest-power rounding).
+    if notation not in (None, "scientific", "e", "power"):
+        raise ValueError(f"notation must be 'power', 'scientific', or 'e', got {notation!r}")
     lead = "P " if symbol else ""  # the statistical symbol
     eq = "= " if symbol else ""  # the equals is redundant once the symbol is gone
+    if p == 0.0:
+        # A zero from a floating-point statistical routine is an underflow, not an exact probability.
+        # Use the same minimum-normal bound as the report record, and keep the bound operator in
+        # every notation so notation never turns underflow into an exact value or log10(0) failure.
+        bound = _clamp_p(p)
+        mantissa, exp = _scientific_parts(bound, sigFigs)
+        if notation is None:
+            return f"{lead}< 0.001"
+        if notation == "e":
+            return f"{lead}< {mantissa}e{exp:+03d}"
+        return f"{lead}< {mantissa}×10{_superscript(exp)}"
     if notation is None:
         if p < 0.001:
             return f"{lead}< 0.001"
@@ -58,14 +87,14 @@ def _format_pvalue(p: float, sigFigs: int = 3, notation: str | None = None, symb
     if notation == "power":
         exp = round(math.log10(p))
         return f"{lead}≈ 10{_superscript(exp)}"
-    # scientific / e share the mantissa (at `sigFigs` sig figs) and exponent.
-    exp = math.floor(math.log10(p))
-    mantissa = f"{p / 10**exp:.{sigFigs}g}"
+    # scientific / e share the mantissa (at `sigFigs` sig figs) and exponent. Python's e-format
+    # handles values below the normal range, unlike ``p / 10**exp``.
+    mantissa, exp = _scientific_parts(p, sigFigs)
     if notation == "scientific":
         return f"{lead}{eq}{mantissa}×10{_superscript(exp)}"
     if notation == "e":
         return f"{lead}{eq}{mantissa}e{exp:+03d}"
-    raise ValueError(f"notation must be 'power', 'scientific', or 'e', got {notation!r}")
+    raise AssertionError("validated notation branch is unreachable")
 
 
 def _format_label(p: float, label_style: str, sigFigs: int, notation: str | None) -> str:
@@ -86,15 +115,142 @@ def _format_asterisks(p: float) -> str:
     return "ns"
 
 
+def _validate_ci_syntax(ci: float | bool | None) -> None:
+    """Validate an interval level before method dispatch; zero remains an explicit disabled value."""
+    if ci is None or ci is False or (isinstance(ci, numbers.Real) and ci == 0):
+        return
+    if ci is True:
+        return
+    if not isinstance(ci, numbers.Real):
+        raise ValueError(f"ci must be True or a confidence level in (0, 1), got {ci!r}")
+    level = float(ci)
+    if not 0.0 < level < 1.0:
+        raise ValueError(f"ci must be True or a confidence level in (0, 1), got {ci!r}")
+
+
 # --- shared resolvers for comparisons / _add_grouped_comparisons ---------------------------
 # Extracted so the single-factor and grouped paths share one implementation (they had drifted -
 # see the y-spacing chart_height guard). Pure functions; error messages are load-bearing (pinned
 # by `match=` tests in test_statistics.py) - keep them verbatim.
 
 
+_VALID_NOTATIONS = {None, "scientific", "e", "power"}
+_VALID_CORRECTIONS = {None, "bonferroni", "holm", "fdr_bh", "fdr_by"}
+_VALID_LABEL_STYLES = {"p", "asterisks", "value"}
+_VALID_BRACKET_STYLES = {"line", "bracket", "drop"}
+
+
+def _validate_notation_syntax(notation: Any, *, grouped: bool = False) -> None:
+    """Validate notation even when no label will be rendered."""
+    if isinstance(notation, dict):
+        if grouped:
+            raise ValueError("grouped comparisons do not support notation mappings; pass one notation value.")
+        bad_values = [
+            value
+            for value in notation.values()
+            if not isinstance(value, (str, type(None))) or value not in _VALID_NOTATIONS
+        ]
+        if bad_values:
+            raise ValueError(f"notation dict values must be None/'scientific'/'e'/'power', got {bad_values}")
+        for key in notation:
+            if key == "test":
+                continue
+            if isinstance(key, str):
+                raise ValueError("notation dict string keys must be 'test', got " + repr(key))
+            if not isinstance(key, (tuple, list)) or len(key) != 2:
+                raise ValueError("notation dict keys must be pair tuples or the string 'test'.")
+        return
+    if not isinstance(notation, (str, type(None))) or notation not in _VALID_NOTATIONS:
+        raise ValueError(f"notation must be None/'scientific'/'e'/'power', got {notation!r}")
+
+
+def _validate_comparison_syntax(
+    *,
+    test: str,
+    post_hoc: str | None,
+    correction: str | None,
+    label_style: str,
+    bracket_style: Any,
+    notation: Any,
+    test_label_position: Any,
+    grouped: bool = False,
+) -> None:
+    """Validate enum and shape options before a dispatch path can silently ignore them."""
+    from ._statistics import _OMNIBUS_TESTS, _PAIRWISE_TESTS
+
+    valid_tests = _OMNIBUS_TESTS | _PAIRWISE_TESTS | _MATRIX_POSTHOCS
+    if not isinstance(test, str) or test not in valid_tests:
+        raise ValueError(f"Unknown test {test!r}. Choose from: {sorted(valid_tests)}")
+    if grouped and post_hoc is not None:
+        raise ValueError("grouped comparisons do not support postHoc; use a pairwise test directly.")
+    if post_hoc is not None and (not isinstance(post_hoc, str) or post_hoc not in (_MATRIX_POSTHOCS | _PAIRWISE_TESTS)):
+        raise ValueError(f"Unknown postHoc {post_hoc!r}. Choose from: {sorted(_MATRIX_POSTHOCS | _PAIRWISE_TESTS)}")
+    if not isinstance(correction, (str, type(None))) or correction not in _VALID_CORRECTIONS:
+        raise ValueError(f"correction must be None, 'bonferroni', 'holm', 'fdr_bh', or 'fdr_by', got {correction!r}")
+    if not isinstance(label_style, str) or label_style not in _VALID_LABEL_STYLES:
+        raise ValueError(f"labelStyle must be 'p', 'asterisks', or 'value', got {label_style!r}")
+    if grouped and (not isinstance(bracket_style, str) or bracket_style not in _VALID_BRACKET_STYLES):
+        raise ValueError(f"grouped comparisons take bracketStyle 'bracket', 'line', or 'drop', got {bracket_style!r}.")
+    if isinstance(bracket_style, dict):
+        bad_values = [
+            value
+            for value in bracket_style.values()
+            if not isinstance(value, str) or value not in _VALID_BRACKET_STYLES
+        ]
+        if bad_values:
+            raise ValueError(f"bracketStyle dict values must be 'line', 'bracket', or 'drop', got {bad_values!r}")
+        for key in bracket_style:
+            if not isinstance(key, (tuple, list)) or len(key) != 2:
+                raise ValueError("bracketStyle dict keys must be pair tuples.")
+    elif not isinstance(bracket_style, str) or bracket_style not in _VALID_BRACKET_STYLES:
+        raise ValueError(f"bracketStyle must be 'line', 'bracket', 'drop', or a dict, got {bracket_style!r}")
+    _validate_notation_syntax(notation, grouped=grouped)
+    if test_label_position == "auto":
+        return
+    if test_label_position is not None:
+        from .annotations import _TEXT_PRESETS
+
+        if not isinstance(test_label_position, str) or test_label_position not in _TEXT_PRESETS:
+            raise ValueError(
+                f"testLabelPosition must be 'auto', None, or one of {sorted(_TEXT_PRESETS)}, "
+                f"got {test_label_position!r}"
+            )
+
+
+def _validate_statistical_data(
+    df: pl.DataFrame, x_col: str, y_col: str, *group_cols: str, numeric_x: bool = False
+) -> None:
+    """Validate only columns used by a statistical annotation.
+
+    Used grouping and value columns must exist and contain no missing or non-finite values. Other
+    dataframe columns are ignored.
+    """
+    for column in (x_col, y_col, *group_cols):
+        if column not in df.columns:
+            raise ValueError(f"statistical column {column!r} is not present in the data.")
+    if df.is_empty():
+        raise ValueError(f"statistical column {y_col!r} has no observations.")
+    if not numeric_x:
+        _validate_group_ids(df[x_col].to_list(), x_col)
+    for column in group_cols:
+        if column != x_col or numeric_x:
+            _validate_group_ids(df[column].to_list(), column)
+    value_columns = (x_col, y_col) if numeric_x else (y_col,)
+    if not group_cols:
+        for column in value_columns:
+            _validate_observations(df[column].to_list(), column)
+        return
+    # Validate per primary group so an invalid observation identifies the affected series.
+    for group in df[group_cols[0]].unique(maintain_order=True).to_list():
+        subset = df.filter(pl.col(group_cols[0]) == group)
+        for column in value_columns:
+            _validate_observations(subset[column].to_list(), column, group)
+
+
 def _resolve_method(test: str, post_hoc: str | None, pvalues: Any, is_omnibus: bool) -> str | None:
-    """The comparison method: a post-hoc for omnibus, the test itself for pairwise, None for
-    user-supplied p-values. Also the record's ``comparison_test`` (a pure alias)."""
+    """Resolve the comparison method: post-hoc for omnibus, ``test`` for pairwise, or ``None``
+    for supplied final p-values. Omnibus mode still runs its omnibus test when p-values are supplied.
+    """
     from ._statistics import _POSTHOC_DEFAULTS
 
     if pvalues is not None:
@@ -110,14 +266,8 @@ def _resolve_notation(
     """Return ``(test_notation, pair_notations)``. A scalar applies everywhere; a dict is per-pair
     (order-insensitive keys, unlisted → plain None) plus an optional ``"test"`` key for the
     omnibus/test label."""
+    _validate_notation_syntax(notation)
     if isinstance(notation, dict):
-        valid = {None, "scientific", "e", "power"}
-        bad_vals = [v for v in notation.values() if v not in valid]
-        if bad_vals:
-            raise ValueError(f"notation dict values must be None/'scientific'/'e'/'power', got {bad_vals}")
-        bad_keys = [k for k in notation if isinstance(k, str) and k != "test"]
-        if bad_keys:
-            raise ValueError(f"notation dict string keys must be 'test', got {sorted(bad_keys)}")
         pair_map = {frozenset(k): v for k, v in notation.items() if not isinstance(k, str)}
         return notation.get("test"), [pair_map.get(frozenset(p)) for p in (pairs or [])]
     return notation, [notation] * len(pairs or [])
@@ -438,7 +588,10 @@ def _pvalue_layer(
             _cats = categories if categories is not None else sorted(df[x_col].unique().to_list())
             all_groups = [df.filter(pl.col(x_col) == cat)[y_col].to_numpy() for cat in _cats]
             result = _stats.tukey_hsd(*all_groups)
-            pvalue = float(result.pvalue[_cats.index(group1)][_cats.index(group2)])
+            pvalue = _validate_computed_pvalue(
+                result.pvalue[_cats.index(group1)][_cats.index(group2)],
+                f"tukey_hsd comparison {group1!r} vs {group2!r}",
+            )
         else:
             a = df.filter(pl.col(x_col) == group1)[y_col].to_numpy()
             b = df.filter(pl.col(x_col) == group2)[y_col].to_numpy()
@@ -450,7 +603,9 @@ def _pvalue_layer(
             }
             if test not in _tests:
                 raise ValueError(f"Unknown test {test!r}. Choose from: {['tukey_hsd'] + list(_tests)}")
-            pvalue = _tests[test]()
+            pvalue = _validate_computed_pvalue(_tests[test](), f"{test} comparison {group1!r} vs {group2!r}")
+    else:
+        pvalue = _validate_pvalue(pvalue, "p-value")
 
     # bonferroni correction (skip for tukey_hsd — correction is built in)
     if correction == "bonferroni" and test != "tukey_hsd":
@@ -635,7 +790,7 @@ def _bracket_pvalues(
 
     idx = {c: i for i, c in enumerate(categories)}
     if method in _MATRIX_POSTHOCS:
-        mat = _post_hoc_matrix(method, groups, correction)
+        mat = _post_hoc_matrix(method, groups, correction, nComparisons, labels=categories)
         return [float(mat[idx[g1]][idx[g2]]) for g1, g2 in pairs]
     if method in _PAIRWISE_TESTS:
         funcs = {
@@ -644,9 +799,18 @@ def _bracket_pvalues(
             "ttest_rel": lambda a, b: _stats.ttest_rel(a, b).pvalue,
             "wilcoxon": lambda a, b: _stats.wilcoxon(a, b).pvalue,
         }
-        raw = [float(funcs[method](groups[idx[g1]], groups[idx[g2]])) for g1, g2 in pairs]
+        raw = [
+            _validate_computed_pvalue(
+                funcs[method](groups[idx[g1]], groups[idx[g2]]), f"{method} comparison {g1!r} vs {g2!r}"
+            )
+            for g1, g2 in pairs
+        ]
         if correction is not None:
-            m = nComparisons if nComparisons is not None else len(pairs)
+            m = (
+                len(pairs)
+                if nComparisons is None
+                else _validate_family_size(nComparisons, len(pairs), correction=correction)
+            )
             raw = _adjust(raw, correction, m)
         return raw
     raise ValueError(f"Unknown test/postHoc {method!r}. Choose from: {sorted(_MATRIX_POSTHOCS | _PAIRWISE_TESTS)}")
@@ -792,10 +956,11 @@ def _normalize_grouped_map(mapping: Any, is_reference: bool, name: str) -> dict[
         raise ValueError(f"grouped {name} must be a dict keyed by {shape}, got {type(mapping).__name__}.")
     out: dict[Any, Any] = {}
     for key, val in mapping.items():
-        try:
-            cat, second = key
-        except (TypeError, ValueError):
+        if not isinstance(key, tuple) or len(key) != 2:
             raise ValueError(f"grouped {name} keys must be (category, level|pair) tuples, got {key!r}.") from None
+        cat, second = key
+        if not is_reference and (not isinstance(second, (tuple, list)) or len(second) != 2):
+            raise ValueError(f"grouped {name} keys must be (category, (level1, level2)) tuples, got {key!r}.")
         out[(cat, second) if is_reference else (cat, frozenset(second))] = val
     return out
 
@@ -819,6 +984,12 @@ def _add_grouped_comparisons(
     labelStyle: str,
     bracketStyle: Any,
     notation: Any,
+    testLabelPosition: str | None,
+    testLabel: str | None,
+    testLabelOffsetX: int,
+    testLabelOffsetY: int,
+    testLabelX: Any,
+    testLabelY: Any,
     sigFigs: int | None,
     tickHeight: float | None,
     strokeWidth: float | None,
@@ -839,7 +1010,7 @@ def _add_grouped_comparisons(
     """
     from scipy import stats as _stats
 
-    from ._statistics import _adjust, _describe_all, _make_record, _pair_effect
+    from ._statistics import _TEST_DISPLAY, _adjust, _describe_all, _make_record, _pair_effect
     from .utils import _frame_checksum
 
     # Guard the sort footgun: `categories`/`xOffsetSort` must match the chart's x/xOffset sort or the
@@ -905,7 +1076,15 @@ def _add_grouped_comparisons(
         raise ValueError(f"labelStyle must be 'p', 'asterisks', or 'value', got {labelStyle!r}.")
     if not isinstance(bracketStyle, str) or bracketStyle not in ("bracket", "line", "drop"):
         raise ValueError(f"grouped comparisons take bracketStyle 'bracket', 'line', or 'drop', got {bracketStyle!r}.")
-    notation_val = notation if not isinstance(notation, dict) else None
+    notation_val = notation
+    if isinstance(notation, dict):
+        raise ValueError("grouped comparisons do not support notation mappings; pass one notation value.")
+    if isinstance(yPositions, list):
+        raise ValueError("grouped yPositions accepts a number or a supported dict, not a list.")
+    if yPositions is not None and (isinstance(yPositions, bool) or not isinstance(yPositions, (numbers.Real, dict))):
+        raise ValueError("grouped yPositions accepts a number or a supported dict, not this value.")
+    if yStart is not None and (isinstance(yStart, bool) or not isinstance(yStart, (numbers.Real, dict))):
+        raise ValueError("grouped yStart accepts a number or a category mapping, not this value.")
 
     chartWidth = chartWidth if chartWidth is not None else _opt("chartWidth")
     chart_height = _opt("chartHeight")
@@ -945,6 +1124,8 @@ def _add_grouped_comparisons(
     # the single-factor `pvalues` list. Must cover every comparison exactly (no missing, no extra).
     pval_map = _normalize_grouped_map(pvalues, is_reference, "pvalues") if pvalues is not None else None
     if pval_map is not None:
+        pval_map = {key: _validate_pvalue(value, f"pvalues entry {key!r}") for key, value in pval_map.items()}
+    if pval_map is not None:
         missing = [
             _grouped_desc(cat, l1, l2, is_reference)
             for cat in categories
@@ -959,15 +1140,22 @@ def _add_grouped_comparisons(
 
     # p-values + effects, iterated category-major then pair (the layer loop matches this order).
     raw: list[float] = []
-    effects: list[tuple[str | None, float]] = []
+    effects: list[tuple[str | None, float | None]] = []
     for cat in categories:
         cdf = df.filter(pl.col(x_col) == cat)
         for l1, l2 in pairs:
             a = cdf.filter(pl.col(xoffset_col) == l1)[y_col].to_numpy()
             b = cdf.filter(pl.col(xoffset_col) == l2)[y_col].to_numpy()
-            raw.append(_pval(a, b) if pval_map is None else float(pval_map[_grouped_key(cat, l1, l2, is_reference)]))
-            effects.append(_pair_effect(a, b, parametric=parametric, paired=paired))
-    m = nComparisons if nComparisons is not None else len(raw)
+            if pval_map is None:
+                raw.append(_validate_computed_pvalue(_pval(a, b), f"{test} comparison {cat!r}"))
+                effects.append(_pair_effect(a, b, parametric=parametric, paired=paired))
+            else:
+                raw.append(pval_map[_grouped_key(cat, l1, l2, is_reference)])
+                effects.append((None, None))
+    actual_family = len(raw)
+    if nComparisons is not None:
+        _validate_family_size(nComparisons, actual_family, correction=correction if pval_map is None else None)
+    m = nComparisons if nComparisons is not None else actual_family
     # User-provided p-values are not corrected by us (they're final); computed ones honour `correction`.
     effective_correction = None if pval_map is not None else correction
     adj = raw if pval_map is not None else (_adjust(raw, correction, m) if correction else raw)
@@ -982,7 +1170,8 @@ def _add_grouped_comparisons(
     for cat in categories:
         cdf = df.filter(pl.col(x_col) == cat)
         for lv in level_order:
-            desc_groups.append(cdf.filter(pl.col(xoffset_col) == lv)[y_col].to_numpy())
+            values = cdf.filter(pl.col(xoffset_col) == lv)[y_col].to_list()
+            desc_groups.append(_validate_observations(values, y_col, f"{cat!r} / {lv!r}"))
             desc_labels.append(f"{cat} ({lv})")
     descriptives = _describe_all(desc_groups, desc_labels)
 
@@ -1034,6 +1223,24 @@ def _add_grouped_comparisons(
     layers: list[Any] = []
     comparisons: list[dict[str, Any]] = []
     k = 0
+    resolved_test_label_position = None if testLabelPosition == "auto" else testLabelPosition
+    if resolved_test_label_position is not None or testLabelX is not None or testLabelY is not None:
+        label_text = (
+            testLabel
+            if testLabel is not None
+            else ("user p-values" if pval_map is not None else _TEST_DISPLAY.get(test, test))
+        )
+        layers.append(
+            _text(
+                label_text,
+                testLabelX,
+                testLabelY,
+                position=resolved_test_label_position,
+                offsetX=testLabelOffsetX,
+                offsetY=testLabelOffsetY,
+                fontSize=fontSize,
+            )
+        )
     for cat in categories:
         cdf = df.filter(pl.col(x_col) == cat)
         cat_max = cast(float, cdf[y_col].cast(pl.Float64).max() or 0.0)
@@ -1278,7 +1485,7 @@ def _add_grouped_comparisons(
         omnibus=None,
         descriptives=descriptives,
         comparisons=comparisons,
-        comparison_test=test,
+        comparison_test=None if pval_map is not None else test,
         correction=effective_correction,
         pvalues_provided=pval_map is not None,
         data_checksum=_frame_checksum(df),
@@ -1406,7 +1613,9 @@ def comparisons(
         ``'ttest_ind'``, ``'ttest_rel'``, ``'wilcoxon'`` (run per pair), or
         ``'tukey_hsd'`` (one omnibus run, per-pair p-values from the matrix).
         **Omnibus:** ``'anova'`` (``f_oneway``), ``'kruskal'``, ``'friedman'``,
-        ``'alexandergovern'``. Ignored when ``pvalues`` is provided.
+        ``'alexandergovern'``. In pairwise mode, supplying ``pvalues`` skips the pairwise test.
+        In omnibus mode, the omnibus test still runs and supplied values replace only the requested
+        pairwise results.
     postHoc:
         Post-hoc test that fills the brackets when ``test`` is omnibus and
         ``pairs`` is given. ``None`` (default) picks a sensible default per
@@ -1415,13 +1624,16 @@ def comparisons(
         also be set to any pairwise test name. Dunn, Nemenyi, and Games-Howell
         are computed in-house (validated against scikit-posthocs / pingouin);
         ``correction`` adjusts them over all unique pairs. Ignored for pairwise
-        ``test``.
+        ``test``. Grouped ``xOffset`` mode does not accept ``postHoc``; use one
+        of its supported pairwise tests directly.
     pvalues:
-        Pre-computed p-values - skips the test AND correction (they're final). **Pairwise:**
+        Pre-computed final p-values skip pairwise calculation and correction. **Pairwise:**
         a list, one per pair in the same order. **Reference mode:** a **dict** keyed by the
         non-reference **group** (single-factor) or ``(category, level)`` (grouped). **Grouped
         brackets:** a dict keyed by ``(category, (level1, level2))`` (order-insensitive). The
-        dict must cover **every** comparison; missing or unknown keys raise.
+        dict must cover **every** comparison; missing or unknown keys raise. Values must be real,
+        finite, non-bool numbers in ``[0, 1]``. In omnibus mode, only the supplied requested pairs
+        are reported; the omnibus result remains in the report.
     correction:
         Multiple comparison correction: ``'bonferroni'``, ``'holm'``,
         ``'fdr_bh'`` (Benjamini-Hochberg), ``'fdr_by'`` (Benjamini-Yekutieli),
@@ -1433,8 +1645,10 @@ def comparisons(
     nComparisons:
         Total family size for the correction (the denominator ``m``). Defaults
         to ``len(pairs)`` when a ``correction`` is set and not given explicitly.
-        In grouped mode it defaults to the total number of drawn comparisons
-        (``len(categories) * len(pairs)``).
+        In grouped mode it is the total computed matrix family (``len(categories) * len(pairs)``),
+        even when only a subset is drawn. It must be a positive, non-bool integer and, when
+        correction applies, at least that family size. Larger values are allowed. Supplied final
+        p-values and Tukey HSD are not readjusted.
     reference:
         **Reference mode (compare-against-one).** A single group to compare every
         other group against, drawing the p-value **above each non-reference mark
@@ -1473,7 +1687,8 @@ def comparisons(
         *every* annotation at that y - one global flat row. **Pairwise:** a list, one per
         pair in order (overrides auto-stacking). **Reference mode:** a **dict** keyed by the
         non-reference **group** (single-factor) or ``(category, level)`` (grouped) for a
-        per-label height. **Grouped** additionally accepts a dict keyed by **category** -
+        per-label height. **Grouped** accepts a number or supported dict, not a list. It additionally
+        accepts a dict keyed by **category** -
         a flat row per category, each at its own height (handy when categories span very
         different magnitudes); and grouped brackets take ``(category, (level1, level2))``
         keys (order-insensitive). Dicts are partial (unlisted → auto) and their keys must be
@@ -1535,6 +1750,8 @@ def comparisons(
         ``P = 4.3×10⁻¹⁴`` and ``P = 0.68`` at two figures. Trailing zeros are stripped.
         ``None`` (default) reads the theme's ``sigFigs`` (default ``3``). Plain notation
         floors at a fixed ``P < 0.001``; ``'power'`` is unaffected (integer exponent).
+        Positive subnormal p-values are supported; a computed zero is shown as a bound in every
+        notation using the minimum normal positive float stored in the report record.
     notation:
         Format style for p-value labels when ``labelStyle='p'``. ``None``
         (default) uses ``P = 0.012`` / ``P < 0.001`` style. ``'scientific'``
@@ -1570,10 +1787,11 @@ def comparisons(
     report:
         ``True`` prints the full descriptive + effect-size report (per-group
         n/mean/sd/median/IQR/range, the omnibus result, and the post-hoc
-        comparisons) to stdout. Default ``False``. For an omnibus ``test`` the
-        report lists **all** pairwise post-hoc comparisons — the full table, not
-        just the pairs you bracket (and even when ``pairs=None``). For a
-        pairwise ``test`` it lists exactly the requested ``pairs``. The report is
+        comparisons) to stdout. Default ``False``. Without supplied ``pvalues``, an omnibus
+        ``test`` lists **all** pairwise post-hoc comparisons - the full table, not just the pairs
+        you bracket (and even when ``pairs=None``). With supplied values, it lists only the
+        requested pairs and retains the omnibus result; supplied pairs have no test, correction,
+        or effect size. A pairwise ``test`` lists exactly the requested ``pairs``. The report is
         queued for the export metadata regardless of this flag (when
         ``ds.save(..., saveMetadata=True)``); it lands in the next ``ds.save()``.
     saveReport:
@@ -1680,6 +1898,23 @@ def comparisons(
 
     data = ensure_polars(data)
 
+    _validate_comparison_syntax(
+        test=test,
+        post_hoc=postHoc,
+        correction=correction,
+        label_style=labelStyle,
+        bracket_style=bracketStyle,
+        notation=notation,
+        test_label_position=testLabelPosition,
+        grouped=xOffset is not None,
+    )
+    if nComparisons is not None:
+        _validate_family_size(nComparisons, 0, correction=None)
+    if xOffset is not None:
+        _validate_statistical_data(data, x, yCol, x, xOffset)
+    else:
+        _validate_statistical_data(data, x, yCol, x)
+
     # Grouped mode: compare xOffset subgroups WITHIN each x-category (a two-factor design, e.g. a
     # qPCR gene x condition panel). A fully separate path so the single-factor logic below is
     # untouched; see the grouped-comparisons design point.
@@ -1699,6 +1934,12 @@ def comparisons(
             labelStyle=labelStyle,
             bracketStyle=bracketStyle,
             notation=notation,
+            testLabelPosition=testLabelPosition,
+            testLabel=testLabel,
+            testLabelOffsetX=testLabelOffsetX,
+            testLabelOffsetY=testLabelOffsetY,
+            testLabelX=testLabelX,
+            testLabelY=testLabelY,
             sigFigs=sigFigs,
             tickHeight=tickHeight,
             strokeWidth=strokeWidth,
@@ -1746,6 +1987,10 @@ def comparisons(
 
     is_omnibus = test in _OMNIBUS_TESTS
     groups = [data.filter(pl.col(x) == cat)[yCol].to_numpy() for cat in categories]
+    for category, group in zip(categories, groups):
+        if group.size == 0:
+            raise ValueError(f"grouping column {x!r} has no observations for group {category!r}.")
+        _validate_observations(group.tolist(), yCol, category)
 
     # Remember which spacing args the caller passed: any one of them opts out of the pixel
     # placement below, since an explicit number is data units on the user's own scale.
@@ -1798,6 +2043,18 @@ def comparisons(
     if isinstance(yPositions, list) and pairs is not None and len(yPositions) != len(pairs):
         raise ValueError(f"yPositions length ({len(yPositions)}) does not match pairs length ({len(pairs)})")
 
+    if pvalues is not None:
+        if is_reference:
+            if not isinstance(pvalues, dict):
+                raise ValueError("reference pvalues must be a dict keyed by group (the non-reference category).")
+            pvalues = {group: _validate_pvalue(value, f"pvalues entry {group!r}") for group, value in pvalues.items()}
+        else:
+            if not isinstance(pvalues, (list, tuple)):
+                raise ValueError("pairwise pvalues must be a list of final p-values.")
+            pvalues = [_validate_pvalue(value, f"pvalues entry {index}") for index, value in enumerate(pvalues)]
+            if pairs is None:
+                raise ValueError("pvalues requires pairs so each supplied value has a comparison.")
+
     annotation_layers: list[Any] = []
     omnibus_result = None
     comparisons: list[dict[str, Any]] = []
@@ -1828,7 +2085,7 @@ def comparisons(
                 omnibus_result, verbose=omnibusVerbose, notation=test_notation, sigFigs=effective_sigfigs
             )
         else:
-            label_text = _TEST_DISPLAY.get(test, test)
+            label_text = "user p-values" if pvalues is not None else _TEST_DISPLAY.get(test, test)
         annotation_layers.append(
             _text(
                 label_text,
@@ -1848,6 +2105,11 @@ def comparisons(
         report_pairs = _all_pairs(categories)
     else:
         report_pairs = list(pairs) if pairs else []
+
+    if effective_correction is not None:
+        actual_family = len(report_pairs)
+        if nComparisons is not None:
+            _validate_family_size(nComparisons, actual_family, correction=effective_correction)
 
     pval_lookup: dict[frozenset[str], Any] = {}
     if method is not None and report_pairs:
@@ -2217,6 +2479,7 @@ def _add_grouped_correlation(
     method: str,
     line: bool,
     position: str | None,
+    label: str | None,
     coefficient: str,
     includePvalue: bool,
     includeEquation: bool,
@@ -2232,6 +2495,7 @@ def _add_grouped_correlation(
     lineStyle: dict[str, Any] | None,
     ci: float | bool,
     interval: str,
+    ciColor: str | None,
     ciOpacity: float,
     report: bool,
     save: bool | str,
@@ -2265,15 +2529,17 @@ def _add_grouped_correlation(
         line_kwargs["opacity"] = opacity
     if lineStyle:
         line_kwargs.update(lineStyle)
-    line_color = alt.value(color) if color is not None else alt.Color(f"{group_col}:N", legend=None)
+    line_style_color = lineStyle.get("color") if lineStyle is not None else None
+    if line_style_color is not None:
+        line_color = None
+    else:
+        line_color = alt.value(color) if color is not None else alt.Color(f"{group_col}:N", legend=None)
 
     ci_level: float | None = None
     if ci:
         ci_level = 0.95 if ci is True else float(ci)
         if not 0.0 < ci_level < 1.0:
             raise ValueError(f"ci must be True or a confidence level in (0, 1), got {ci!r}")
-        if interval not in ("confidence", "prediction"):
-            raise ValueError(f"interval must be 'confidence' or 'prediction', got {interval!r}")
 
     # Corner-readout stacking geometry (resolved once).
     if position is not None and position not in _TEXT_PRESETS:
@@ -2289,29 +2555,48 @@ def _add_grouped_correlation(
         # top anchor -> stack down; bottom -> stack up; middle -> centred on the anchor.
         anchor = 0.0 if preset["y_frac"] == 0 else (n - 1) if preset["y_frac"] == 1 else (n - 1) / 2
 
-    layers: list[Any] = []
-    for i, g in enumerate(groups):
+    # Compute and validate every group before emitting any report record. A later degenerate group
+    # must not leave earlier grouped records in the global registry.
+    prepared: list[tuple[Any, Any, Any, dict[str, Any], np.ndarray | None, np.ndarray | None]] = []
+    for g in groups:
         gdf = df.filter(pl.col(group_col) == g)
-        x = gdf[x_col].cast(pl.Float64).to_numpy()
-        y = gdf[y_col].cast(pl.Float64).to_numpy()
-        result = _run_correlation(method, x, y)
+        x = _validate_observations(gdf[x_col].to_list(), x_col, g)
+        y = _validate_observations(gdf[y_col].to_list(), y_col, g)
+        try:
+            result = _run_correlation(method, x, y)
+        except ValueError as exc:
+            raise ValueError(f"correlation group {g!r}: {exc}") from exc
+        band: tuple[np.ndarray, np.ndarray] | None = None
+        if ci_level is not None and result["slope"] is not None:
+            xs = np.linspace(float(x.min()), float(x.max()), 64)
+            try:
+                band = _ols_band(x, y, xs, level=ci_level, kind=interval)
+            except ValueError as exc:
+                raise ValueError(f"correlation group {g!r}: {exc}") from exc
+        prepared.append((g, gdf, x, result, None if band is None else band[0], None if band is None else band[1]))
+
+    layers: list[Any] = []
+    staged: list[tuple[list[Any], dict[str, Any]]] = []
+    for i, (g, gdf, x, result, band_lo, band_hi) in enumerate(prepared):
         g_layers: list[Any] = []
 
         # CI band (Pearson only), drawn first so it sits under the line; filled by the group colour.
-        if ci_level is not None and result["slope"] is not None:
+        if band_lo is not None and band_hi is not None:
             xs = np.linspace(float(x.min()), float(x.max()), 64)
-            lo, hi = _ols_band(x, y, xs, level=ci_level, kind=interval)
-            band_df = pl.DataFrame({x_col: xs, y_col: lo, "__ci_hi": hi, group_col: [g] * len(xs)})
-            g_layers.append(
-                alt.Chart(_internal_data(band_df))
-                .mark_area(fillOpacity=ciOpacity, stroke=None, strokeWidth=0)
-                .encode(
-                    x=alt.X(field=x_col, type="quantitative"),
-                    y=alt.Y(field=y_col, type="quantitative"),
-                    y2=alt.Y2(field="__ci_hi"),
-                    color=line_color,
-                )
-            )
+            band_df = pl.DataFrame({x_col: xs, y_col: band_lo, "__ci_hi": band_hi, group_col: [g] * len(xs)})
+            band_fill = ciColor if ciColor is not None else line_style_color if line_style_color is not None else color
+            area_kwargs: dict[str, Any] = {"fillOpacity": ciOpacity, "stroke": None, "strokeWidth": 0}
+            if band_fill is not None:
+                area_kwargs["fill"] = band_fill
+            area = alt.Chart(_internal_data(band_df)).mark_area(**area_kwargs)
+            area_enc: dict[str, Any] = {
+                "x": alt.X(field=x_col, type="quantitative"),
+                "y": alt.Y(field=y_col, type="quantitative"),
+                "y2": alt.Y2(field="__ci_hi"),
+            }
+            if band_fill is None and line_color is not None:
+                area_enc["color"] = line_color
+            g_layers.append(area.encode(**area_enc))
 
         # Fit line (Pearson only - slope is None for the rank methods).
         if line and result["slope"] is not None:
@@ -2326,7 +2611,7 @@ def _add_grouped_correlation(
                 .encode(
                     x=alt.X(field=x_col, type="quantitative"),
                     y=alt.Y(field=y_col, type="quantitative"),
-                    color=line_color,
+                    **({"color": line_color} if line_color is not None else {}),
                 )
             )
 
@@ -2343,7 +2628,7 @@ def _add_grouped_correlation(
                 sigFigs=effective_sigfigs,
                 notation=notation,
             )
-            label = f"{g}: {text}"
+            readout_label = f"{g}: {label if label is not None else text}"
             y_i = base_y + (i - anchor) * line_h
             align, baseline = preset["align"], preset["baseline"]
             # A filled point swatch sized like a symbol-legend entry: config.legend.symbolSize is
@@ -2352,7 +2637,7 @@ def _add_grouped_correlation(
             sym_size = fontSize * 6
             sym_r = (sym_size / math.pi) ** 0.5  # circle radius, for placement
             gap = fontSize * 0.4  # swatch -> text
-            tw = len(label) * fontSize * 0.6  # rough text-width estimate (for right/centre swatch x)
+            tw = len(readout_label) * fontSize * 0.6  # rough text-width estimate (for right/centre swatch x)
             if align == "left":
                 text_x, sw_x = base_x + 2 * sym_r + gap, base_x + sym_r
             elif align == "right":
@@ -2379,14 +2664,19 @@ def _add_grouped_correlation(
             g_layers.append(
                 alt.Chart(_internal_data([{}]))
                 .mark_text(align=align, baseline=baseline, fontSize=fontSize, dx=offsetX, dy=offsetY)
-                .encode(x=alt.value(round(text_x, 2)), y=alt.value(round(y_i, 2)), text=alt.value(label))
+                .encode(x=alt.value(round(text_x, 2)), y=alt.value(round(y_i, 2)), text=alt.value(readout_label))
             )
 
-        # One record per group; tag it onto this group's first layer so save() matches all of them.
         record = _make_correlation_record(result, x_col, y_col, data_checksum=_frame_checksum(gdf), group=g)
+        if not g_layers:
+            g_layers.append(_empty_layer())
+        staged.append((g_layers, record))
+
+    # Register only after every group has built successfully, so a grouped validation/rendering
+    # failure cannot leave earlier groups in the global report queue.
+    for g_layers, record in staged:
         marker = _emit_report(record, report, save)
-        if g_layers:
-            g_layers[0] = g_layers[0].properties(name=marker)
+        g_layers[0] = g_layers[0].properties(name=marker)
         layers.extend(g_layers)
 
     if not layers:
@@ -2457,7 +2747,8 @@ def correlation(
         ``ci=True``, give your scatter an explicit
         y-axis title (``alt.Y("val:Q", title="…")``) - otherwise Vega merges the band's
         internal upper-bound field into the axis title (a Vega title-merge quirk that also
-        affects the single-series ``ci`` path).
+         affects the single-series ``ci`` path).
+         A custom ``label`` is prefixed with each group's label.
     line:
         Draw the OLS fit line. Default ``True``. Only applies to ``method="pearson"``
         (a no-op for the rank methods). Set ``False`` to suppress it and, e.g., compose
@@ -2497,18 +2788,21 @@ def correlation(
     lineStyle:
         A dict of raw ``mark_line`` properties merged in last, so any Vega-Lite line
         property is reachable (e.g. ``{"interpolate": "monotone", "strokeCap": "round"}``).
-        Keys here **override** the curated ``color``/``strokeWidth``/etc. above.
+        Keys here **override** the curated ``color``/``strokeWidth``/etc. above in both single
+        and grouped modes.
     ci:
         Draw a shaded interval band around the OLS fit (Pearson only). ``False``
         (default) → no band. ``True`` → a 95% band. A float in ``(0, 1)`` → that
         confidence level (e.g. ``0.99``). The band is hyperbolic - narrowest at the
-        mean of ``x``, widening toward the extremes.
+        mean of ``x``, widening toward the extremes. Its syntax is validated even for rank
+        methods, where the band is inactive.
     interval:
         Which band ``ci`` draws: ``'confidence'`` (default, the interval for the mean
         response - how well the *line* is pinned down) or ``'prediction'`` (the wider
         interval for a single new observation).
     ciColor:
-        Fill colour of the band. ``None`` (default) inherits the fit line's ``color``,
+        Fill colour of the band. ``None`` (default) inherits the effective fit-line color,
+        including a ``lineStyle`` color,
         falling back to the theme's mark colour (black / white, darkmode-aware). Because
         the default resolves darkmode at build time, wrap chart construction in a callable
         passed to ``ds.save()`` for correct light/dark exports (as with ``shade``).
@@ -2541,8 +2835,27 @@ def correlation(
         coefficient, includePvalue, includeEquation = "both", True, True
     if coefficient not in ("r", "r2", "both"):
         raise ValueError(f"coefficient must be 'r', 'r2', or 'both', got {coefficient!r}")
+    if method not in ("pearson", "spearman", "kendall"):
+        raise ValueError(f"method must be one of ['kendall', 'pearson', 'spearman'], got {method!r}")
+    _validate_ci_syntax(ci)
+    if lineStyle is not None and not isinstance(lineStyle, dict):
+        raise ValueError(f"lineStyle must be a dict of mark_line properties, got {type(lineStyle).__name__}")
+    if isinstance(notation, dict):
+        raise ValueError("correlation notation must be one of None/'scientific'/'e'/'power'.")
+    _validate_notation_syntax(notation)
+    if interval not in ("confidence", "prediction"):
+        raise ValueError(f"interval must be 'confidence' or 'prediction', got {interval!r}")
+    if position is not None:
+        from .annotations import _TEXT_PRESETS
+
+        if not isinstance(position, str) or position not in _TEXT_PRESETS:
+            raise ValueError(f"position must be one of {sorted(_TEXT_PRESETS)} or None, got {position!r}")
 
     data = ensure_polars(data)
+    if groupBy is not None:
+        _validate_statistical_data(data, xCol, yCol, groupBy, numeric_x=True)
+    else:
+        _validate_statistical_data(data, xCol, yCol, numeric_x=True)
 
     # Grouped mode: a fit + coefficient PER group of `groupBy` (e.g. one line per cell line), each
     # coloured to match the scatter's colour scale. A separate path so the single-series body below
@@ -2556,6 +2869,7 @@ def correlation(
             method=method,
             line=line,
             position=position,
+            label=label,
             coefficient=coefficient,
             includePvalue=includePvalue,
             includeEquation=includeEquation,
@@ -2571,6 +2885,7 @@ def correlation(
             lineStyle=lineStyle,
             ci=ci,
             interval=interval,
+            ciColor=ciColor,
             ciOpacity=ciOpacity,
             report=report,
             save=saveReport,
@@ -2578,7 +2893,10 @@ def correlation(
 
     x_values = data[xCol].cast(pl.Float64).to_numpy()
     y_values = data[yCol].cast(pl.Float64).to_numpy()
-    result = _run_correlation(method, x_values, y_values)
+    try:
+        result = _run_correlation(method, x_values, y_values)
+    except ValueError as exc:
+        raise ValueError(f"correlation {xCol!r} vs {yCol!r}: {exc}") from exc
 
     layers: list[Any] = []
 
@@ -2594,14 +2912,26 @@ def correlation(
         if interval not in ("confidence", "prediction"):
             raise ValueError(f"interval must be 'confidence' or 'prediction', got {interval!r}")
         xs = np.linspace(float(x_values.min()), float(x_values.max()), 64)
-        lo, hi = _ols_band(x_values, y_values, xs, level=level, kind=interval)
+        try:
+            lo, hi = _ols_band(x_values, y_values, xs, level=level, kind=interval)
+        except ValueError as exc:
+            raise ValueError(f"correlation {xCol!r} vs {yCol!r}: {exc}") from exc
         # Lower bound rides on the yCol-named field so its derived axis title dedupes with the
         # base chart (same trick as the fit line); the upper bound goes in y2 (carries no title).
         band_df = pl.DataFrame({xCol: xs, yCol: lo, "__ci_hi": hi})
         # Match the fit line's colour (black/white, darkmode-aware at build → callable needed
         # for save() across backgrounds, like shade); pin the stroke off so config.area's
         # grey fill / stroke can't leak through.
-        band_fill = ciColor or color or ("white" if _opt("darkmode") else "black")
+        style_color = lineStyle.get("color") if lineStyle is not None else None
+        band_fill = (
+            ciColor
+            if ciColor is not None
+            else style_color
+            if style_color is not None
+            else color
+            if color is not None
+            else ("white" if _opt("darkmode") else "black")
+        )
         layers.append(
             alt.Chart(_internal_data(band_df))
             .mark_area(fill=band_fill, fillOpacity=ciOpacity, stroke=None, strokeWidth=0)

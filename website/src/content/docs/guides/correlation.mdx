@@ -38,4 +38,9 @@ per level, each coloured to match its points (colour your scatter by the same fi
 lookup rather than a position, so no sort parameter is needed. The readouts stack in the corner, one
 per series:
 
+A custom `label=` is prefixed with each group name. `lineStyle` has precedence over the curated
+line options in both single and grouped modes; `ciColor` controls the band fill, which otherwise
+follows the effective line color. Invalid `ci` syntax is rejected for rank methods too, although
+their line and band settings are inactive.
+
 <Example name="correlation_groups" alt="Per-cell-line correlation with fit lines and coefficients" />
