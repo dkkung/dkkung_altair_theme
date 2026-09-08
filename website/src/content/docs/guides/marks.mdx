@@ -11,8 +11,9 @@ standalone [transforms](/guides/transforms/).
 
 ## Strip plot
 
-`mark_strip()` draws a categorical scatter with a median tick and optional mean error bars. Points
-are jittered by default.
+`mark_strip()` draws a categorical scatter with a summary. By default, the summary is the group
+mean with SEM error bars; `errorbars=False` selects the median instead. Points are jittered by
+default.
 
 <Example name="strip" alt="Strip plot of miles per gallon by car origin" />
 
@@ -38,6 +39,25 @@ Remove the outline with `stroke=None`, and end the violin sharply at the observe
 with `trim=True`; `bandwidth` tunes the KDE smoothness:
 
 <Example name="violin_styled" alt="Styled violin plot with a custom palette, no outline, and trimmed tails" />
+
+### Palettes and fixed fills
+
+`mark_strip()` and `mark_violin()` both return an `alt.LayerChart`. Use `palette=` for category
+colors: it accepts a registered palette name (including a loaded custom palette) or a nonempty
+list of colors. A name uses the full registered list; it is not resampled. With `palette=None`,
+colors inherit the theme's category range.
+
+Use `fill=` for one literal color instead:
+
+```python
+palette_strip = ds.mark_strip(data, "group", "value", categories, palette=["#4C78A8", "#F58518"])
+fixed_violin = ds.mark_violin(data, "group", "value", categories, fill="#888888", legend=True)
+```
+
+`palette` and `fill` cannot both be non-`None`; inheriting the theme palette is not a conflict.
+With a fixed fill, only the category-color legend is hidden, even when `legend=True`. Axes, other
+legends, summaries, and violin inner styles remain. The literal fill stays the same in light and
+dark mode.
 
 ## Boxplot
 

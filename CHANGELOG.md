@@ -4,6 +4,10 @@
 
 ### Changes
 
+- `mark_strip()` and `mark_violin()` accept registered palette names and a separate `fill` for
+  fixed colors. Fixed fill suppresses their category-color legend without changing summary marks.
+- **Breaking:** use `fill` instead of the violin's former literal-color `palette` shorthand.
+  Explicit nonempty palette lists remain supported.
 - **Breaking:** tabular inputs use `data`; plot mappings use `x` and `y`. Grouped comparisons use
   `xOffset`, correlation uses `groupBy`, and axis-independent dataframe operations use `column`.
 - **Breaking:** point labels and volcano plots use `labels` for the content column and `subset`
