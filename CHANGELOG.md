@@ -49,6 +49,8 @@
 
 ### Fixes
 
+- Sized and nested `assemble()` builders now preserve the light/dark mode selected by `save()` and
+  `show()` while recomputing size-dependent geometry, without changing or leaking active theme state.
 - Tables preserve source rows and recovered data when missing or non-finite cells serialize as
   `null`; those cells render blank while zero remains visible. Formatting validates known input
   columns, supports d3 formats for strings and booleans, and uses corrected precision and width

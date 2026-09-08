@@ -1,5 +1,6 @@
 import os
 import tomllib
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -290,6 +291,26 @@ _ACTIVE_ARGS: dict[str, Any] = {}
 def _active_args() -> dict[str, Any]:
     """A copy of the last theme() call's explicit args - theme() rebinds the global, so read it here."""
     return dict(_ACTIVE_ARGS)
+
+
+@contextmanager
+def _temporary_theme(overrides: dict[str, Any]):
+    """Re-derive selected options while preserving the exact active theme state."""
+    global _ACTIVE_ARGS
+    previous_options = dict(alt.theme.options)
+    previous_args = dict(_ACTIVE_ARGS)
+    previous_colors = dict(colors)
+    # save() changes these resolved options directly. Carry that render mode into the
+    # rebuilt theme while size-dependent values are derived from the original arguments.
+    render_mode = {key: previous_options.get(key, _opt(key)) for key in ("darkmode", "transparent")}
+    theme(**{**previous_args, **render_mode, **overrides})
+    try:
+        yield
+    finally:
+        alt.theme.options = previous_options
+        _ACTIVE_ARGS = previous_args
+        colors.clear()
+        colors.update(previous_colors)
 
 
 def _opt(key: str) -> Any:
