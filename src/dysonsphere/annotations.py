@@ -15,7 +15,7 @@ import altair as alt
 import polars as pl
 
 from .theme import _opt
-from .utils import _SHADE_PREFIX, _empty_layer, _internal_data, _resolve_dash, band_geometry
+from .utils import _SHADE_PREFIX, _band_geometry, _empty_layer, _ensure_polars, _internal_data, _resolve_dash
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
@@ -50,7 +50,7 @@ def _resolve_rule_span(
 
     Returns ``("q", a, b)`` for a numeric span (data coordinates, shares the base scale via
     ``alt.datum``) or ``("px", lo, hi)`` for a category-name span (resolved to pixels through
-    ``band_geometry`` like ``shade``, so it never merges into the base scale). Both bounds
+    ``_band_geometry`` like ``shade``, so it never merges into the base scale). Both bounds
     must be the same kind; a string span needs ``categories``.
     """
     if len(span) != 2:
@@ -68,7 +68,7 @@ def _resolve_rule_span(
             raise ValueError(f"span category names not in categories: {missing}")
         n = len(categories)
         span_len = _opt("chartWidth") if run_ch == "x" else _opt("chartHeight")
-        geo = band_geometry(n, span_len)
+        geo = _band_geometry(n, span_len)
         f = _default_flush() if flush is None else flush
         si, ei = cat_index[start], cat_index[end]
         lo = 0.0 if (f and si == 0) else geo.starts[si]
@@ -404,9 +404,7 @@ def rule(
     # `(base + rule(..., data=df))` can be faceted; the default builds a fresh internal sidecar
     # (filtered by read(what="data"), and deliberately NOT facet-safe).
     if data is not None:
-        from .utils import ensure_polars
-
-        src = ensure_polars(data)
+        src = _ensure_polars(data)
 
         def base_factory() -> alt.Chart:
             return _datum_base(src)
@@ -799,9 +797,7 @@ def text(
     # builds a fresh internal sidecar (filtered by read(what="data"), and deliberately NOT
     # facet-safe).
     if data is not None:
-        from .utils import ensure_polars
-
-        src = ensure_polars(data)
+        src = _ensure_polars(data)
 
         def base_factory() -> alt.Chart:
             return _datum_base(src)
@@ -961,9 +957,9 @@ def labels(
     """
     df, xCol, yCol = data, x, y
     from ._placement import _repel_labels, _sample_spread
-    from .utils import _nice_domain, ensure_polars
+    from .utils import _ensure_polars, _nice_domain
 
-    data = ensure_polars(df)
+    data = _ensure_polars(df)
     # Domain and obstacles both span the FULL data (so labeling a subset via subset= never clips the
     # axes AND the labels dodge every plotted point, not just the labelled ones); the label positions
     # come from the selected rows. subset=None labels every row; an int auto-selects that many evenly
@@ -1320,11 +1316,9 @@ def shade(
     datum_mode = data is not None
     src = None
     if datum_mode:
-        from .utils import ensure_polars
-
         if positions is None:
             raise ValueError("shade(data=...) is a facet-safe positions mode only; band mode does not support it.")
-        src = ensure_polars(data)
+        src = _ensure_polars(data)
 
     def _shade_rect(color, *, x=None, y=None) -> alt.Chart:
         """One ``mark_rect`` layer. ``x`` / ``y`` are each ``None``, a pixel range ``("px", lo,
@@ -1359,8 +1353,8 @@ def shade(
             chart_height = _opt("chartHeight")
             n = len(categories) if categories else 0
             cat_index = {cat: i for i, cat in enumerate(categories)} if categories else {}
-            x_geo = band_geometry(n, chart_width) if n else None
-            y_geo = band_geometry(n, chart_height) if n else None
+            x_geo = _band_geometry(n, chart_width) if n else None
+            y_geo = _band_geometry(n, chart_height) if n else None
             if flush is None:
                 flush = _default_flush()
 
@@ -1389,7 +1383,7 @@ def shade(
                 raise ValueError("categories is required when positions contains string tuples.")
             n = len(categories)
             span = _opt("chartHeight") if axis == "y" else _opt("chartWidth")
-            geo = band_geometry(n, span)
+            geo = _band_geometry(n, span)
             cat_index = {cat: i for i, cat in enumerate(categories)}
 
             if flush is None:
@@ -1423,7 +1417,7 @@ def shade(
     color_map = [palette[(i // repeat) % n_colors] for i in range(n)]
 
     chart_width = _opt("chartWidth")
-    geo = band_geometry(n, chart_width)
+    geo = _band_geometry(n, chart_width)
 
     if flush is None:
         flush = _default_flush()

@@ -4,7 +4,7 @@ import dysonsphere as ds
 
 ds.theme()
 
-cars = ds.utils.ensure_polars(data.cars()).drop_nulls(["Horsepower"])
+cars = data.cars().dropna(subset=["Horsepower"])
 origins = ["Europe", "Japan", "USA"]
 
 # pairs="all" expands to every unique pair, so `correction` covers the real family.

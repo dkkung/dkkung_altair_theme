@@ -3,7 +3,6 @@ import numpy as np
 import polars as pl
 
 import dysonsphere as ds
-from dysonsphere.utils import band_geometry
 
 ds.theme()
 
@@ -19,7 +18,8 @@ df = pl.DataFrame(
 df = ds.transforms.quasirandom(df, "response", ["dose"])
 # Pin the offset domain wider than the data so the swarm stays inside the bars.
 m = df["quasirandom_x"].abs().max() * 1.9
-bar_w = band_geometry(len(CATS), scale="band").step * 0.82  # narrower than the band, so the swarm sits inside
+# Keep bars narrower than the default four-category bands so the swarm sits inside.
+bar_w = 20.0
 
 x = alt.X("dose:N", sort=CATS, title="Dose")
 bars = alt.Chart(df).mark_bar(size=bar_w).encode(x, y=alt.Y("mean(response):Q", title="Response"))

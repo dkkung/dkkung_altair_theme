@@ -5,7 +5,7 @@ import dysonsphere as ds
 
 ds.theme()
 
-cars = ds.utils.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon"])
+cars = data.cars().dropna(subset=["Miles_per_Gallon"])
 
 # ds.transforms.jitter() adds a Gaussian x-offset column; pass it to Altair's xOffset.
 cars = ds.transforms.jitter(cars)

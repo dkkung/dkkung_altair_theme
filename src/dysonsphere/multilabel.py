@@ -5,7 +5,7 @@ import altair as alt
 import polars as pl
 
 from .theme import _opt
-from .utils import _internal_data, band_geometry, count_n
+from .utils import _band_geometry, _count_n, _internal_data
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
@@ -527,7 +527,7 @@ def _multilabel_layer(
         if spanTickHeight is None:
             spanTickHeight = _opt("tickSize")
 
-        geo = band_geometry(len(categories), chartWidth)
+        geo = _band_geometry(len(categories), chartWidth)
         axisWidth_val = _opt("axisWidth")
         darkmode_val = _opt("darkmode")
         span_color = "white" if darkmode_val else "black"
@@ -893,7 +893,7 @@ def add_multilabel(
                 f"showSampleSize=True adds. Rename that row, or pass sampleSizeLabel= to use "
                 f"a different label for the sample size row."
             )
-        counts = count_n(data, xCol, categories)
+        counts = _count_n(data, xCol, categories)
         # Pin each list to its row labels before the n-row joins groups, or the entries
         # shift by one. The basis is the DISPLAY order, matching how _multilabel_layer
         # zips a list, and the length is checked here because that check sees a dict.

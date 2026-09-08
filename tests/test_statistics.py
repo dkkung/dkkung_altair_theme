@@ -20,7 +20,7 @@ from dysonsphere.stats import (
     correlation,
 )
 from dysonsphere.theme import _opt, theme
-from dysonsphere.utils import _nested_band_centers, band_geometry
+from dysonsphere.utils import _band_geometry, _nested_band_centers
 
 CATEGORIES = ["A", "B"]
 
@@ -2569,7 +2569,7 @@ class TestGroupedLabelCentering:
         ).to_dict()
         subs = _nested_band_centers(2, 3, 100.0)
         expected = [(row[0] + row[1]) / 2 for row in subs]
-        bands = list(band_geometry(2, 100.0, scale="band", bandPadding=0.2).centers)
+        bands = list(_band_geometry(2, 100.0, scale="band", bandPadding=0.2).centers)
         assert self._label_xs(spec) == pytest.approx(expected)
         # and is genuinely off the band centre, which is what it used to use
         assert all(abs(a - b) > 1.0 for a, b in zip(expected, bands))
@@ -2588,7 +2588,7 @@ class TestGroupedLabelCentering:
             categories=["G1", "G2"],
             xOffsetSort=levels,
         ).to_dict()
-        bands = list(band_geometry(2, 100.0, scale="band", bandPadding=0.2).centers)
+        bands = list(_band_geometry(2, 100.0, scale="band", bandPadding=0.2).centers)
         assert self._label_xs(spec) == pytest.approx(bands)
 
     def test_label_tracks_the_pair_not_the_category(self):

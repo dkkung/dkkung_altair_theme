@@ -1,10 +1,10 @@
 """Volcano plot for differential-expression results.
 
-Built entirely on dysonsphere's public surfaces - core (``ds.theme`` / ``ds.rule`` /
-``ds.palettes.colors`` / ``ds.utils.ensure_polars``) plus the extension-author primitive surface
-(``dysonsphere.ext``: ``opt`` / ``internal_data`` / ``AltairChart``). It doubles as the
-reference for how an extension composes a first-class dysonsphere chart without reaching into
-core internals.
+Built on dysonsphere's public surfaces - core (``ds.theme`` / ``ds.rule`` /
+``ds.palettes.colors``) plus the extension-author primitive surface (``dysonsphere.ext``:
+``opt`` / ``internal_data`` / ``AltairChart``). As coordinated first-party code, this package
+may use shared core implementation helpers internally; third-party extensions should use only
+the ``dysonsphere.ext`` surface for such primitives.
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ import polars as pl
 
 import dysonsphere as ds
 from dysonsphere import ext
+from dysonsphere.utils import _ensure_polars
 
 # Sentinel so "caller passed None (no title)" is distinct from "caller passed nothing (default
 # title)" - the same _UNSET pattern the core marks use for yTitle/xTitle.
@@ -107,7 +108,7 @@ def volcano(
         If ``subset`` is set without ``labels``, or ``subset`` is an unrecognized string.
     """
     df = data
-    data = ds.utils.ensure_polars(df)
+    data = _ensure_polars(df)
 
     data = data.with_columns((-pl.col(pvalue).clip(lower_bound=_P_FLOOR).log10()).alias(_NEGLOG_COL))
     gained = (pl.col(log2fc) >= fcThreshold) & (pl.col(pvalue) <= pThreshold)

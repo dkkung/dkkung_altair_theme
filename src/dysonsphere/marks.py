@@ -10,7 +10,7 @@ from .display_labels import label_expr
 from .palettes import colors
 from .theme import _opt
 from .transforms import beeswarm, jitter
-from .utils import _internal_data, _nice_domain, _validate_category_order, band_geometry, ensure_polars
+from .utils import _band_geometry, _ensure_polars, _internal_data, _nice_domain, _validate_category_order
 
 # The module's public API - star-imported into the dysonsphere namespace. Everything
 # else here is internal (underscore or not); keep this list in sync with __init__.__all__.
@@ -49,7 +49,7 @@ class _MarkScaffold:
     yTitle: str | None | _UnsetType = _UNSET
 
     def __post_init__(self) -> None:
-        self.df = ensure_polars(self.df)
+        self.df = _ensure_polars(self.df)
         for column in (self.xCol, self.yCol):
             if column not in self.df.columns:
                 raise ValueError(f"mark data column {column!r} is not present in the data.")
@@ -305,7 +305,7 @@ def mark_violin(
     chart_width = _opt("chartWidth")  # x:Q domain of the violin layer
     # Vega-Lite routes "rect and other marks" - boxplot included - through rectPadding,
     # NOT barPadding (scale="rect"), and not the xOffset/mark_circle variant ("offset").
-    geo = band_geometry(len(categories), scale="rect")
+    geo = _band_geometry(len(categories), scale="rect")
     half_width = mark_size * 0.75
 
     # Precompute absolute x positions for each violin point so the violin
@@ -638,8 +638,8 @@ def mark_strip(
     else:
         raise ValueError(f"scatter must be 'jitter' or 'beeswarm', got {scatter!r}")
 
-    band_padding = _opt("outerPadding")  # the offset variant's padding - see band_geometry
-    step = band_geometry(len(categories)).step
+    band_padding = _opt("outerPadding")  # the offset variant's padding - see _band_geometry
+    step = _band_geometry(len(categories)).step
     # NOT a band centre: the xOffset scale positions relative to the band start, so this
     # is the in-band midpoint expressed in xOffset range coordinates.
     band_center = step * (0.5 - band_padding)

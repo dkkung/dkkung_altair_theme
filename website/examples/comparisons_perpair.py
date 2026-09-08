@@ -4,7 +4,7 @@ import dysonsphere as ds
 
 ds.theme()
 
-cars = ds.utils.ensure_polars(data.cars()).drop_nulls(["Horsepower"])
+cars = data.cars().dropna(subset=["Horsepower"])
 origins = ["Europe", "Japan", "USA"]
 
 # bracketStyle and notation accept per-pair dicts (keys matched regardless of

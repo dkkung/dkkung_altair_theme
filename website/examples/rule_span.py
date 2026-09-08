@@ -6,7 +6,7 @@ import dysonsphere as ds
 
 ds.theme()
 
-cars = ds.utils.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon", "Cylinders"])
+cars = pl.from_pandas(data.cars()).drop_nulls(["Miles_per_Gallon", "Cylinders"])
 cats = ["3", "4", "5", "6", "8"]
 
 by_cyl = (

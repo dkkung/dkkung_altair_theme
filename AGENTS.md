@@ -89,7 +89,7 @@ examples during iteration and regenerate affected references after updating sour
   integral floats must not change exported numeric types. Row checksums preserve duplicate rows.
 - Use `_opt` for theme reads outside theme.py (`ext.opt` in extensions). Geometry and colors resolved
   at construction may require callable rebuilding for light/dark exports. Theme changes replace state.
-- Reuse `band_geometry` and `_nested_band_centers`; do not duplicate pixel formulas. Keep mark-specific
+- Reuse `_band_geometry` and `_nested_band_centers`; do not duplicate pixel formulas. Keep mark-specific
   band padding: the global inner-padding key overrides them, and rect padding also affects boxplots.
 - Fixed reference annotations use datum/value positions to avoid clobbering shared axis titles.
   Facet-safe references share user data through `_datum_base`; global statistical results must not
@@ -104,7 +104,9 @@ examples during iteration and regenerate affected references after updating sour
 - Prefer builders for size-dependent assembled panels. Theme config is figure-wide; changing a
   view's dimensions does not automatically rescale already-constructed geometry.
 - Optional extensions stay separate distributions using discovery and the small public `ds.ext`
-  interface. Add primitives only for real consumers; do not expose private internals wholesale.
+  interface. Third-party extensions must not import core private helpers or expose them wholesale.
+  The coordinated in-repository `dysonsphere-biology` first-party package is the narrow exception:
+  it may directly import shared private core helpers when the core and extension change together.
 
 ## Git and Release
 

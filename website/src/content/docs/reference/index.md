@@ -25,9 +25,6 @@ Browse by area in the sidebar:
 - **[Statistics](/reference/stats/)** - `ds.stats.comparisons()`, `ds.stats.correlation()`, `ds.stats.clear_stats()`
 - **Theming** - `theme()` and config-file scaffolding (`create_config()`)
 - **Transforms** - `ds.transforms.jitter()`, `ds.transforms.beeswarm()`, `ds.transforms.quasirandom()`
-- **Utilities** - `ds.utils.ensure_polars()`, `ds.utils.count_n()`, `ds.utils.band_geometry()`,
-  `ds.utils.BandGeometry`
-
 Every public function carries type annotations (the package ships a `py.typed` marker), so the
 signatures shown here are the same contract your editor and type checker see.
 

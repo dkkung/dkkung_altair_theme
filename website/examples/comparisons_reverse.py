@@ -4,7 +4,7 @@ import dysonsphere as ds
 
 ds.theme()
 
-cars = ds.utils.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon"])
+cars = data.cars().dropna(subset=["Miles_per_Gallon"])
 origins = ["Europe", "Japan", "USA"]
 pairs = [("Europe", "Japan"), ("Europe", "USA")]
 

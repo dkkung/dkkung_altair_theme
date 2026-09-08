@@ -36,7 +36,6 @@ MODULES = [
     ("table", "Tables", 14, "Render a DataFrame as a publication-styled table."),
     ("theme", "Theming", 15, "Register the dysonsphere Altair theme and scaffold config files."),
     ("transforms", "Transforms", 16, "Data transforms for jittered and beeswarm x-offsets."),
-    ("utils", "Utilities", 17, "Shared helpers: DataFrame handling, counts, and band geometry."),
 ]
 
 # Extension modules documented from a separate distribution's package (not part of core's
@@ -177,12 +176,12 @@ def render_page(mod, title: str, order: int, description: str) -> str:
             "`ds.palettes.categorical(...)`, and `ds.palettes.export_swatches(...)`.",
             "",
         ]
-    elif mod.name in {"metadata", "utils"}:
+    elif mod.name == "metadata":
         out += [f"Access these helpers through `ds.{mod.name}`.", ""]
     for name, f in fns:
         out.append(f"## `{name}`")
         out.append("")
-        if mod.name in {"metadata", "utils", "palettes"}:
+        if mod.name in {"metadata", "palettes"}:
             public_path = f"ds.{name}" if name == "palette" else f"ds.{mod.name}.{name}"
             out += [f"Call as `{public_path}(...)`.", ""]
         out += ["```python", format_signature(f, name), "```", ""]

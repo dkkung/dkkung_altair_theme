@@ -8,12 +8,13 @@ import polars as pl
 
 from .theme import _opt
 
-# The public ds.utils API. Everything else here is internal (underscore or not).
-__all__ = ["BandGeometry", "band_geometry", "count_n", "ensure_polars"]
+# This module is internal. Keep the empty export list so an incidental module import cannot expose
+# implementation helpers through star-imports.
+__all__: list[str] = []
 
 
-class BandGeometry(NamedTuple):
-    """Pixel geometry of an n-category band axis - see :func:`band_geometry`."""
+class _BandGeometry(NamedTuple):
+    """Pixel geometry of an n-category band axis - see :func:`_band_geometry`."""
 
     step: float
     centers: tuple[float, ...]
@@ -21,13 +22,13 @@ class BandGeometry(NamedTuple):
     ends: tuple[float, ...]
 
 
-def band_geometry(
+def _band_geometry(
     n: int,
     span: float | None = None,
     *,
     scale: str = "offset",
     bandPadding: float | None = None,
-) -> BandGeometry:
+) -> _BandGeometry:
     """
     Compute the pixel geometry of an ``n``-category band axis - the single source of
     truth for dysonsphere's band-position math (violin centres, shade rects, bracket
@@ -66,7 +67,7 @@ def band_geometry(
 
     Returns
     -------
-    BandGeometry
+    _BandGeometry
         A named tuple ``(step, centers, starts, ends)``, each position list in
         category-index order.
     """
@@ -78,7 +79,7 @@ def band_geometry(
     if scale == "point":
         step = span / n
         centers = tuple(step * (0.5 + i) for i in range(n))
-        return BandGeometry(step, centers, centers, centers)
+        return _BandGeometry(step, centers, centers, centers)
     if scale == "offset":
         inner = 0.0
     elif scale == "band":
@@ -94,7 +95,7 @@ def band_geometry(
     starts = tuple(step * (outer + i) for i in range(n))
     centers = tuple(s + width / 2 for s in starts)
     ends = tuple(s + width for s in starts)
-    return BandGeometry(step, centers, starts, ends)
+    return _BandGeometry(step, centers, starts, ends)
 
 
 def _nested_band_centers(nCategories: int, nLevels: int, span: float | None = None) -> list[list[float]]:
@@ -102,18 +103,18 @@ def _nested_band_centers(nCategories: int, nLevels: int, span: float | None = No
 
     A nested offset scale uses its own padding keys, not the mark-specific ones: the outer band
     takes ``groupPadding`` (Vega-Lite's ``bandWithNestedOffsetPadding``) and the offset scale
-    inside it takes ``subgroupPadding`` (``offsetBandPadding``). Composing ``band_geometry`` with
+    inside it takes ``subgroupPadding`` (``offsetBandPadding``). Composing ``_band_geometry`` with
     each reproduces Vega's rendered sub-bar positions exactly (verified against rendered SVG for
-    2-5 levels and 2-3 categories); ``band_geometry``'s own ``"band"``/``"offset"`` variants do
+    2-5 levels and 2-3 categories); ``_band_geometry``'s own ``"band"``/``"offset"`` variants do
     NOT, because they resolve ``barPadding``/``outerPadding`` instead.
     """
     span = float(_opt("chartWidth")) if span is None else span
-    outer = band_geometry(nCategories, span, scale="band", bandPadding=float(_opt("groupPadding")))
+    outer = _band_geometry(nCategories, span, scale="band", bandPadding=float(_opt("groupPadding")))
     sub = float(_opt("subgroupPadding"))
     out: list[list[float]] = []
     for i in range(nCategories):
         width = outer.ends[i] - outer.starts[i]
-        inner = band_geometry(nLevels, width, scale="band", bandPadding=sub)
+        inner = _band_geometry(nLevels, width, scale="band", bandPadding=sub)
         out.append([outer.starts[i] + c for c in inner.centers])
     return out
 
@@ -144,7 +145,7 @@ def _nice_domain(lo: float, hi: float, count: int = 10) -> tuple[float, float]:
     return lo, hi
 
 
-def count_n(data: pl.DataFrame, column: str, categories: list[str]) -> list[int]:
+def _count_n(data: pl.DataFrame, column: str, categories: list[str]) -> list[int]:
     """
     Count the number of rows in ``data`` belonging to each category.
 
@@ -169,10 +170,10 @@ def count_n(data: pl.DataFrame, column: str, categories: list[str]) -> list[int]
     --------
     ::
 
-        counts = ds.utils.count_n(data, "group", ["Control", "Group A", "Group B"])
+        counts = _count_n(data, "group", ["Control", "Group A", "Group B"])
         # [12, 15, 11]
     """
-    data = ensure_polars(data)
+    data = _ensure_polars(data)
     return [len(data.filter(pl.col(column) == cat)) for cat in categories]
 
 
@@ -186,7 +187,7 @@ def _validate_category_order(
 ) -> list[Any]:
     """Require an explicit data-driven category order to cover observations exactly once.
 
-    This is intentionally separate from :func:`count_n`: count tables are useful for subsets,
+    This is intentionally separate from :func:`_count_n`: count tables are useful for subsets,
     duplicate category names, and zero-count categories, while plot scales must describe the
     observed domain exactly.
     """
@@ -213,7 +214,7 @@ def _validate_category_order(
     return values
 
 
-def ensure_polars(data: pl.DataFrame) -> pl.DataFrame:
+def _ensure_polars(data: pl.DataFrame) -> pl.DataFrame:
     """
     Convert a pandas DataFrame to Polars, or pass a Polars DataFrame through unchanged.
 
@@ -238,7 +239,7 @@ def ensure_polars(data: pl.DataFrame) -> pl.DataFrame:
 
         import pandas as pd
         pdf = pd.DataFrame({"group": ["A", "B"], "value": [1.0, 2.0]})
-        pldf = ds.utils.ensure_polars(pdf)  # returns a polars.DataFrame
+        pldf = _ensure_polars(pdf)  # returns a polars.DataFrame
     """
     if isinstance(data, pl.DataFrame):
         return data
@@ -336,7 +337,7 @@ def _frame_checksum(data: "pl.DataFrame | Any") -> str:
     identity of the dataframe it was computed from, so records from distinct dataframes are
     distinguishable (and identical-content frames match regardless of ordering).
     """
-    return _hash_rows(ensure_polars(data).to_dicts())
+    return _hash_rows(_ensure_polars(data).to_dicts())
 
 
 # ── Internal-data sentinel ───────────────────────────────────────────────────
@@ -375,7 +376,7 @@ def _internal_data(data: "list[dict[str, Any]] | pl.DataFrame | Any") -> "Any":
 
     if isinstance(data, list):
         return alt.Data(values=[{**dict(row), _INTERNAL_COL: 1} for row in data])
-    return ensure_polars(data).with_columns(pl.lit(1).alias(_INTERNAL_COL))
+    return _ensure_polars(data).with_columns(pl.lit(1).alias(_INTERNAL_COL))
 
 
 def _empty_layer() -> "Any":

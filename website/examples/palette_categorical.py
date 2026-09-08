@@ -6,7 +6,7 @@ import dysonsphere as ds
 # your group count (blue / pink / yellow / green).
 ds.theme()
 
-cars = ds.utils.ensure_polars(data.cars()).drop_nulls(["Miles_per_Gallon"])
+cars = data.cars().dropna(subset=["Miles_per_Gallon"])
 origins = ["USA", "Europe", "Japan"]
 
 chart = ds.mark_strip(

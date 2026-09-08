@@ -63,7 +63,8 @@ contract.
 
 Your chart is just a function that returns an Altair object. To make it a *first-class*
 dysonsphere chart - themed, darkmode-aware, and correctly handled by `ds.metadata.read()` - use the
-stable primitive surface, never `_`-private internals:
+stable primitive surface. Third-party extensions must not import dysonsphere's `_`-private
+internals; coordinated first-party packages in this repository are the narrow exception.
 
 ```python
 import altair as alt
@@ -73,7 +74,7 @@ from dysonsphere import ext
 
 
 def yourchart(data, *, x="x", y="y") -> ext.AltairChart:
-    data = ds.utils.ensure_polars(data)         # accept polars or pandas
+    data = pl.from_pandas(data) if not isinstance(data, pl.DataFrame) else data
 
     darkmode = bool(ext.opt("darkmode"))        # read the active theme
     accent = ds.palettes.colors["blues2"][10 if darkmode else 2]
@@ -124,7 +125,7 @@ the frame the caller handed you.
 alt.Chart(ext.internal_data(computed_rows))
 
 # the user's own frame -> DO NOT tag it (tagging hides their data from read())
-alt.Chart(ds.utils.ensure_polars(df))
+alt.Chart(pl.from_pandas(df) if not isinstance(df, pl.DataFrame) else df)
 ```
 
 `internal_data` accepts a `list[dict]` (→ `alt.Data`) or a polars/pandas DataFrame (→ a tagged
