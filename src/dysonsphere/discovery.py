@@ -65,16 +65,48 @@ def load_extension(name: str) -> ModuleType:
 # An extension tags each chart it builds with a durable view-``name`` marker so ``save()`` can
 # record which extensions actually PRODUCED a figure (not merely which are installed). Reuses the
 # same layer-``name`` channel as the stats markers: it survives ``+``/layer/concat, unlike custom
-# ``usermeta`` (which Altair strips across ``+``). ``metadata._strip_markers`` already deletes any
-# name starting with ``__dysonsphere_``, so these are cleaned from the written spec for free.
+# ``usermeta`` (which Altair strips across ``+``). ``metadata._strip_markers`` recognizes these
+# markers explicitly, while retaining unrelated figure/shade identity markers.
 _EXT_MARKER_PREFIX = "__dysonsphere_ext_"
+_EXT_MARKER_SEPARATOR = "::"
+_ext_marker_counter = 0
 
 
 def _tag_extension(chart: _AltairChart, name: str) -> _AltairChart:
     """Tag ``chart`` as produced by the extension ``name`` (e.g. ``"biology"``) so ``save()``
-    records that extension's version in provenance. The tag is a view-``name`` marker that
-    survives composition (``+``/layer/concat) and is stripped from the written spec."""
-    return chart.properties(name=f"{_EXT_MARKER_PREFIX}{name}")
+    records that extension's version in provenance.
+
+    The unique view-name marker survives composition and is stripped from the written spec.
+    An existing name is carried inside it so statistical identity is not overwritten and a
+    user-supplied name can be restored when internal markers are removed.
+    """
+    global _ext_marker_counter
+    _ext_marker_counter += 1
+    previous = getattr(chart, "name", None)
+    suffix = f"{_EXT_MARKER_SEPARATOR}{previous}" if isinstance(previous, str) else ""
+    return chart.properties(name=f"{_EXT_MARKER_PREFIX}{name}_{_ext_marker_counter}{suffix}")
+
+
+def _parse_extension_marker(value: object) -> tuple[str, str | None] | None:
+    """Return an extension marker's registered name and carried view name, if present."""
+    if not isinstance(value, str) or not value.startswith(_EXT_MARKER_PREFIX):
+        return None
+    marker, separator, previous = value.partition(_EXT_MARKER_SEPARATOR)
+    body = marker[len(_EXT_MARKER_PREFIX) :]
+    name, counter_separator, counter = body.rpartition("_")
+    if not counter_separator or not name or not counter.isdigit():
+        return None
+    return name, previous if separator else None
+
+
+def _unwrap_extension_markers(value: object) -> tuple[list[str], str | None]:
+    """Return every nested extension name and the underlying non-extension view name."""
+    names: list[str] = []
+    current = value
+    while (parsed := _parse_extension_marker(current)) is not None:
+        names.append(parsed[0])
+        current = parsed[1]
+    return names, current if isinstance(current, str) else None
 
 
 def _used_extensions(spec: dict[str, Any]) -> dict[str, str]:
@@ -85,9 +117,8 @@ def _used_extensions(spec: dict[str, Any]) -> dict[str, str]:
 
     def walk(o: object) -> None:
         if isinstance(o, dict):
-            nm = o.get("name")
-            if isinstance(nm, str) and nm.startswith(_EXT_MARKER_PREFIX):
-                names.add(nm[len(_EXT_MARKER_PREFIX) :])
+            marker_names, _ = _unwrap_extension_markers(o.get("name"))
+            names.update(marker_names)
             for v in o.values():
                 walk(v)
         elif isinstance(o, list):

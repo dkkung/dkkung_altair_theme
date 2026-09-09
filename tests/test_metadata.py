@@ -1208,6 +1208,14 @@ class TestVerifyCompare:
         assert r.matches is not None
         assert set(r.matches) == {"data"}
         assert r.matches["data"] is False
+        assert r.ok is False
+
+    def test_ok_ignores_unavailable_comparisons(self, saved, frames):
+        import dysonsphere as ds
+
+        r = ds.metadata.verify([str(saved / "f1.json"), self._bar(frames[0])], what="save")
+        assert r.matches == {"save": None}
+        assert r.ok is True
 
     def test_group_numbers_never_collide(self, saved):
         # Numbers are assigned after grouping on the full checksum, so two different figures

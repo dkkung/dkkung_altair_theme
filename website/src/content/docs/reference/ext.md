@@ -56,7 +56,7 @@ Surface:
 - **``tag_extension(chart, name)``** - tag a chart your extension built so ``ds.save()`` records
   your extension's version in the figure's provenance (``environment["dysonsphere-extensions"]``,
   grouped right under ``dysonsphere``). Call it once on the chart you return:
-  ``return ext.tag_extension(chart, "biology")``. The tag is a durable
+  ``return ext.tag_extension(chart, "biology")``. The tag is a durable, unique
   view-name marker that survives ``+``/layer/concat and is stripped from the written spec, so it
   only affects provenance - never the rendered output. ``name`` is your extension's registered
   entry-point name (the ``ds.<name>`` alias); its version is looked up from the installed
@@ -69,8 +69,11 @@ def tag_extension(chart: _AltairChart, name: str) -> _AltairChart: ...
 ```
 
 Tag ``chart`` as produced by the extension ``name`` (e.g. ``"biology"``) so ``save()``
-records that extension's version in provenance. The tag is a view-``name`` marker that
-survives composition (``+``/layer/concat) and is stripped from the written spec.
+records that extension's version in provenance.
+
+The unique view-name marker survives composition and is stripped from the written spec.
+An existing name is carried inside it so statistical identity is not overwritten and a
+user-supplied name can be restored when internal markers are removed.
 
 ## `opt`
 
