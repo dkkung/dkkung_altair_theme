@@ -78,6 +78,41 @@ def test_label_top_n_count():
     assert len(_label_texts(chart)) == 2
 
 
+def test_label_top_n_selects_rows_when_names_repeat():
+    df = pl.DataFrame(
+        {
+            "gene": ["duplicate", "duplicate", "other"],
+            "log2fc": [4.0, 3.0, -2.0],
+            "pvalue": [1e-8, 1e-7, 1e-6],
+        }
+    )
+    assert _label_texts(ds.biology.volcano(df, labels="gene", subset=0)) == []
+    assert _label_texts(ds.biology.volcano(df, labels="gene", subset=1)) == ["duplicate"]
+    assert _label_texts(ds.biology.volcano(df, labels="gene", subset=2)) == ["duplicate", "duplicate"]
+
+
+def test_label_significant_does_not_rematch_nondifferential_duplicate():
+    df = pl.DataFrame(
+        {
+            "gene": ["duplicate", "duplicate", "other"],
+            "log2fc": [3.0, 0.2, -2.0],
+            "pvalue": [1e-8, 1e-8, 1e-6],
+        }
+    )
+    assert _label_texts(ds.biology.volcano(df, labels="gene", subset="significant")) == ["duplicate", "other"]
+
+
+def test_label_explicit_list_retains_value_matching_for_duplicates():
+    df = pl.DataFrame(
+        {
+            "gene": ["duplicate", "duplicate", "other"],
+            "log2fc": [3.0, 0.2, -2.0],
+            "pvalue": [1e-8, 1e-8, 1e-6],
+        }
+    )
+    assert _label_texts(ds.biology.volcano(df, labels="gene", subset=["duplicate"])) == ["duplicate", "duplicate"]
+
+
 def test_label_list_selects_named_genes():
     chart = ds.biology.volcano(_df(), labels="gene", subset=["up1", "down1"])
     texts = _label_texts(chart)
@@ -122,14 +157,17 @@ def test_axis_titles_render():
 
 
 def test_read_filters_generated_label_sidecar(tmp_path):
-    df = _df()
+    # A user column matching the temporary row-index stem is preserved; selection chooses a
+    # collision-free internal name and never passes that temporary column to ds.labels.
+    df = _df().with_columns(pl.Series("__dysonsphere_volcano_row", range(_df().height)))
     out = tmp_path / "volcano"
     ds.save(lambda: ds.biology.volcano(df, labels="gene", subset=3), str(out), format="json")
     frame = ds.metadata.read(str(out) + ".json", what="data")
     # Only the user's frame returns (with volcano's derived columns) - the tagged label
     # sidecar and the threshold-rule sidecars are all filtered out.
     assert frame.height == df.height
-    assert {"gene", "log2fc", "pvalue", "neglog10p", "significance"} <= set(frame.columns)
+    assert set(frame.columns) == set(df.columns) | {"neglog10p", "significance"}
+    assert sorted(frame["__dysonsphere_volcano_row"].to_list()) == list(range(df.height))
 
 
 def test_provenance_records_biology_extension(tmp_path):
