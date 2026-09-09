@@ -1,6 +1,7 @@
 import json
 import math
 import re
+import struct
 import textwrap
 import xml.etree.ElementTree as ET
 from typing import Any, cast
@@ -27,6 +28,22 @@ from dysonsphere.theme import theme
 from dysonsphere.utils import _apply_spec_fixes, _suppress_nice
 
 NS = "http://www.w3.org/2000/svg"
+
+
+def test_png_ppi_scales_from_svg_72_units_per_inch(tmp_path):
+    theme()
+    chart = alt.Chart({"values": [{"x": 0, "y": 0}, {"x": 1, "y": 1}]}).mark_point().encode(x="x:Q", y="y:Q")
+    stem = tmp_path / "font_scale"
+    save(chart, stem, format=["svg", "png"], ppi=1200, saveMetadata=False)
+
+    svg = (tmp_path / "font_scale.svg").read_text(encoding="utf-8")
+    width_match = re.search(r'<svg[^>]+width="([\d.]+)"', svg)
+    assert width_match is not None
+    svg_width = float(width_match.group(1))
+    png = (tmp_path / "font_scale.png").read_bytes()
+    png_width = struct.unpack(">I", png[16:20])[0]
+    assert png_width == int(svg_width * 1200 / 72)
+    assert 'font-size="7px"' in svg
 
 
 def _write(tmp_path, name, content):
@@ -281,9 +298,9 @@ class TestHtmlExport:
         assert (tmp_path / "out.html").exists() and (tmp_path / "out.json").exists()
 
     def test_html_does_not_apply_inward_ticks(self, tmp_path):
-        # inwardTicks is a static-SVG feature; the HTML must NOT carry a negative tickSize
+        # Inward tick direction is a static-SVG feature; HTML must NOT carry a negative tickSize
         # (the negative-tickSize trick renders inconsistently in the browser's Vega build).
-        theme(inwardTicks=True)
+        theme(tickDirection="in")
         df = pl.DataFrame({"x": [1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0]})
         chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
         save(chart, str(tmp_path / "out"), format="html", background=["light"])
@@ -305,11 +322,11 @@ class TestShow:
         assert cast(str, obj.data).startswith("<svg")  # bare markup, no XML prolog to confuse the HTML parser
 
     def test_runs_full_pipeline_inward_ticks(self):
-        # show()'s whole point: the preview matches save() output. With inwardTicks the preview
+        # show()'s whole point: the preview matches save() output. With inward ticks the preview
         # SVG must have inward ticks (proving _flip_ticks_inward ran) - Altair's raw render wouldn't.
         from dysonsphere.export import show
 
-        theme(inwardTicks=True)
+        theme(tickDirection="in")
         df = pl.DataFrame({"x": [1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0]})
         chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
         svg = cast(str, show(chart).data)
@@ -651,7 +668,7 @@ class TestFlipTicksInward:
         assert next(root.iter(f"{{{NS}}}line")).get("y2") == "100"
 
     def test_save_with_inward_ticks_points_ticks_in(self, tmp_path):
-        theme(inwardTicks=True)
+        theme(tickDirection="in")
         df = pl.DataFrame({"x": [1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0]})
         chart = alt.Chart(df).mark_point().encode(x="x:Q", y="y:Q")
         save(chart, str(tmp_path / "out"), format=["svg"], background=["light"])
@@ -722,9 +739,9 @@ class TestFlipTicksInward:
                     return float(m.group(1))
             raise AssertionError("no x-axis label found")
 
-        theme(inwardTicks=True, closed=True)
+        theme(tickDirection="in", closed=True)
         save(chart, str(tmp_path / "inward"), format=["svg"], background=["light"])
-        theme(inwardTicks=False, closed=True)
+        theme(tickDirection="out", closed=True)
         save(chart, str(tmp_path / "outward"), format=["svg"], background=["light"])
         tick_size = alt.theme.options["tickSize"]
         assert x_label_y(str(tmp_path / "inward.svg")) == pytest.approx(

@@ -4,6 +4,11 @@
 
 ### Changes
 
+- **Breaking:** `theme(inwardTicks=...)` is replaced by `theme(tickDirection="in" | "out")` with
+  default `"out"`; the old keyword and TOML key are removed without an alias.
+- **Breaking:** `theme()` now has explicit typed keyword-only styling options (`style` remains positional)
+  and validates direct and TOML values atomically. Removed `secondaryFontSize` and `smallestFontSize`; use the
+  positive, fractional `fontSize` control directly. Theme export defaults are validated when set.
 - **Breaking:** deprecated `theme(bandPadding=...)`, `axisOffset=None`, `markMedianStroke`, shade
   `xCol`, and multilabel `yPadding` are removed. Use the mark-specific padding options and current
   signatures instead.
@@ -49,6 +54,9 @@
 
 ### Fixes
 
+- Fixed subtitle font sizing and error-band border stroke opacity/width theme wiring.
+- Inner band padding now accepts the renderer-supported endpoint `1`; shared pixel geometry matches
+  D3's centered zero-width singleton behavior instead of dividing by zero.
 - Volcano top-N and significant label selection now identifies rows positionally, so duplicate
   display labels cannot expand the selected set or pull in non-differential points.
 - Violin category-axis ticks now use the silhouette's rect-band geometry in every inner mode,

@@ -21,6 +21,11 @@ Source references below are relative to `src/dysonsphere/`; test references are 
   References: `theme.py::_compute_derived`; `utils.py::_apply_spec_fixes`;
   `test_theme.py::TestViewPadding`; `test_export.py::TestSuppressNice`.
 
+- **Band geometry follows D3's degenerate scale rule.** Use D3's `max(1, denominator)` clamp and
+  default centered alignment. At one category, inner padding 1, and outer padding 0, this produces a
+  zero-width band centered in the span rather than dividing by zero. Keep normal multi-category and
+  nested geometry unchanged. References: `utils.py::_band_geometry`; `test_utils.py::TestPrivateBandGeometry`.
+
 - **Gradient titles stay horizontal.** Rotated colorbar titles were rejected. A global
   `config.legend.titleOrient` is not a substitute: it also changes symbol legend titles.
   References: `theme.py::_dysonsphere_theme`;
@@ -39,7 +44,8 @@ Source references below are relative to `src/dysonsphere/`; test references are 
 
 - **Flip inward ticks only in corrected output.** Negative theme tick sizes bypass schema
   constraints and disrupt browser label spacing. Keep the SVG correction rather than inserting
-  negative lengths into specs that also feed interactive HTML.
+  negative lengths into specs that also feed interactive HTML. `tickDirection="in"` defaults an
+  omitted frame to closed; explicit `closed=False` wins.
   References: `export.py::_flip_ticks_inward`; `test_export.py::TestFlipTicksInward`.
 
 - **Remove scaffolding at its source, not transparent data.** Minor-axis hosts filter to zero

@@ -3,9 +3,9 @@ from vega_datasets import data
 
 import dysonsphere as ds
 
-# inwardTicks=True points tick marks into the plot (physics-journal style);
+# tickDirection="in" points tick marks into the plot (physics-journal style);
 # it also defaults the frame to closed.
-ds.theme(inwardTicks=True)
+ds.theme(tickDirection="in")
 
 cars = data.cars().dropna(subset=["Miles_per_Gallon", "Horsepower"])
 

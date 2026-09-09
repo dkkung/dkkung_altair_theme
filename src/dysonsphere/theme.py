@@ -1,8 +1,9 @@
+import math
 import os
 import tomllib
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, Sequence
 
 import altair as alt
 
@@ -48,7 +49,6 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "fontWeight": 400,
     "grid": False,
     "gridColor": colors["greys"][0],
-    "inwardTicks": False,
     "legend": True,
     "legendColumnPadding": 4,
     "legendOffset": None,
@@ -75,10 +75,9 @@ _BUILTIN_DEFAULTS: dict[str, Any] = {
     "rampPalette": None,
     "saveBackground": "light",
     "saveFormat": ["svg", "json"],
-    "secondaryFontSize": None,
     "sigFigs": 3,
-    "smallestFontSize": 5,
     "strokeCap": "round",
+    "tickDirection": "out",
     "ticks": True,
     "tickSize": 3,
     "transparent": False,
@@ -182,19 +181,243 @@ def _load_custom_palettes() -> dict[str, list[str]]:
         palettes_section = config.get("palettes", {})
         for name, values in palettes_section.items():
             if not isinstance(values, list) or len(values) == 0:
-                raise ValueError(f"Palette {name!r} in {path} must be a non-empty list of hex strings.")
-            if not all(isinstance(v, str) for v in values):
-                raise ValueError(f"Palette {name!r} in {path} must contain only strings (hex color codes).")
+                raise ValueError(f"Palette {name!r} in {path} must be a non-empty list of color strings.")
+            if not all(isinstance(v, str) and v for v in values):
+                raise ValueError(f"Palette {name!r} in {path} must contain only color strings.")
             custom[name] = values
     return custom
 
 
-def theme(style: str | None = None, **kwargs: Any) -> None:
+class _UnsetType:
+    def __repr__(self) -> str:
+        return "<omitted>"
+
+
+_UNSET: Any = _UnsetType()
+
+
+def _resolve_choice(value: str | Sequence[str], valid: tuple[str, ...], name: str) -> list[str]:
+    """Normalize and validate a non-empty string-or-sequence choice."""
+    if not isinstance(value, str) and (isinstance(value, bytes) or not isinstance(value, Sequence)):
+        raise TypeError(f"{name} must be a string or sequence of strings; got {value!r}")
+    items = [value] if isinstance(value, str) else list(value)
+    if not items:
+        raise ValueError(f"{name} must be non-empty; got {value!r}")
+    invalid = [item for item in items if not isinstance(item, str) or item not in valid]
+    if invalid:
+        raise ValueError(f"{name} must be one of {valid}, got {invalid!r}")
+    return items
+
+
+def _validate_options(p: dict[str, Any]) -> None:
+    """Validate source values before deriving or committing theme state."""
+    bool_keys = {
+        "darkmode",
+        "dashedGrid",
+        "dashedLine",
+        "dashedRule",
+        "grid",
+        "legend",
+        "legendStroke",
+        "ticks",
+        "transparent",
+        "xAxis",
+        "xDomain",
+        "xLabels",
+        "xTicks",
+        "yAxis",
+        "yDomain",
+        "yLabels",
+        "yTicks",
+    }
+    for key in bool_keys:
+        if not isinstance(p[key], bool):
+            raise TypeError(f"{key} must be a bool; got {p[key]!r}")
+    if p["closed"] is not None and not isinstance(p["closed"], bool):
+        raise TypeError(f"closed must be a bool or None; got {p['closed']!r}")
+    if not isinstance(p["tickDirection"], str):
+        raise TypeError(f"tickDirection must be 'in' or 'out'; got {p['tickDirection']!r}")
+    if p["tickDirection"] not in ("in", "out"):
+        raise ValueError(f"tickDirection must be 'in' or 'out'; got {p['tickDirection']!r}")
+
+    def number(key: str, *, positive: bool = False, nonnegative: bool = False, allow_none: bool = False) -> None:
+        value = p[key]
+        if allow_none and value is None:
+            return
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise TypeError(f"{key} must be a number{', or None' if allow_none else ''}; got {value!r}")
+        if not math.isfinite(value):
+            raise ValueError(f"{key} must be finite; got {value!r}")
+        if positive and value <= 0:
+            raise ValueError(f"{key} must be positive; got {value!r}")
+        if nonnegative and value < 0:
+            raise ValueError(f"{key} must be nonnegative; got {value!r}")
+
+    for key in ("chartWidth", "chartHeight", "fontSize"):
+        number(key, positive=True)
+    for key in ("axisWidth", "tickSize", "legendColumnPadding", "legendRowPadding"):
+        number(key, nonnegative=True)
+    for key in ("markSize", "markStrokeWidth"):
+        number(key, nonnegative=True, allow_none=True)
+    for key in ("axisOffset", "legendOffset", "xLabelAngle", "yLabelAngle"):
+        if key == "axisOffset" and isinstance(p[key], bool):
+            continue
+        if key == "axisOffset" and p[key] is None:
+            raise ValueError("axisOffset=None is not supported; use False, True, or a numeric offset.")
+        number(key, allow_none=key == "legendOffset")
+    for key in ("markFillOpacity", "markStrokeOpacity"):
+        number(key, nonnegative=True)
+        if p[key] > 1:
+            raise ValueError(f"{key} must be between 0 and 1; got {p[key]!r}")
+    for key in ("barPadding", "rectPadding", "tickPadding", "groupPadding", "subgroupPadding"):
+        number(key, nonnegative=True)
+        if p[key] > 1:
+            raise ValueError(f"{key} must be at most 1; got {p[key]!r}")
+    number("outerPadding", nonnegative=True)
+    for key in ("cornerRadius", "boxplotOutliers", "viewPadding"):
+        if not isinstance(p[key], bool):
+            number(key, nonnegative=True)
+
+    if isinstance(p["sigFigs"], bool) or not isinstance(p["sigFigs"], int):
+        raise TypeError(f"sigFigs must be an integer; got {p['sigFigs']!r}")
+    if p["sigFigs"] <= 0:
+        raise ValueError(f"sigFigs must be positive; got {p['sigFigs']!r}")
+    if p["fontStyle"] not in ("normal", "italic", "oblique"):
+        raise ValueError("fontStyle must be 'normal', 'italic', or 'oblique'")
+    if p["strokeCap"] not in ("butt", "round", "square"):
+        raise ValueError("strokeCap must be 'butt', 'round', or 'square'")
+    weight = p["fontWeight"]
+    if isinstance(weight, bool) or not isinstance(weight, (str, int, float)):
+        raise TypeError(f"fontWeight must be a CSS weight name or number; got {weight!r}")
+    if isinstance(weight, str):
+        if weight not in {"normal", "bold", "lighter", "bolder"}:
+            raise ValueError(f"fontWeight has unsupported CSS weight name {weight!r}")
+    elif not math.isfinite(weight) or not 1 <= weight <= 1000:
+        raise ValueError(f"numeric fontWeight must be finite and between 1 and 1000; got {weight!r}")
+    for key in ("font", "gridColor", "markFill", "markMedianFill", "markStroke"):
+        if not isinstance(p[key], str) or not p[key]:
+            raise TypeError(f"{key} must be a non-empty color or font string; got {p[key]!r}")
+    for key in ("chartFill", "viewFill"):
+        if p[key] is not None and (not isinstance(p[key], str) or not p[key]):
+            raise TypeError(f"{key} must be a non-empty color string or None; got {p[key]!r}")
+    dash = p["dashedWidth"]
+    if isinstance(dash, (str, bytes)) or not isinstance(dash, Sequence):
+        raise TypeError(f"dashedWidth must be a sequence of numbers; got {dash!r}")
+    for value in dash:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise TypeError(f"dashedWidth must contain only numbers; got {dash!r}")
+        if not math.isfinite(value) or value < 0:
+            raise ValueError(f"dashedWidth values must be finite and nonnegative; got {dash!r}")
+    p["dashedWidth"] = list(dash)
+    for key in ("palette", "categoryPalette", "divergingPalette", "heatmapPalette", "ordinalPalette", "rampPalette"):
+        value = p[key]
+        if isinstance(value, str) and not value.strip():
+            raise ValueError(f"{key} must not be blank")
+        if value is not None and not isinstance(value, str):
+            if not isinstance(value, list) or not value or not all(isinstance(item, str) and item for item in value):
+                raise TypeError(f"{key} must be a name, a non-empty list of color strings, or None; got {value!r}")
+    _resolve_choice(p["saveFormat"], ("svg", "png", "json", "html"), "saveFormat")
+    _resolve_choice(p["saveBackground"], ("light", "dark"), "saveBackground")
+
+
+def theme(
+    style: str | None = None,
+    *,
+    axisOffset: int | float | bool = _UNSET,
+    axisWidth: int | float = _UNSET,
+    boxplotOutliers: int | float | bool = _UNSET,
+    chartFill: str | None = _UNSET,
+    chartHeight: int | float = _UNSET,
+    chartWidth: int | float = _UNSET,
+    closed: bool | None = _UNSET,
+    cornerRadius: int | float | bool = _UNSET,
+    darkmode: bool = _UNSET,
+    dashedGrid: bool = _UNSET,
+    dashedLine: bool = _UNSET,
+    dashedRule: bool = _UNSET,
+    dashedWidth: Sequence[int | float] = _UNSET,
+    font: str = _UNSET,
+    fontSize: int | float = _UNSET,
+    fontStyle: str = _UNSET,
+    fontWeight: str | int | float = _UNSET,
+    grid: bool = _UNSET,
+    gridColor: str = _UNSET,
+    legend: bool = _UNSET,
+    legendColumnPadding: int | float = _UNSET,
+    legendOffset: int | float | None = _UNSET,
+    legendRowPadding: int | float = _UNSET,
+    legendStroke: bool = _UNSET,
+    markFill: str = _UNSET,
+    markFillOpacity: int | float = _UNSET,
+    markMedianFill: str = _UNSET,
+    markSize: int | float | None = _UNSET,
+    markStroke: str = _UNSET,
+    markStrokeOpacity: int | float = _UNSET,
+    markStrokeWidth: int | float | None = _UNSET,
+    barPadding: int | float = _UNSET,
+    groupPadding: int | float = _UNSET,
+    outerPadding: int | float = _UNSET,
+    rectPadding: int | float = _UNSET,
+    subgroupPadding: int | float = _UNSET,
+    tickPadding: int | float = _UNSET,
+    palette: str | list[str] | None = _UNSET,
+    categoryPalette: str | list[str] | None = _UNSET,
+    divergingPalette: str | list[str] | None = _UNSET,
+    heatmapPalette: str | list[str] | None = _UNSET,
+    ordinalPalette: str | list[str] | None = _UNSET,
+    rampPalette: str | list[str] | None = _UNSET,
+    saveBackground: str | Sequence[str] = _UNSET,
+    saveFormat: str | Sequence[str] = _UNSET,
+    sigFigs: int = _UNSET,
+    strokeCap: str = _UNSET,
+    tickDirection: Literal["in", "out"] = _UNSET,
+    ticks: bool = _UNSET,
+    tickSize: int | float = _UNSET,
+    transparent: bool = _UNSET,
+    viewFill: str | None = _UNSET,
+    viewPadding: int | float | bool = _UNSET,
+    xAxis: bool = _UNSET,
+    xDomain: bool = _UNSET,
+    xLabelAngle: int | float = _UNSET,
+    xLabels: bool = _UNSET,
+    xTicks: bool = _UNSET,
+    yAxis: bool = _UNSET,
+    yDomain: bool = _UNSET,
+    yLabelAngle: int | float = _UNSET,
+    yLabels: bool = _UNSET,
+    yTicks: bool = _UNSET,
+) -> None:
     """
     Configure and register the dysonsphere Altair theme.
 
-    All parameters are optional — pass only the ones you want to change.
-    Everything else uses the dysonsphere built-in defaults.
+    Every styling option is keyword-only. Omitted options inherit the applicable TOML/default/style value;
+    a successful call replaces, rather than updates, the active theme. Explicit ``None`` retains its
+    documented meaning for auto-derived fills, frame state, offsets, and mark dimensions.
+    ``style`` remains an optional positional primary input; every styling option is keyword-only.
+    Runtime introspection displays ``<omitted>`` for omitted styling defaults; generated source
+    signatures may show the private ``_UNSET`` marker. Neither is a value callers pass.
+
+    By family, canvas dimensions default to 100 x 100 pixels. ``fontSize=7`` is a positive, fractional nominal
+    publication point size; SVG markup exposes the same number as a renderer user-unit value, and raster
+    export scales from 72 intrinsic units per inch. Axis, tick, legend, radius, and linear composite
+    dimensions are pixels;
+    signed axis/legend offsets and label angles are supported. ``markSize=None`` derives one tenth of
+    the smaller canvas dimension and is the common basis for symbol areas and composite dimensions;
+    ``markStrokeWidth=None`` derives from ``axisWidth``.
+
+    Boolean axis switches gate domains/ticks but not labels. ``tickDirection`` is ``"out"`` or ``"in"``;
+    ``closed=None`` derives from inward ticks or a view fill. ``viewPadding=True``, ``cornerRadius=True``,
+    and ``boxplotOutliers=True`` derive
+    size-dependent values; False disables them and a nonnegative number is explicit. Inner band
+    paddings are dimensionless values in [0, 1]; ``outerPadding`` is any nonnegative value. Opacities
+    are in [0, 1], and dash sequences contain finite nonnegative pixel lengths, including empty and
+    odd-length sequences.
+
+    Palette options accept a nonblank registered name, renderer scheme name, nonempty color-string
+    list, or None. The master ``palette`` overrides every per-type palette after source precedence is
+    resolved. ``saveFormat`` accepts svg/png/json/html and ``saveBackground`` accepts light/dark as a
+    string or nonempty sequence. See the [configuration guide](/guides/configuration/) for the complete
+    per-option defaults and scopes.
 
     A TOML config file can provide persistent per-project or per-user
     overrides. See the README for the config file format and search path.
@@ -203,21 +426,23 @@ def theme(style: str | None = None, **kwargs: Any) -> None:
     Raises
     ------
     TypeError
-        If an unknown theme parameter is supplied.
+        If a value has the wrong type. Boolean switches reject numeric substitutes.
     ValueError
-        If a configuration file contains an unknown parameter or invalid palette, if a requested
-        style is unavailable, or if ``axisOffset=None`` is supplied. Failed calls leave the active
-        theme state unchanged.
+        If a configuration file contains an unknown parameter or invalid palette, a requested style
+        is unavailable, or a value is outside its finite range or supported enum. Failed calls leave
+        the active theme and palette registry unchanged.
     """
     global _ACTIVE_ARGS
-    unknown = set(kwargs) - set(_BUILTIN_DEFAULTS)
-    if unknown:
-        raise TypeError(f"theme() got unexpected keyword argument(s): {sorted(unknown)}")
+    if style is not None and not isinstance(style, str):
+        raise TypeError(f"style must be a string or None; got {style!r}")
+    supplied = {key: value for key, value in locals().items() if key != "style" and value is not _UNSET}
 
     overrides = _load_style_overrides(style)
     custom_palettes = _load_custom_palettes()
-    p: dict[str, Any] = {**_BUILTIN_DEFAULTS, **overrides, **kwargs}
+    p: dict[str, Any] = {**_BUILTIN_DEFAULTS, **overrides, **supplied}
+    _validate_options(p)
     _compute_derived(p)
+    _validate_options(p)  # derived multiplication can overflow even when each source value is finite
 
     # Resolve every palette-valued key: a name in `colors` (built-in or custom)
     # becomes its hex list; anything else (a raw list, or a Vega scheme name) is
@@ -231,7 +456,7 @@ def theme(style: str | None = None, **kwargs: Any) -> None:
     colors.update(_ORIGINAL_COLORS)
     colors.update(custom_palettes)
     alt.theme.options = {**p, "tickWidth": p["axisWidth"]}
-    _ACTIVE_ARGS = {**kwargs, **({"style": style} if style is not None else {})}
+    _ACTIVE_ARGS = {**supplied, **({"style": style} if style is not None else {})}
 
 
 def _compute_derived(p: dict[str, Any]) -> None:
@@ -242,8 +467,8 @@ def _compute_derived(p: dict[str, Any]) -> None:
     # Computed defaults — None means "derive from other params"
     if p["closed"] is None:
         # inward ticks point into the plot, so they need a closed (non-offset) axis;
-        # default closed=True when inwardTicks is set (an explicit closed=False still wins).
-        p["closed"] = p["inwardTicks"] or p["viewFill"] is not None
+        # default closed=True for inward ticks (an explicit closed=False still wins).
+        p["closed"] = p["tickDirection"] == "in" or p["viewFill"] is not None
     if p["markSize"] is None:
         p["markSize"] = min(p["chartWidth"], p["chartHeight"]) * 0.1
     if p["markStrokeWidth"] is None:
@@ -252,7 +477,7 @@ def _compute_derived(p: dict[str, Any]) -> None:
         p["cornerRadius"] = min(p["chartWidth"], p["chartHeight"]) / 100
     if p["boxplotOutliers"] is True:  # True → show at markSize/10; a number is an explicit size; False → hidden
         p["boxplotOutliers"] = p["markSize"] / 10
-    if p["viewPadding"] is True:  # closed-plot data inset, chart-scaled like markSize
+    if p["viewPadding"] is True:  # continuous-scale data inset, chart-scaled like markSize
         p["viewPadding"] = min(p["chartWidth"], p["chartHeight"]) * 0.05
     # chartFill=None is resolved at config-build time in _dysonsphere_theme(), NOT here, so it
     # follows darkmode live (save() toggles darkmode per background without re-running theme()).
@@ -268,18 +493,6 @@ def _compute_derived(p: dict[str, Any]) -> None:
         p["axisOffset"] = 0
     if p["legendOffset"] is None:
         p["legendOffset"] = p["tickSize"] * 1.5
-    # smallestFontSize is a fixed floor (5) and a minimize switch: True drops the whole
-    # plot's base font to it; False / an int just leaves it retrievable.
-    if p["smallestFontSize"] is True:
-        p["smallestFontSize"] = 5
-        p["fontSize"] = p["smallestFontSize"]
-    elif p["smallestFontSize"] is False:
-        p["smallestFontSize"] = 5
-    if p["secondaryFontSize"] is None:
-        p["secondaryFontSize"] = max(1, p["fontSize"] - 1)  # smaller tier for in-plot annotations
-        if p["fontSize"] >= p["smallestFontSize"]:  # don't let the tier dip below the floor …
-            p["secondaryFontSize"] = max(p["secondaryFontSize"], p["smallestFontSize"])
-        # … unless the user explicitly set fontSize below the floor (escape hatch)
 
 
 _FALLBACK_OPTIONS: dict[str, Any] | None = None
@@ -530,8 +743,8 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 },
                 "borders": {
                     "opacity": 0,
-                    "strokeOpacity": opts["markStrokeWidth"],
-                    "strokeWidth": opts["markStrokeOpacity"],
+                    "strokeOpacity": opts["markStrokeOpacity"],
+                    "strokeWidth": opts["markStrokeWidth"],
                 },
             },
             "errorbar": {
@@ -695,7 +908,7 @@ def _dysonsphere_theme() -> dict[str, Any]:
                 "fontWeight": opts["fontWeight"],
                 "subtitleColor": "white" if opts["darkmode"] else "black",
                 "subtitleFont": opts["font"],
-                "subtitleFontSize": opts["font"],
+                "subtitleFontSize": opts["fontSize"],
                 "subtitleFontStyle": opts["fontStyle"],
                 "subtitleFontWeight": opts["fontWeight"],
             },
