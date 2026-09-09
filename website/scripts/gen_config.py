@@ -28,13 +28,12 @@ OUT = Path("website/src/generated")
 # One-line hints for the derived (None-default) sentinels, so the cheat sheet can say what
 # "auto" resolves to instead of showing nothing.
 AUTO_HINTS = {
-    "axisOffset": "auto: tickSize * 1.5",
+    "axisOffset": "true: tickSize * 1.5",
     "chartFill": "auto: white / black by darkmode",
-    "closed": "auto: True when inwardTicks or viewFill",
+    "closed": 'auto: True when tickDirection = "in" or viewFill',
     "legendOffset": "auto: tickSize * 1.5",
     "markSize": "auto: min(chartWidth, chartHeight) / 10",
     "markStrokeWidth": "auto: axisWidth",
-    "secondaryFontSize": "auto: fontSize - 1 (floored)",
     "palette": "auto: per-type defaults",
     "categoryPalette": "auto: categorical",
     "divergingPalette": "auto: built-in default",
@@ -42,7 +41,7 @@ AUTO_HINTS = {
     "ordinalPalette": "auto: greys",
     "rampPalette": "auto: built-in default",
     "viewFill": "auto: none",
-    "viewPadding": "auto: min(chartWidth, chartHeight) / 20 (closed plots)",
+    "viewPadding": "auto: min(chartWidth, chartHeight) / 20",
 }
 
 
@@ -65,13 +64,8 @@ def main() -> None:
     (OUT / "default_config.toml").write_text(toml_text, encoding="utf-8")
     print(f"wrote {OUT / 'default_config.toml'}  ({len(toml_text.splitlines())} lines)")
 
-    params = [
-        {"key": k, "default": toml_value(v), "hint": AUTO_HINTS.get(k)}
-        for k, v in _BUILTIN_DEFAULTS.items()
-    ]
-    (OUT / "theme_defaults.json").write_text(
-        json.dumps(params, indent=1, ensure_ascii=False), encoding="utf-8"
-    )
+    params = [{"key": k, "default": toml_value(v), "hint": AUTO_HINTS.get(k)} for k, v in _BUILTIN_DEFAULTS.items()]
+    (OUT / "theme_defaults.json").write_text(json.dumps(params, indent=1, ensure_ascii=False), encoding="utf-8")
     print(f"wrote {OUT / 'theme_defaults.json'}  ({len(params)} parameters)")
 
 

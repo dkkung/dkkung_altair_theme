@@ -1,8 +1,8 @@
 [
  {
   "key": "axisOffset",
-  "default": null,
-  "hint": "auto: tickSize * 1.5"
+  "default": "false",
+  "hint": "true: tickSize * 1.5"
  },
  {
   "key": "axisWidth",
@@ -32,7 +32,7 @@
  {
   "key": "closed",
   "default": null,
-  "hint": "auto: True when inwardTicks or viewFill"
+  "hint": "auto: True when tickDirection = \"in\" or viewFill"
  },
  {
   "key": "cornerRadius",
@@ -95,19 +95,24 @@
   "hint": null
  },
  {
-  "key": "inwardTicks",
-  "default": "false",
+  "key": "legend",
+  "default": "true",
   "hint": null
  },
  {
-  "key": "legend",
-  "default": "true",
+  "key": "legendColumnPadding",
+  "default": "4",
   "hint": null
  },
  {
   "key": "legendOffset",
   "default": null,
   "hint": "auto: tickSize * 1.5"
+ },
+ {
+  "key": "legendRowPadding",
+  "default": "2",
+  "hint": null
  },
  {
   "key": "legendStroke",
@@ -126,11 +131,6 @@
  },
  {
   "key": "markMedianFill",
-  "default": "\"black\"",
-  "hint": null
- },
- {
-  "key": "markMedianStroke",
   "default": "\"black\"",
   "hint": null
  },
@@ -225,23 +225,18 @@
   "hint": null
  },
  {
-  "key": "secondaryFontSize",
-  "default": null,
-  "hint": "auto: fontSize - 1 (floored)"
- },
- {
   "key": "sigFigs",
   "default": "3",
   "hint": null
  },
  {
-  "key": "smallestFontSize",
-  "default": "5",
+  "key": "strokeCap",
+  "default": "\"round\"",
   "hint": null
  },
  {
-  "key": "strokeCap",
-  "default": "\"round\"",
+  "key": "tickDirection",
+  "default": "\"out\"",
   "hint": null
  },
  {
@@ -267,7 +262,7 @@
  {
   "key": "viewPadding",
   "default": "true",
-  "hint": "auto: min(chartWidth, chartHeight) / 20 (closed plots)"
+  "hint": "auto: min(chartWidth, chartHeight) / 20"
  },
  {
   "key": "xAxis",

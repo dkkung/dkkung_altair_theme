@@ -16,10 +16,10 @@ interface Props {
 	codeToggle?: boolean;
 	/** Short note under the chart (what it is / the calls that made it) - for gallery pages. */
 	caption?: string;
-	/** Apply the save()-time inward-ticks SVG fix (theme(inwardTicks=True) charts). */
-	inwardTicks?: boolean;
+	/** Apply the save()-time inward-ticks SVG fix for tickDirection="in" charts. */
+	tickDirection?: 'in' | 'out';
 }
-const { name, alt, chartOnly = false, codeToggle = false, caption, inwardTicks = false } = Astro.props;
+const { name, alt, chartOnly = false, codeToggle = false, caption, tickDirection = 'out' } = Astro.props;
 
 const sources = import.meta.glob('../../examples/*.py', {
 	query: '?raw',
@@ -47,7 +47,7 @@ const chartAlt = alt ?? `dysonsphere example: ${name}`;
 			</button>
 			<div class="example__pane" data-pane="chart">
 				<div class="example__row">
-					<Chart name={name} alt={chartAlt} inwardTicks={inwardTicks} />
+					<Chart name={name} alt={chartAlt} tickDirection={tickDirection} />
 				</div>
 			</div>
 			<div class="example__pane" data-pane="code" hidden>
@@ -62,7 +62,7 @@ const chartAlt = alt ?? `dysonsphere example: ${name}`;
 		<div class="example">
 			{!chartOnly && <Code lang="python" code={code} />}
 			<div class="example__row">
-				<Chart name={name} alt={chartAlt} inwardTicks={inwardTicks} />
+				<Chart name={name} alt={chartAlt} tickDirection={tickDirection} />
 			</div>
 			{caption && <p class="example__caption" set:html={caption} />}
 			<div class="example__actions">

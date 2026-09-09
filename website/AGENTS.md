@@ -190,7 +190,7 @@ in `website/` on `main` and is developed on ordinary feature branches like the r
   spec does NOT bake its own background (the embed option would override `config.background`).
 - **Inward ticks are flipped client-side per chart.** `flipTicksInward` (fixSuperscripts.ts)
   ports `export._flip_ticks_inward`; the rendered spec carries no flag, so the page opts in via
-  `<Example inwardTicks />` -> Chart.astro `data-inward`. Only the theming guide's example uses
+  `<Example tickDirection="in" />` -> Chart.astro `data-inward`. The theming guide and selected gallery examples use
   it.
 - **Super/subscripts are re-typeset client-side (`fixSuperscripts` + `fixSubscripts`).** The
   library's `export._typeset_scripts` runs only in `save()`, never in the browser, so live charts

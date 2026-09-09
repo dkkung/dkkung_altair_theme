@@ -45,14 +45,10 @@ def _resolve_choice(value, default, valid: tuple[str, ...], name: str) -> list[s
     """Normalize a str-or-list ``save()`` choice (falling back to the theme ``default``) to a
     validated, non-empty list.  Raises ``ValueError`` on an empty list or unknown value.
     """
+    from .theme import _resolve_choice as _validate_choice
+
     raw = value if value is not None else default
-    items = [raw] if isinstance(raw, str) else list(raw)
-    if not items:
-        raise ValueError(f"{name} must be non-empty; got {raw!r}")
-    invalid = [x for x in items if x not in valid]
-    if invalid:
-        raise ValueError(f"{name} must be one of {valid}, got {invalid!r}")
-    return items
+    return _validate_choice(raw, valid, name)
 
 
 def _render_fixed_svg(base_obj, svg_path: str) -> str:
@@ -65,7 +61,7 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
     render time, on every axis type (band, linear, log/power minors) and in every panel.
     The remaining post-processors are shared by :func:`save` and :func:`show` so the pipeline
     stays identical: grid alignment (seat both grid directions onto the plot content, off the
-    detached axes), inward-tick flip (when ``inwardTicks``), axis layering, ``<g>``
+    detached axes), inward-tick flip (when ``tickDirection="in"``), axis layering, ``<g>``
     simplification, super/subscript typesetting, statistical-symbol italicization
     (``P``/``n``/``F``/``r``/… - after the script fixer, which only scans element
     ``.text``), and Illustrator font-family collapse (the CSS fallback stack renders as plain
@@ -86,7 +82,7 @@ def _render_fixed_svg(base_obj, svg_path: str) -> str:
     axis_offset = 0 if _opt("closed") else _opt("axisOffset")
     if axis_offset:
         _align_grid_to_content(root, axis_offset)
-    if _opt("inwardTicks"):
+    if _opt("tickDirection") == "in":
         _flip_ticks_inward(root)
     _align_figure_labels(root)  # before _simplify_svg, which flattens the transforms it reads
     _layer_axes_below_marks(root)
@@ -167,7 +163,7 @@ def save(
         it is fully themed, carries the metadata block, and gets exact tick positions (that
         fix lives in the theme config), but it does NOT get dysonsphere's static SVG
         post-processors (superscript typesetting, Illustrator-friendly flattening). In
-        particular ``inwardTicks`` is deliberately **not** applied to HTML:
+        ``tickDirection="in"`` is deliberately **not** applied to HTML:
         the only way to make Vega draw ticks inward is a negative ``tickSize``, and while that
         works in vl-convert's Vega (the static SVG/PNG path), the browser bundles a different
         Vega build that lays out axis labels wrong with a negative ``tickSize`` (mangled label
@@ -348,7 +344,7 @@ def save(
                 # browser via Vega, so it does NOT get dysonsphere's static SVG fixers (tick
                 # alignment, inward ticks, superscript typesetting) - the interactive/approximate
                 # tier. It IS fully themed and carries the metadata block; use svg/png for the
-                # publication-accurate static figure. (inwardTicks is intentionally not applied: the
+                # publication-accurate static figure. (inward tick direction is intentionally not applied: the
                 # negative-tickSize trick renders inconsistently across the browser's Vega build.)
                 hspec = dict(spec)
                 if _usermeta is not None:
@@ -393,7 +389,7 @@ def show(
 
     Altair's own inline renderer (used when you just display a chart) does NOT run
     dysonsphere's SVG post-processors, so its preview is approximate - superscript labels
-    aren't typeset, the axisOffset grid gap remains, and with ``inwardTicks=True`` the
+    aren't typeset, the axisOffset grid gap remains, and with ``tickDirection="in"`` the
     ticks still point outward. ``ds.show(chart)`` renders the *same* corrected SVG that
     :func:`save` writes and returns it as an ``IPython.display.HTML`` for inline display, so
     the preview matches the saved figure. It renders at the theme's current ``darkmode`` and
@@ -527,7 +523,7 @@ def _align_grid_to_content(root: ET.Element, axis_offset: float) -> None:
 
 
 def _flip_ticks_inward(root: ET.Element) -> None:
-    """Negate axis-tick line geometry so ticks point into the plot (theme(inwardTicks=True)).
+    """Negate axis-tick line geometry so ticks point into the plot (theme(tickDirection="in")).
 
     Vega/Vega-Lite always render ticks outward and reject a negative ``tickSize``, so inward
     ticks are produced here as an SVG post-process that negates the non-zero ``x2``/``y2`` of

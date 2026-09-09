@@ -51,8 +51,9 @@ def _band_geometry(
     - ``"point"`` - a point scale: ``step = span / n``; centre ``i`` is ``step*(0.5+i)``
       (``starts``/``ends`` equal ``centers``).
 
-    For every variant but ``"point"``, ``step = span / (n - inner + 2*outer)``, band ``i``
-    starts at ``step*(outer+i)`` and is ``step*(1-inner)`` wide.
+    For every variant but ``"point"``, ``step = span / max(1, n - inner + 2*outer)`` and
+    each band is ``step*(1-inner)`` wide. Remaining space is centered with D3's default
+    ``align=0.5``; without the denominator clamp, band ``i`` starts at ``step*(outer+i)``.
 
     Parameters
     ----------
@@ -93,9 +94,13 @@ def _band_geometry(
         raise ValueError(f"scale must be 'offset', 'band', 'rect', or 'point', got {scale!r}")
     outer = _opt("outerPadding") if bandPadding is None else bandPadding
 
-    step = span / (n - inner + 2 * outer)
+    # D3's band rescale clamps the denominator to one, then centers any leftover span
+    # with the default align=0.5. The clamp matters for a singleton at inner=1,
+    # outer=0: it is a zero-width band centered in the view, not a division by zero.
+    step = span / max(1, n - inner + 2 * outer)
     width = step * (1 - inner)
-    starts = tuple(step * (outer + i) for i in range(n))
+    aligned_start = (span - step * (n - inner)) * 0.5
+    starts = tuple(aligned_start + step * i for i in range(n))
     centers = tuple(s + width / 2 for s in starts)
     ends = tuple(s + width for s in starts)
     return _BandGeometry(step, centers, starts, ends)

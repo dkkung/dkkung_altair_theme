@@ -361,7 +361,7 @@ class TestAssemblyExportMode:
         (tmp_path / "dysonsphere.toml").write_text(
             '[ocean]\ncategoryPalette = "local"\n[palettes]\nlocal = ["#123456", "#abcdef"]\n'
         )
-        theme(style="ocean", darkmode=original_darkmode, transparent=True)
+        theme(style="ocean", darkmode=original_darkmode, transparent=True, tickDirection="in")
         before_options = dict(alt.theme.options)
         before_args = _active_args()
         before_colors = dict(colors)
@@ -378,6 +378,7 @@ class TestAssemblyExportMode:
             stem = tmp_path / f"assembled_{mode}"
             spec = json.loads(stem.with_suffix(".json").read_text())
             assert spec["usermeta"]["dysonsphere"]["theme"]["darkmode"] is (mode == "dark")
+            assert spec["usermeta"]["dysonsphere"]["theme"]["tickDirection"] == "in"
             assert spec["config"]["axis"]["labelColor"] == ink
             svg = stem.with_suffix(".svg").read_text()
             assert re.search(rf'<text[^>]*fill="{ink}"[^>]*>[12]</text>', svg), "axis tick ink must match the mode"

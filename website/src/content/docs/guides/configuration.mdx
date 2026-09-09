@@ -138,7 +138,12 @@ custom palettes may be any length. Two notes:
 ## Validation
 
 The file is checked eagerly on every `ds.theme()` call: an unknown key in any section raises a
-`ValueError` immediately, naming the key. Typos never silently do nothing.
+`ValueError` immediately, naming the key. Typos never silently do nothing. Direct keywords and
+TOML/style values use the same validation before theme or palette state changes: boolean switches
+do not accept `0`/`1`, numbers must be finite, dimensions and `fontSize` are positive, applicable
+sizes/gaps are nonnegative, opacity and inner band padding are in `[0, 1]`, and `sigFigs` is a
+positive integer. Dash arrays may be empty (solid) or odd-length but contain only finite,
+nonnegative numbers. Palette values remain names/schemes or nonempty lists of color strings.
 
 ## Key reference
 
@@ -160,9 +165,7 @@ Every key below is valid in `[default]`, in any style section, and as a `ds.them
 | Key | Default | What it does |
 | --- | --- | --- |
 | `font` | Helvetica Neue (with fallbacks) | Font family for all chart text |
-| `fontSize` | `7` | Primary size (axis titles, labels, annotations) in pt |
-| `secondaryFontSize` | derived | Auxiliary tier, `fontSize - 1` (floored at `smallestFontSize`) |
-| `smallestFontSize` | `5` | Floor for the secondary tier; `true` shrinks the whole plot to the floor |
+| `fontSize` | `7` | Positive, fractional publication point size for chart text |
 | `fontStyle` | `normal` | CSS font style (`italic`, ...) |
 | `fontWeight` | `400` | CSS font weight |
 
@@ -170,10 +173,10 @@ Every key below is valid in `[default]`, in any style section, and as a `ds.them
 
 | Key | Default | What it does |
 | --- | --- | --- |
-| `axisOffset` | `tickSize * 1.5` | Detached-axis gap in px (Prism style); `0` reattaches |
+| `axisOffset` | `false` (`0`) | Signed axis displacement in px; `true` derives `tickSize * 1.5` |
 | `axisWidth` | `0.25` | Stroke width of axis lines, ticks, and grid |
-| `closed` | auto | Draw all four spines (a boxed frame); auto = on with `inwardTicks`/`viewFill` |
-| `inwardTicks` | `false` | Point ticks into the plot (physics style); implies `closed` |
+| `closed` | auto | Draw all four spines; auto = on with `tickDirection="in"` or `viewFill` |
+| `tickDirection` | `"out"` | Tick direction: `"in"` implies `closed`; `"out"` is ordinary |
 | `ticks` | `true` | Master tick visibility |
 | `tickSize` | `3` | Tick length in px |
 | `xAxis` / `yAxis` | `true` | Hide an axis's domain line and ticks (labels stay) |
@@ -181,6 +184,7 @@ Every key below is valid in `[default]`, in any style section, and as a `ds.them
 | `xTicks` / `yTicks` | `true` | Tick visibility per axis |
 | `xLabels` / `yLabels` | `true` | Label visibility per axis (independent of `xAxis`/`yAxis`) |
 | `xLabelAngle` / `yLabelAngle` | `0` | Label rotation in degrees; alignment derived from the sign |
+| `viewPadding` | derived | Continuous-scale inset in px on open and closed plots; `false`/`0` disables |
 
 ### Grid
 
@@ -194,14 +198,13 @@ Every key below is valid in `[default]`, in any style section, and as a `ds.them
 
 | Key | Default | What it does |
 | --- | --- | --- |
-| `markSize` | derived | Master mark size; most mark-type sizes derive from it |
+| `markSize` | derived | Master sizing basis; symbol area and composite linear dimensions derive from it |
 | `markFill` | light grey | Default fill (boxplot boxes via the bar config, bars, ...) |
 | `markFillOpacity` | `1` | Fill opacity |
 | `markStroke` | `black` | Mark outline color |
 | `markStrokeOpacity` | `1` | Outline opacity |
 | `markStrokeWidth` | `axisWidth` | Outline width; error bar and boxplot strokes derive from it |
 | `markMedianFill` | `black` | Boxplot median bar fill |
-| `markMedianStroke` | `black` | Boxplot median outline color (when a stroke is enabled) |
 | `boxplotOutliers` | `false` | Show boxplot outlier glyphs; `true` sizes them from `markSize` |
 | `cornerRadius` | `false` | Round bar tips/rects/arcs; `true` derives px from chart size |
 | `strokeCap` | `round` | Line cap for axis/tick/grid/rule strokes |
@@ -227,6 +230,8 @@ Every key below is valid in `[default]`, in any style section, and as a `ds.them
 | `legend` | `true` | Master legend visibility |
 | `legendOffset` | `tickSize * 1.5` | Gap between legend and plot |
 | `legendStroke` | `false` | Outline legend symbols at `axisWidth` |
+| `legendColumnPadding` | `4` | Horizontal gap between legend entries in px |
+| `legendRowPadding` | `2` | Vertical gap between legend entries in px |
 
 ### Color
 
@@ -248,6 +253,6 @@ Every key below is valid in `[default]`, in any style section, and as a `ds.them
 | `saveBackground` | `"light"` | Default `ds.save()` background variant(s) (`light`, `dark`, or both) |
 
 :::tip
-`dashedWidth`, `axisOffset`, `secondaryFontSize`, and `markSize` show as *derived* because their
-defaults are computed from other keys at `theme()` time - set them explicitly to pin a value.
+`markSize` shows as *derived* because its default is computed from the chart dimensions at
+`theme()` time - set it explicitly to pin a value.
 :::

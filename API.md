@@ -20,6 +20,10 @@ notes are local working material, not dependencies of this framework or part of 
   extensions. Shared implementation helpers in `utils.py` are private and are not a supported
   public namespace.
 - Keep `ds.theme()` and top-level `ds.create_config()`. A one-function config namespace adds little.
+- `ds.theme()` keeps `style` positional and exposes every styling option as an explicit typed keyword-only parameter. Its internal omission
+  sentinel preserves configuration/style precedence; explicit `None` remains meaningful only for the
+  options that advertise it. `fontSize` is the sole theme font-size control and accepts positive finite
+  fractional values.
 - Keep `ds.palette()` as the common selector; categorical construction, the color registry, and
   swatch export belong under `ds.palettes`. Palette selection returns colors without changing
   the active theme.
@@ -86,6 +90,13 @@ notes are local working material, not dependencies of this framework or part of 
 - Validate finite numerical inputs before geometry or statistical arithmetic. Define missing-data
   behavior explicitly; plotting, formatting, statistical computation, and hashing need not apply
   the same policy.
+- Theme validation is atomic and applies equally to direct keywords and TOML/style values. Boolean
+  switches reject numbers; chart dimensions and `fontSize` are positive; visual sizes and gaps are
+  nonnegative where zero is meaningful; opacity and band inner padding are in [0, 1], while outer
+  padding is nonnegative. Shared band geometry follows D3's denominator clamp and centered alignment
+  for the zero-width singleton endpoint. Dash arrays may be empty
+  or odd-length but contain only finite, nonnegative numbers. Export
+  defaults use the same nonempty format/background sets as `save()`.
 - Statistical annotations reject missing/non-finite values in calculation columns, identifying
   the offending column/group, and validate computed results as well as inputs. Violin/KDE
   construction rejects invalid observations or groups unable to support the calculation with
@@ -134,6 +145,10 @@ notes are local working material, not dependencies of this framework or part of 
   reject a valid renderer format or introduce a separate formatting contract.
 - Document pixels, symbol area, data coordinates, and dimensionless proportions distinctly.
   Allow fractional values where supported; counts and indices remain integers.
+- Theme `fontSize` is the nominal publication point size at intrinsic export size. SVG renderers expose
+  the same number as a CSS/SVG user-unit value, while raster export scales from 72 intrinsic units per
+  inch. Preserve the value without a 4/3 conversion. `markSize` remains the shared sizing basis: symbol
+  marks interpret derived values as area, while composite widths and gaps derive linear pixel values.
 - Use Padding for gaps/insets and Offset for signed displacement. Names such as Width should
   communicate a physical length rather than a symbol area.
 - `axisOffset` and `viewPadding` are independent. `axisOffset=False` (default) means flush axes;
@@ -141,6 +156,9 @@ notes are local working material, not dependencies of this framework or part of 
   `viewPadding=True` (default) derives a continuous-scale inset from chart size on open and closed
   plots; False disables it, and a number supplies pixels. Shared spec fixes suppress implicit
   automatic domain rounding (`nice`) when continuous padding is present, but preserve explicit `nice` settings.
+- `tickDirection` is `"out"` by default and accepts only `"in"` or `"out"`. Inward ticks imply a
+  closed frame only when `closed` is omitted; explicit `closed=False` wins. Inward reversal is part
+  of the corrected SVG/PNG/show pipeline, not bare Altair display or interactive HTML.
 - Document construction-time versus render-time defaults and the need for callable rebuilding
   when colors or geometry are already baked into a chart.
 - A dataframe transform's computed offsets are not an unconditional guarantee of rendered pixel

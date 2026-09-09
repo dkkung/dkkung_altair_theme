@@ -219,6 +219,46 @@ class TestPrivateBandGeometry:
         assert list(geo.centers) == pytest.approx([12.5, 37.5, 62.5, 87.5])
         assert geo.starts == geo.centers and geo.ends == geo.centers
 
+    def test_singleton_full_inner_padding_matches_d3_clamp_and_alignment(self):
+        theme(barPadding=1, outerPadding=0)
+        geo = _band_geometry(1, 100, scale="band")
+        assert geo.step == pytest.approx(100)
+        assert geo.starts == pytest.approx((50,))
+        assert geo.centers == pytest.approx((50,))
+        assert geo.ends == pytest.approx((50,))
+
+    def test_singleton_high_inner_padding_with_outer_padding(self):
+        theme(rectPadding=0.9, outerPadding=0.2)
+        geo = _band_geometry(1, 100, scale="rect")
+        step = 100 / max(1, 1 - 0.9 + 2 * 0.2)
+        start = (100 - step * (1 - 0.9)) / 2
+        assert geo.step == pytest.approx(step)
+        assert geo.starts == pytest.approx((start,))
+        assert geo.ends == pytest.approx((start + step * 0.1,))
+
+    def test_multiple_categories_nonzero_outer_keeps_normal_positions(self):
+        theme(barPadding=0.3, outerPadding=0.4)
+        geo = _band_geometry(3, 120, scale="band")
+        step = 120 / (3 - 0.3 + 0.8)
+        assert geo.step == pytest.approx(step)
+        assert geo.starts == pytest.approx(tuple(step * (0.4 + i) for i in range(3)))
+
+    def test_singleton_endpoint_matches_rendered_bar_center(self):
+        import re
+
+        import altair as alt
+        import vl_convert as vlc
+
+        theme(chartWidth=100, barPadding=1, outerPadding=0)
+        chart = alt.Chart({"values": [{"g": "A", "v": 1}]}).mark_bar().encode(x="g:N", y="v:Q")
+        svg = vlc.vegalite_to_svg(chart.to_dict())
+        bar = re.search(r'aria-roledescription="bar"[^>]*d="M([\d.]+),[^h]+h([\d.]+)', svg)
+        assert bar is not None
+        assert float(bar.group(1)) == pytest.approx(50)
+        # Vega emits the configured 0.25px stroke as a minimum visible path width,
+        # while the scale's zero-width band starts at the centered x=50 position.
+        assert float(bar.group(2)) == pytest.approx(0.25)
+
     def test_adjacent_bands_share_edges(self):
         # end of band i is the start of band i+1 (offset scale) - what shade's
         # run merging and flush logic rely on
@@ -306,6 +346,16 @@ class TestNestedBandCenters:
         outer = _band_geometry(4, 100.0, scale="band", bandPadding=0.2)
         got = _nested_band_centers(4, 1, 100.0)
         assert [row[0] for row in got] == pytest.approx(list(outer.centers))
+
+    def test_full_group_and_subgroup_padding_matches_nested_renderer_geometry(self):
+        theme(groupPadding=1, subgroupPadding=1)
+        outer = _band_geometry(2, 100.0, scale="band", bandPadding=1)
+        got = _nested_band_centers(2, 2, 100.0)
+        for i, row in enumerate(got):
+            inner = _band_geometry(2, outer.ends[i] - outer.starts[i], scale="band", bandPadding=1)
+            assert row == pytest.approx([outer.starts[i] + center for center in inner.centers])
+        assert got[0] == pytest.approx([100 / 3, 100 / 3])
+        assert got[1] == pytest.approx([200 / 3, 200 / 3])
 
 
 class TestStripeColors:
