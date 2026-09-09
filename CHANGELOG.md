@@ -49,6 +49,8 @@
 
 ### Fixes
 
+- Volcano top-N and significant label selection now identifies rows positionally, so duplicate
+  display labels cannot expand the selected set or pull in non-differential points.
 - Verification now includes failed cross-figure comparisons in `.ok`, while unavailable checks remain
   neutral. Extension provenance tags preserve statistical markers and remain unique in composed charts.
 - Updated the documentation-site build dependencies to patched Astro, Sharp, and transitive versions.

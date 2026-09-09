@@ -171,29 +171,41 @@ def volcano(
 def _label_layer(data: pl.DataFrame, label: str | int | list[str], log2fcCol: str, geneCol: str | None):
     """Select which genes to label (significance-aware) and delegate placement to ``ds.labels``.
 
-    The volcano picks the genes itself - top-N by combined score, all significant, or an explicit
+    The volcano picks the rows itself - top-N by combined score, all significant, or an explicit
     list - because that ranking is domain-specific (``ds.labels``'s own ``subset=n`` is spatial
-    even-spread, which isn't what a volcano wants). It then hands the chosen names to ``labels``
-    as ``subset=[...]`` on the FULL frame, so the force-repel placement, connectors, and scale
-    self-pinning all come for free.
+    even-spread, which isn't what a volcano wants). Row-based modes pass a positional mask so
+    duplicate display labels cannot expand the selection. The FULL frame still goes to ``labels``,
+    so force-repel placement, obstacles, connectors, and scale self-pinning all come for free.
     """
     if geneCol is None:
         raise ValueError("volcano(subset=...) requires labels to name the label column")
 
-    significant = data.filter(pl.col(_SIG_COL) != _NONDIFF)
     if isinstance(label, bool):  # bool is an int subclass - reject before the int branch
         raise ValueError("volcano(subset=...) does not accept a bool")
     elif isinstance(label, int):
+        # Keep row identity through ranking: converting the selected rows to display names and
+        # rematching them would select every row with a duplicate name, exceeding top-N.
+        row_index = "__dysonsphere_volcano_row"
+        while row_index in data.columns:
+            row_index += "_"
         score = (pl.col(log2fcCol).abs() * pl.col(_NEGLOG_COL)).alias("_score")
-        chosen = significant.with_columns(score).sort("_score", descending=True).head(label)
+        chosen_rows = set(
+            data.with_row_index(row_index)
+            .filter(pl.col(_SIG_COL) != _NONDIFF)
+            .with_columns(score)
+            .sort("_score", descending=True)
+            .head(label)[row_index]
+            .to_list()
+        )
+        selected: list[bool] | list[str] = [i in chosen_rows for i in range(data.height)]
     elif isinstance(label, str):
         if label != "significant":
             raise ValueError(f"volcano(subset={label!r}) is not recognized; use 'significant', an int, or a list")
-        chosen = significant
+        selected = (data[_SIG_COL] != _NONDIFF).to_list()
     else:
-        chosen = data.filter(pl.col(geneCol).is_in(label))
+        # Explicit lists intentionally retain ds.labels' value-matching semantics.
+        selected = [str(v) for v in data.filter(pl.col(geneCol).is_in(label))[geneCol].to_list()]
 
-    names = [str(v) for v in chosen[geneCol].to_list()]
     # ds.labels' default connectorGap sizes itself to the theme's mark_point edge radius, which is
     # exactly what the volcano's dots need - so no explicit gap is required here.
-    return ds.labels(data, log2fcCol, _NEGLOG_COL, geneCol, subset=names)
+    return ds.labels(data, log2fcCol, _NEGLOG_COL, geneCol, subset=selected)
