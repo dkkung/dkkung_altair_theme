@@ -49,6 +49,9 @@
 
 ### Fixes
 
+- Verification now includes failed cross-figure comparisons in `.ok`, while unavailable checks remain
+  neutral. Extension provenance tags preserve statistical markers and remain unique in composed charts.
+- Updated the documentation-site build dependencies to patched Astro, Sharp, and transitive versions.
 - Sized and nested `assemble()` builders now preserve the light/dark mode selected by `save()` and
   `show()` while recomputing size-dependent geometry, without changing or leaking active theme state.
 - Tables preserve source rows and recovered data when missing or non-finite cells serialize as

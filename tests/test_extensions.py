@@ -1,6 +1,7 @@
 """Tests for the extension discovery layer (dysonsphere/discovery.py + package __getattr__)."""
 
 import importlib.metadata
+import json
 import types
 
 import altair as alt
@@ -9,6 +10,13 @@ import pytest
 
 import dysonsphere as ds
 from dysonsphere import discovery as ext
+from dysonsphere import metadata
+
+
+@pytest.fixture(autouse=True)
+def configured_theme():
+    """Initialize the theme only for tests that serialize charts."""
+    ds.theme()
 
 
 def _fake_entry_point(name, module):
@@ -110,14 +118,77 @@ def _ext_marker_names(spec):
 
 def test_tag_extension_marks_chart():
     tagged = ext._tag_extension(_tiny_chart(), "biology")
-    assert _ext_marker_names(tagged.to_dict()) == ["__dysonsphere_ext_biology"]
+    names = _ext_marker_names(tagged.to_dict())
+    assert len(names) == 1 and names[0].startswith("__dysonsphere_ext_biology_")
 
 
 def test_tag_extension_marker_survives_composition():
     # The whole point of using a view-name marker (not usermeta): it survives `+`.
     tagged = ext._tag_extension(alt.layer(_tiny_chart()), "biology")
     composed = tagged + _tiny_chart()
-    assert "__dysonsphere_ext_biology" in _ext_marker_names(composed.to_dict())
+    assert any(name.startswith("__dysonsphere_ext_biology_") for name in _ext_marker_names(composed.to_dict()))
+
+
+def test_tag_extension_names_are_unique_for_composition():
+    composed = alt.hconcat(ext._tag_extension(_tiny_chart(), "biology"), ext._tag_extension(_tiny_chart(), "biology"))
+    names = _ext_marker_names(composed.to_dict())
+    assert len(names) == len(set(names)) == 2
+
+
+def test_tag_extension_carries_statistics_marker_through_spec_roundtrip():
+    marker = "__dysonsphere_0123456789abcdef_7"
+    spec = ext._tag_extension(_tiny_chart().properties(name=marker), "biology").to_dict()
+    roundtripped = json.loads(json.dumps(spec))
+
+    assert metadata._scan_marker_hashes(roundtripped) == {"0123456789abcdef"}
+    parsed = ext._parse_extension_marker(roundtripped["name"])
+    assert parsed is not None and parsed[0] == "biology"
+    metadata._strip_markers(roundtripped)
+    assert "name" not in roundtripped
+
+
+def test_tag_extension_restores_user_view_name_when_stripped():
+    spec = ext._tag_extension(_tiny_chart().properties(name="user-view"), "biology").to_dict()
+    metadata._strip_markers(spec)
+    assert spec["name"] == "user-view"
+
+
+def test_nested_extension_tags_preserve_all_identity():
+    marker = "__dysonsphere_0123456789abcdef_7"
+    tagged = ext._tag_extension(ext._tag_extension(_tiny_chart().properties(name=marker), "biology"), "other")
+    spec = tagged.to_dict()
+
+    assert ext._unwrap_extension_markers(spec["name"]) == (["other", "biology"], marker)
+    assert metadata._scan_marker_hashes(spec) == {"0123456789abcdef"}
+    fake = types.SimpleNamespace(dist=types.SimpleNamespace(version="1.0"))
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(ext, "_extension_entry_points", lambda: {"biology": fake, "other": fake})
+        assert ext._used_extensions(spec) == {"biology": "1.0", "other": "1.0"}
+    metadata._strip_markers(spec)
+    assert "name" not in spec
+
+
+def test_composed_tagged_export_renders_retains_stats_and_is_reproducible(tmp_path, monkeypatch):
+    """Fresh callable tags stay unique without entering rendered or metadata identity."""
+    monkeypatch.setenv("SOURCE_DATE_EPOCH", "1700000000")
+    data = pl.DataFrame(
+        {
+            "group": ["A"] * 8 + ["B"] * 8,
+            "value": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0],
+        }
+    )
+
+    def built():
+        points = alt.Chart(data).mark_point().encode(x="group:N", y="value:Q")
+        comparison = ds.stats.comparisons(data, "group", "value", pairs=[("A", "B")], test="ttest_ind")
+        return alt.hconcat(ext._tag_extension(points + comparison, "biology"), ext._tag_extension(points, "biology"))
+
+    ds.save(built, str(tmp_path / "first"), format=["json", "svg"], background=["light"])
+    ds.save(built, str(tmp_path / "second"), format=["json", "svg"], background=["light"])
+
+    assert "<svg" in (tmp_path / "first.svg").read_text()
+    assert len(ds.metadata.read(tmp_path / "first.json", what="statistics")) == 1
+    assert (tmp_path / "first.json").read_bytes() == (tmp_path / "second.json").read_bytes()
 
 
 def test_used_extensions_maps_marker_to_version(monkeypatch):

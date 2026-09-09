@@ -47,7 +47,7 @@ Surface:
 - **``tag_extension(chart, name)``** - tag a chart your extension built so ``ds.save()`` records
   your extension's version in the figure's provenance (``environment["dysonsphere-extensions"]``,
   grouped right under ``dysonsphere``). Call it once on the chart you return:
-  ``return ext.tag_extension(chart, "biology")``. The tag is a durable
+  ``return ext.tag_extension(chart, "biology")``. The tag is a durable, unique
   view-name marker that survives ``+``/layer/concat and is stripped from the written spec, so it
   only affects provenance - never the rendered output. ``name`` is your extension's registered
   entry-point name (the ``ds.<name>`` alias); its version is looked up from the installed

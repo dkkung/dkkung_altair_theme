@@ -22,6 +22,8 @@ from typing import TYPE_CHECKING, Any, cast
 
 import altair as alt
 
+from . import discovery
+
 if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
@@ -266,7 +268,10 @@ def _scan_marker_hashes(spec) -> set[str]:
 
     def walk(o):
         if isinstance(o, dict):
-            h = _marker_hash(o.get("name", ""))
+            name = o.get("name", "")
+            _, underlying_name = discovery._unwrap_extension_markers(name)
+            name = underlying_name or ""
+            h = _marker_hash(name)
             if h:
                 found.add(h)
             for v in o.values():
@@ -280,12 +285,19 @@ def _scan_marker_hashes(spec) -> set[str]:
 
 
 def _strip_markers(spec) -> None:
-    """Remove every ``__dysonsphere_`` marker ``name`` from a spec dict, in place."""
+    """Remove internal marker names from a spec dict, restoring carried user names."""
     from ._statistics import _MARKER_PREFIX
 
     def walk(o):
         if isinstance(o, dict):
             name = o.get("name")
+            marker_names, underlying_name = discovery._unwrap_extension_markers(name)
+            if marker_names:
+                name = underlying_name
+                if name is None:
+                    del o["name"]
+                else:
+                    o["name"] = name
             if isinstance(name, str) and name.startswith(_MARKER_PREFIX):
                 del o["name"]
             for v in o.values():
@@ -669,8 +681,9 @@ class VerifyResult:
 
     @property
     def ok(self) -> bool:
-        """True when every check that actually ran passed (an un-run check does not fail)."""
-        return self.specValid is not False and self.dataMatches is not False
+        """True when every integrity or comparison check that actually ran passed."""
+        comparison_ok = self.matches is None or all(match is not False for match in self.matches.values())
+        return self.specValid is not False and self.dataMatches is not False and comparison_ok
 
 
 _COMPARE_KEYS = ("spec", "data", "save")
