@@ -90,15 +90,19 @@ class _MarkScaffold:
             kwargs["labelExpr"] = label_expr(self.labelMap)
         return alt.Axis(**kwargs)
 
-    def x(self) -> alt.X:
+    def x(self, *, padding_inner: float | None = None, padding_outer: float | None = None) -> alt.X:
         # Pin the DOMAIN (a literal list), not just sort=, so the category order survives
         # Vega-Lite's shared-scale domain union when marks are layered/concatenated - a `sort=`
         # order gets re-sorted (alphabetically) through a scale merge, whereas an explicit
         # literal domain wins the union. Same reason the multilabel y scale pins domain=row_order.
+        scale_kwargs = {
+            **({"paddingInner": padding_inner} if padding_inner is not None else {}),
+            **({"paddingOuter": padding_outer} if padding_outer is not None else {}),
+        }
         return alt.X(
             f"{self.xCol}:N",
             sort=self.categories,
-            scale=alt.Scale(domain=self.categories),
+            scale=alt.Scale(domain=self.categories, **scale_kwargs),
             title=self.x_title,
             axis=self.x_axis(),
         )
@@ -328,6 +332,12 @@ def mark_violin(
     # Vega-Lite routes "rect and other marks" - boxplot included - through rectPadding,
     # NOT barPadding (scale="rect"), and not the xOffset/mark_circle variant ("offset").
     geo = _band_geometry(len(categories), scale="rect")
+    rect_padding = float(_opt("rectPadding"))
+    outer_padding = float(_opt("outerPadding"))
+    # Pin the nominal scaffold to the same rect-band geometry used for the absolute-pixel
+    # silhouette. Explicit scale padding also prevents a later figure-wide bandPaddingInner
+    # config from moving the scaffold or boxplot away from the already-constructed shape.
+    violin_x = s.x(padding_inner=rect_padding, padding_outer=outer_padding)
     half_width = mark_size * 0.75
 
     # Precompute absolute x positions for each violin point so the violin
@@ -483,7 +493,7 @@ def mark_violin(
                 **({"size": boxplotWidth} if boxplotWidth is not None else {}),
             )
             .encode(
-                x=s.x(),
+                x=violin_x,
                 y=s.y(),
             )
         )
@@ -493,11 +503,9 @@ def mark_violin(
     # zero-row layer on the user's df hosts it (the add_log_ticks trick: the pinned
     # category domain drives the axis, transform_filter("false") renders nothing,
     # and sharing df means no phantom dataset for read(what="data")). It must be a
-    # BAR mark: a point mark makes Vega-Lite type the x:N scale as a POINT scale,
-    # whose tick positions don't match the band-scale centres the violin geometry
-    # uses - a bar forces the band scale even at zero rows, seating the ticks on
-    # the violin centres exactly as the boxplot did.
-    axis_host = alt.Chart(data).transform_filter("false").mark_bar(opacity=0).encode(x=s.x())
+    # BAR mark: a point mark makes Vega-Lite type the x:N scale as a POINT scale. The explicit
+    # rect padding makes this band scale match the pixel-computed silhouette and boxplot exactly.
+    axis_host = alt.Chart(data).transform_filter("false").mark_bar(opacity=0).encode(x=violin_x)
     layers: list[Any] = [violin]
 
     if inner in ("quartiles", "median"):

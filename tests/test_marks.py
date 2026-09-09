@@ -1,11 +1,16 @@
+import re
+import xml.etree.ElementTree as ET
+
 import altair as alt
 import numpy as np
 import polars as pl
 import pytest
 
+from dysonsphere.export import save
 from dysonsphere.marks import mark_strip, mark_violin
 from dysonsphere.palettes import colors
 from dysonsphere.theme import theme
+from dysonsphere.utils import _band_geometry
 
 CATEGORIES = ["A", "B", "C"]
 
@@ -478,6 +483,45 @@ class TestViolinInner:
         x_enc = host["encoding"]["x"]
         assert x_enc["type"] == "nominal"
         assert x_enc["scale"]["domain"] == CATEGORIES
+        assert x_enc["scale"]["paddingInner"] == 0
+        assert x_enc["scale"]["paddingOuter"] == 0.1
+
+    @pytest.mark.parametrize("inner", ["quartiles", "median", None, "box"])
+    @pytest.mark.parametrize(
+        ("width", "rect_padding", "bar_padding", "outer_padding", "global_inner"),
+        [(100, 0, 0.1, 0.1, None), (173, 0.3, 0.55, 0.2, None), (173, 0.3, 0.55, 0.2, 0.8)],
+    )
+    def test_rendered_axis_ticks_match_violin_centres(
+        self, group_df, tmp_path, inner, width, rect_padding, bar_padding, outer_padding, global_inner
+    ):
+        categories = ["C", "A", "B"]
+        theme(chartWidth=width, rectPadding=rect_padding, barPadding=bar_padding, outerPadding=outer_padding)
+        chart = mark_violin(group_df, "group", "value", categories, inner=inner, xTitle="Groups")
+        if global_inner is not None:
+            # This is native Altair figure config, not a supported ds.theme option. Encoding-level
+            # padding must keep the already-constructed pixel silhouette and its axis together.
+            chart = chart.configure_scale(bandPaddingInner=global_inner)
+        out = tmp_path / f"violin-{inner}"
+        save(chart, str(out), format="svg", background="light")
+        svg = out.with_suffix(".svg").read_text()
+        ticks = [float(value) for value in re.findall(r'<line transform="translate\(([\d.]+),0\)" x2="0" y2="3"', svg)]
+        expected = _band_geometry(len(categories), width, scale="rect").centers
+        assert ticks == pytest.approx(expected, abs=1e-9)
+        root = ET.parse(out.with_suffix(".svg")).getroot()
+        outlines = [
+            path.get("d", "")
+            for path in root.iter()
+            if path.tag.endswith("path") and path.get("aria-roledescription") == "line mark"
+        ]
+        silhouette_centres = []
+        for path in outlines:
+            xs = [float(value) for value in re.findall(r"[ML]([-\d.]+),", path)]
+            silhouette_centres.append((min(xs) + max(xs)) / 2)
+        assert silhouette_centres == pytest.approx(expected, abs=0.001)
+        labels = re.findall(r'font-weight="400"[^>]*>([ABC])</text>', svg)
+        assert labels == categories
+        assert "Groups" in svg
+        assert 'opacity="0"' not in svg, "the zero-row scaffold must not render a mark"
 
     def test_inner_none_draws_violin_only(self, group_df):
         spec = mark_violin(group_df, "group", "value", CATEGORIES, inner=None).to_dict()
